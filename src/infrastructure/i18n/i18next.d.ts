@@ -1,6 +1,7 @@
 import 'i18next'
 import type auth from './locales/es-CO/auth.json'
 import type common from './locales/es-CO/common.json'
+import type uiPreview from './locales/es-CO/uiPreview.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -8,6 +9,7 @@ declare module 'i18next' {
     resources: {
       common: typeof common
       auth: typeof auth
+      uiPreview: typeof uiPreview
     }
   }
 }

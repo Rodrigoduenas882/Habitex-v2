@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "title": "Design System — Habitex"
+  },
+  "brand": {
+    "name": "Habitex",
+    "tagline": "Administra arriendos, inmuebles y pagos con claridad y confianza."
+  },
+  "nav": {
+    "home": "Inicio",
+    "rentals": "Arriendos",
+    "properties": "Inmuebles",
+    "people": "Personas",
+    "finances": "Finanzas",
+    "documents": "Documentos",
+    "settings": "Configuración",
+    "more": "Más"
+  },
+  "topbar": {
+    "currentAdministration": "Administración actual",
+    "administrationName": "Edificio Los Robles",
+    "notifications": "Notificaciones",
+    "profile": "Perfil",
+    "openNav": "Abrir menú",
+    "closeNav": "Cerrar menú"
+  },
+  "sections": {
+    "brand": "Identidad",
+    "colors": "Colores",
+    "typography": "Tipografía",
+    "buttons": "Botones",
+    "formControls": "Controles de formulario",
+    "statusBadges": "Estados",
+    "cards": "Cards",
+    "alerts": "Alertas",
+    "emptyState": "Estado vacío",
+    "skeleton": "Carga",
+    "appShell": "App shell",
+    "example": "Ejemplo Habitex"
+  },
+  "colors": {
+    "primary": "Primario",
+    "neutrals": "Neutros",
+    "semantic": "Semánticos"
+  },
+  "buttons": {
+    "primary": "Primario",
+    "secondary": "Secundario",
+    "ghost": "Ghost",
+    "destructive": "Eliminar",
+    "loading": "Guardando…"
+  },
+  "form": {
+    "nameLabel": "Nombre del inquilino",
+    "namePlaceholder": "Ej. Camila Restrepo",
+    "emailLabel": "Correo electrónico",
+    "emailError": "Ingresa un correo válido.",
+    "propertyLabel": "Inmueble",
+    "propertyHint": "Selecciona el inmueble asociado.",
+    "notesLabel": "Notas",
+    "notesPlaceholder": "Observaciones del contrato…"
+  },
+  "tabs": {
+    "summary": "Resumen",
+    "activity": "Actividad",
+    "summaryContent": "Aquí verás un resumen de la administración seleccionada.",
+    "activityContent": "Aquí verás la actividad reciente de arriendos y pagos."
+  },
+  "emptyState": {
+    "title": "Todavía no hay contratos",
+    "description": "Cuando crees tu primer contrato, aparecerá aquí.",
+    "action": "Crear contrato"
+  },
+  "alerts": {
+    "info": "El cierre de mes se generará automáticamente el día 1.",
+    "success": "El pago fue registrado correctamente.",
+    "warning": "2 contratos vencen esta semana.",
+    "danger": "No se pudo procesar el último pago."
+  },
+  "example": {
+    "greeting": "Buenos días",
+    "subtitle": "Esto es lo que está pasando con tus arriendos.",
+    "activeRentals": "Arriendos activos",
+    "receivedThisMonth": "Recibido este mes",
+    "pending": "Pendiente",
+    "attention": "Requiere tu atención",
+    "paymentPending": "Pago pendiente",
+    "apartment302": "Apartamento 302",
+    "dueDate": "Venció el 5 de septiembre",
+    "contractPendingSignature": "Contrato pendiente de firma",
+    "room2": "Habitación 2",
+    "propertyRowTitle": "Casa 14 — Barrio Laureles",
+    "propertyRowSubtitle": "3 habitaciones"
+  }
+}

@@ -1,0 +1,141 @@
+/**
+ * Habitex design tokens.
+ *
+ * Semantic color tokens are redefined per theme below ([data-theme="dark"]).
+ * Non-color tokens (spacing, radius, shadow shape, transitions) are theme-
+ * independent, except shadow *color*, which is redefined per theme because
+ * soft warm-gray shadows barely read on dark surfaces.
+ *
+ * Components must consume these tokens and never hardcode colors.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Neutrals */
+  --color-background: #f7f6f2;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f1f0ea;
+  --color-foreground: #15181a;
+  --color-muted: #5b6360;
+  --color-border: #e4e2dc;
+
+  /* Brand */
+  --color-primary: #0e6b5c;
+  --color-primary-hover: #0a5548;
+  --color-primary-foreground: #ffffff;
+  --color-primary-subtle: #e3f2ee;
+  --color-primary-subtle-foreground: #0b4a40;
+
+  /* Semantic */
+  --color-success: #1f8a5d;
+  --color-success-subtle: #e3f5ea;
+  --color-success-subtle-foreground: #146443;
+
+  --color-warning: #b4790a;
+  --color-warning-subtle: #fbf0dc;
+  --color-warning-subtle-foreground: #8a5b06;
+
+  --color-danger: #c6362a;
+  --color-danger-hover: #a82c21;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #fbe7e4;
+  --color-danger-subtle-foreground: #96271c;
+
+  --color-info: #2563a8;
+  --color-info-subtle: #e5eefa;
+  --color-info-subtle-foreground: #1d4f82;
+
+  /* Focus */
+  --color-focus-ring: var(--color-primary);
+
+  /* Shadows (light) */
+  --shadow-sm: 0 1px 2px rgba(21, 24, 26, 0.06);
+  --shadow-md: 0 4px 14px rgba(21, 24, 26, 0.08);
+  --shadow-lg: 0 16px 36px rgba(21, 24, 26, 0.14);
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  /* Transitions */
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
+  --transition-slow: 280ms ease;
+
+  /* Focus ring geometry */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Layout */
+  --container-max-width: 1200px;
+  --sidebar-width: 248px;
+  --topbar-height: 64px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Neutrals - graphite, not pure black */
+  --color-background: #121514;
+  --color-surface: #1b1f1e;
+  --color-surface-hover: #242928;
+  --color-foreground: #edefec;
+  --color-muted: #aeb7b2;
+  --color-border: #2b302e;
+
+  /* Brand - brightened for legibility on dark surfaces */
+  --color-primary: #17876f;
+  --color-primary-hover: #1fa084;
+  --color-primary-foreground: #ffffff;
+  --color-primary-subtle: #17332c;
+  --color-primary-subtle-foreground: #6fe0be;
+
+  /* Semantic */
+  --color-success: #33b37b;
+  --color-success-subtle: #123322;
+  --color-success-subtle-foreground: #7be3ac;
+
+  --color-warning: #e0a530;
+  --color-warning-subtle: #3a2c10;
+  --color-warning-subtle-foreground: #f1c568;
+
+  --color-danger: #d9463a;
+  --color-danger-hover: #c13a2f;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #3a1714;
+  --color-danger-subtle-foreground: #f3958a;
+
+  --color-info: #4f8fdb;
+  --color-info-subtle: #142a3e;
+  --color-info-subtle-foreground: #9cc5f0;
+
+  --color-focus-ring: var(--color-primary);
+
+  /* Shadows (dark) - shallower, darker, borders carry more of the elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 20px 44px rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition-base: 0ms;
+    --transition-slow: 0ms;
+  }
+}

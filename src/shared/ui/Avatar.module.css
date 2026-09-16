@@ -1,0 +1,15 @@
+.avatar {
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary-subtle-foreground);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
