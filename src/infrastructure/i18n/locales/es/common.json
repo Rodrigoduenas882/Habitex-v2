@@ -1,0 +1,15 @@
+{
+  "loading": "Cargando…",
+  "notFound": {
+    "title": "404",
+    "description": "La página que buscas no existe."
+  },
+  "error": {
+    "title": "Algo salió mal",
+    "unexpected": "Ocurrió un error inesperado."
+  },
+  "home": {
+    "title": "Habitex",
+    "foundationOk": "Foundation OK. Sesión activa: {{session}}"
+  }
+}
