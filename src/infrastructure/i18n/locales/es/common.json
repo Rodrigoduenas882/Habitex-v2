@@ -11,5 +11,23 @@
   "home": {
     "title": "Habitex",
     "foundationOk": "Foundation OK. Sesión activa: {{session}}"
+  },
+  "actions": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "continue": "Continuar",
+    "delete": "Eliminar"
+  },
+  "status": {
+    "active": "Activo",
+    "pending": "Pendiente",
+    "paid": "Pagado",
+    "overdue": "Vencido",
+    "finished": "Finalizado"
+  },
+  "theme": {
+    "light": "Claro",
+    "dark": "Oscuro",
+    "toggleLabel": "Cambiar a tema {{theme}}"
   }
 }

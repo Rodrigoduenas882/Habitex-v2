@@ -1,10 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Habitex</title>
+    <script>
+      // Applies the persisted/system theme before paint to avoid a flash of
+      // the wrong theme. Keep the storage key in sync with theme.ts.
+      ;(function () {
+        try {
+          var stored = window.localStorage.getItem('habitex:theme')
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+          document.documentElement.setAttribute('data-theme', theme)
+        } catch (error) {
+          // Ignore - the app falls back to the default theme.
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

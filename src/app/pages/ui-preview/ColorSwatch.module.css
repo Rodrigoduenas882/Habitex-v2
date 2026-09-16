@@ -1,0 +1,27 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-4);
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.box {
+  height: 56px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.name {
+  font-size: var(--font-size-body-sm);
+  font-weight: 600;
+}
+
+.token {
+  font-size: var(--font-size-caption);
+  color: var(--color-muted);
+}

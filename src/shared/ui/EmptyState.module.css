@@ -1,0 +1,31 @@
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-1);
+  padding: var(--space-9) var(--space-4);
+  color: var(--color-muted);
+}
+
+.icon {
+  color: var(--color-muted);
+  margin-bottom: var(--space-2);
+}
+
+.title {
+  font-size: var(--font-size-h3);
+  font-weight: 600;
+  color: var(--color-foreground);
+  margin: 0;
+}
+
+.description {
+  font-size: var(--font-size-body-sm);
+  margin: 0;
+  max-width: 320px;
+}
+
+.action {
+  margin-top: var(--space-3);
+}
