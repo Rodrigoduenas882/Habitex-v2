@@ -12,7 +12,6 @@ import { RootLayout } from '../layouts/RootLayout'
 
 const DashboardPage = lazy(() => import('@/features/dashboard/presentation/DashboardPage'))
 const LoginPage = lazy(() => import('@/features/auth/presentation/LoginPage'))
-const LoginPreviewPage = lazy(() => import('@/features/auth/presentation/LoginPreviewPage'))
 const UiPreviewPage = lazy(() => import('../pages/ui-preview/UiPreviewPage'))
 const NotFoundPage = lazy(() => import('@/shared/components/NotFoundPage'))
 
@@ -42,10 +41,6 @@ export const router = createBrowserRouter([
       // Public on purpose: internal design-system tool, not authenticated
       // product surface. See UiPreviewPage's own doc comment.
       { path: 'ui-preview', element: withSuspense(<UiPreviewPage />) },
-      // TEMPORARY: side-by-side comparison of a new Login visual direction
-      // against the real /login above. Not linked from anywhere in the app;
-      // remove this route (and LoginPreviewPage) once one design is chosen.
-      { path: 'login-preview', element: withSuspense(<LoginPreviewPage />) },
       { path: '*', element: withSuspense(<NotFoundPage />) },
     ],
   },

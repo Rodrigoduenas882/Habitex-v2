@@ -1,14 +1,15 @@
 # Habitex V2 — Frontend
 
-SaaS de administración de arriendos. Este paquete contiene únicamente el
-Frontend Foundation: providers, router, cliente Supabase y la infraestructura
-de sesión de autenticación. Sin features de negocio todavía.
+SaaS de administración de arriendos. Este paquete contiene el Frontend:
+autenticación real contra Supabase (login, logout, restauración de sesión),
+el Dashboard visual (datos de ejemplo, sin integraciones de negocio
+todavía) y la infraestructura de sesión/tema.
 
 ## Stack
 
 React · Vite · TypeScript (strict) · React Router · TanStack Query ·
-React Hook Form · Zod · Zustand · Supabase JS · Vitest · React Testing
-Library · Playwright.
+React Hook Form · Zod · Supabase JS · Vitest · React Testing Library ·
+Playwright. Gestor de paquetes: pnpm.
 
 ## Setup
 

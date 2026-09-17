@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cx } from '@/shared/lib/cx'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import { IconButton } from '@/shared/ui/IconButton'
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '@/shared/ui/icons'
 import propertyCardStyles from './PropertyCard.module.css'
@@ -101,9 +102,13 @@ export function PropertiesOverview({ properties }: PropertiesOverviewProps) {
           ))}
           <button type="button" className={propertyCardStyles['addCard']}>
             <span className={propertyCardStyles['addImage']} aria-hidden="true">
-              <span className={propertyCardStyles['addIconCircle']}>
-                <PlusIcon size={20} />
-              </span>
+              <IconBadge
+                icon={<PlusIcon size={20} />}
+                tone="primary"
+                size={40}
+                radius="full"
+                className={propertyCardStyles['addIconCircle']}
+              />
             </span>
             <span className={propertyCardStyles['addBody']}>
               <span className={cx('text-body-sm', propertyCardStyles['addLabel'])}>

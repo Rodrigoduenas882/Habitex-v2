@@ -20,21 +20,17 @@
 }
 
 .info {
-  background: var(--color-info-subtle);
-  color: var(--color-info-subtle-foreground);
+  composes: info from '../theme/tone.module.css';
 }
 
 .success {
-  background: var(--color-success-subtle);
-  color: var(--color-success-subtle-foreground);
+  composes: success from '../theme/tone.module.css';
 }
 
 .warning {
-  background: var(--color-warning-subtle);
-  color: var(--color-warning-subtle-foreground);
+  composes: warning from '../theme/tone.module.css';
 }
 
 .danger {
-  background: var(--color-danger-subtle);
-  color: var(--color-danger-subtle-foreground);
+  composes: danger from '../theme/tone.module.css';
 }

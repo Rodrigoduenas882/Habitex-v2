@@ -28,6 +28,35 @@ function renderLoginPage() {
 }
 
 describe('LoginPage', () => {
+  it('shows the hero copy and the compact stats preview, not a second dashboard', () => {
+    renderLoginPage()
+
+    // The headline renders as two lines separated by a <br/>, so its text is
+    // split across text nodes - match on the paragraph's combined content.
+    expect(
+      screen.getByText(
+        (_, element) => element?.tagName === 'P' && element.textContent === 'Más que arriendos,tranquilidad.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Vista general de tu operación')).toBeInTheDocument()
+    expect(screen.getByText('$3.850.000')).toBeInTheDocument()
+    expect(screen.getByText('86%')).toBeInTheDocument()
+  })
+
+  it('exposes the theme control so Light/Dark/System works on this page', () => {
+    renderLoginPage()
+
+    expect(screen.getByRole('radiogroup', { name: 'Apariencia' })).toBeInTheDocument()
+  })
+
+  it('shows the Habitex brand via BrandLogo, not a placeholder square', () => {
+    renderLoginPage()
+
+    expect(screen.getByText('Habitex')).toBeInTheDocument()
+    const mark = document.querySelector('img[src="/images/brand/habitex-mark.png"]')
+    expect(mark).toBeInTheDocument()
+  })
+
   it('shows validation errors instead of submitting when the form is empty', async () => {
     const user = userEvent.setup()
     renderLoginPage()

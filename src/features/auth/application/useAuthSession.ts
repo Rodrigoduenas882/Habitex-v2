@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { supabaseSessionRepository } from '../infrastructure/supabase-session.repository'
+import { sessionRepository } from '../composition'
 import { authQueryKeys } from './auth-query-keys'
 
 /**
@@ -13,7 +13,7 @@ import { authQueryKeys } from './auth-query-keys'
 export function useAuthSession() {
   return useQuery({
     queryKey: authQueryKeys.session,
-    queryFn: () => supabaseSessionRepository.getSession(),
+    queryFn: () => sessionRepository.getSession(),
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,

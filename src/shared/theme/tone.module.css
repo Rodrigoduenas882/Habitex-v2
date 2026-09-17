@@ -1,0 +1,38 @@
+/**
+ * Canonical tone -> token mapping (a subtle background + its matching
+ * foreground). Badge, Alert and KpiCard all `composes` these classes
+ * instead of independently redefining the same background/color pair -
+ * this is the single source for what "success", "warning", etc. look like
+ * as a tinted surface. Components still own their own sizing/shape/spacing;
+ * only the color pairing lives here.
+ */
+
+.neutral {
+  background: var(--color-surface-hover);
+  color: var(--color-muted);
+}
+
+.primary {
+  background: var(--color-primary-subtle);
+  color: var(--color-primary-subtle-foreground);
+}
+
+.success {
+  background: var(--color-success-subtle);
+  color: var(--color-success-subtle-foreground);
+}
+
+.warning {
+  background: var(--color-warning-subtle);
+  color: var(--color-warning-subtle-foreground);
+}
+
+.danger {
+  background: var(--color-danger-subtle);
+  color: var(--color-danger-subtle-foreground);
+}
+
+.info {
+  background: var(--color-info-subtle);
+  color: var(--color-info-subtle-foreground);
+}

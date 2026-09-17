@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabaseSessionRepository } from '../infrastructure/supabase-session.repository'
+import { sessionRepository } from '../composition'
 import type { AuthSession, SessionAuthError, SessionCredentials } from '../domain/session.types'
 import { authQueryKeys } from './auth-query-keys'
 
@@ -14,7 +14,7 @@ export function useLogin() {
   const queryClient = useQueryClient()
 
   return useMutation<AuthSession, SessionAuthError, SessionCredentials>({
-    mutationFn: (credentials) => supabaseSessionRepository.signInWithPassword(credentials),
+    mutationFn: (credentials) => sessionRepository.signInWithPassword(credentials),
     onSuccess: (session) => {
       if (import.meta.env.DEV) {
         // TEMPORARY: remove alongside the repository's [auth-timing] logs.

@@ -5,41 +5,201 @@
   background: var(--color-background);
 }
 
-/* ---------- Brand panel (left on desktop, slim header on mobile/tablet) ---------- */
+/* ---------- Hero panel (photo + brand + copy + stats card) ---------- */
 
-.brandPanel {
+.heroPanel {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
-  padding: var(--space-5) var(--space-5) var(--space-4);
+  overflow: hidden;
+  background: var(--color-primary);
 }
 
-.brandMarkRow {
+/* Two full-bleed image layers, crossfaded via opacity - never a filter on a
+   single photo (that reads as "night mode", not as a different time of
+   day). Both files are the exact same property/framing (day vs. night), so
+   `background-position`/`background-size` live on the shared .heroPhotoLayer
+   rule below and apply identically to both - that's what keeps the two
+   layers perfectly aligned during the crossfade. */
+.heroPhoto {
+  display: none;
+  position: absolute;
+  inset: 0;
+}
+
+.heroPhotoLayer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  /* Biased toward the house (right ~55% of the source photo) so a tall
+     desktop crop keeps the building as the subject instead of centering on
+     the garden/mountains; the wider tablet crop shows the full width
+     regardless, so this only really steers the desktop framing. */
+  background-position: 72% 42%;
+  opacity: 0;
+  transition: opacity var(--transition-hero-crossfade);
+}
+
+.heroPhotoDay {
+  background-image: url('/images/auth/property-light.webp');
+  opacity: 1;
+}
+
+.heroPhotoNight {
+  background-image: url('/images/auth/property-dark.webp');
+  opacity: 0;
+}
+
+:root[data-theme='dark'] .heroPhotoDay {
+  opacity: 0;
+}
+
+:root[data-theme='dark'] .heroPhotoNight {
+  opacity: 1;
+}
+
+/* Keeps the overlaid text legible against either photo - necessary for
+   contrast, not decorative, so it's not one of the "exaggerated gradient"
+   effects the brief rules out. Same scrim for both themes on purpose - a
+   theme-dependent overlay would make the crossfade read as two different
+   photos instead of one property at two times of day (and the real photos
+   showed this matters: the daytime one is bright enough that white text
+   needs real help, not just a thin fade).
+
+   Two layers, both fixed regardless of background-position:
+   1. A radial "pool" anchored bottom-left, where the headline/tagline
+      actually sit (short lines, left-aligned) - darkens that specific area
+      generously and fades smoothly outward, instead of a flat wash over
+      the whole photo.
+   2. A gentle top-to-bottom band so the brand row/wordmark (top) and the
+      area around the stats card (bottom) also keep a baseline of contrast;
+      the stats card itself supplies most of its own contrast via its dark
+      glass surface, so this band stays light through the middle on
+      purpose, to keep the architecture/lit windows visible. */
+.heroScrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(85% 70% at 20% 82%, rgb(4 6 6 / 76%) 0%, rgb(4 6 6 / 36%) 45%, rgb(4 6 6 / 0%) 78%),
+    linear-gradient(
+      180deg,
+      rgb(4 6 6 / 54%) 0%,
+      rgb(4 6 6 / 6%) 20%,
+      rgb(4 6 6 / 10%) 50%,
+      rgb(4 6 6 / 48%) 100%
+    );
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: var(--space-5);
+  gap: var(--space-5);
+}
+
+.heroTop {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* BrandLogo's wordmark uses color:inherit, so this is the one place that
+   needs to say "white over the photo" - the mark itself is unaffected by
+   color (it's a raster asset). */
+.brandMarkRow {
+  color: var(--color-primary-foreground);
+}
+
+.heroBottom {
+  display: none;
+}
+
+.heroCopy {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
 }
 
-.brandMark {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  background: var(--color-primary);
-  flex-shrink: 0;
+.heroHeadline {
+  margin: 0;
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-h1);
+  font-weight: var(--font-weight-h1);
+  letter-spacing: var(--letter-spacing-h1);
+  color: var(--color-primary-foreground);
 }
 
-.brandName {
-  font-weight: 700;
-  font-size: var(--font-size-h3);
-  color: var(--color-foreground);
-}
-
-.flow {
+.heroTagline {
   display: none;
+  max-width: 34ch;
+  color: rgb(255 255 255 / 82%);
 }
 
-.brandCopy {
+/* ---------- Floating stats card - a preview, not a second dashboard ---------- */
+
+.statsCard {
   display: none;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--hero-card-surface);
+  border: 1px solid var(--hero-card-border);
+  box-shadow: var(--shadow-lg);
+  /* Explicit, isolated exception (see tokens.css) - not a new global
+     pattern. Falls back gracefully to the opaque surface color above where
+     backdrop-filter isn't supported. */
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.statsTitle {
+  color: var(--hero-card-foreground-muted);
+  margin-bottom: var(--space-3);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Overrides the global .text-caption color (theme's --color-muted), which
+   is too dark to read on this card in the Light theme - the card is always
+   dark glass now (see tokens.css), so its secondary text always needs the
+   light/high-contrast tone regardless of app theme. Two selectors on
+   purpose so this reliably wins over .text-caption's single-class rule
+   regardless of CSS source order. */
+.statItem .statLabel {
+  color: var(--hero-card-foreground-muted);
+}
+
+.statItemDivider {
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--hero-card-border);
+}
+
+.statValue {
+  color: var(--color-primary-foreground);
+}
+
+.statTrend {
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  /* Fixed, not --color-success-subtle-foreground: that token is a dark
+     green in the Light theme, meant for light/opaque surfaces - unreadable
+     on this card's permanently dark glass. */
+  color: var(--hero-card-trend-foreground);
 }
 
 /* ---------- Form panel ---------- */
@@ -81,112 +241,62 @@
   width: 100%;
 }
 
-/* ---------- Tablet: simplify elegantly - same stacked layout, roomier ---------- */
+/* ---------- Tablet: compact photo banner with brand + headline only ---------- */
 
 @media (min-width: 640px) {
-  .brandPanel {
-    padding: var(--space-6) var(--space-7) var(--space-4);
+  .heroPanel {
+    height: 280px;
+  }
+
+  .heroPhoto {
+    display: block;
+  }
+
+  .heroContent {
+    padding: var(--space-6) var(--space-7);
+  }
+
+  .heroBottom {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
   }
 
   .formPanel {
-    padding: var(--space-4) var(--space-7) var(--space-9);
+    padding: var(--space-6) var(--space-7) var(--space-9);
   }
 }
 
-/* ---------- Desktop: true split-screen ---------- */
+/* ---------- Desktop: true split-screen, full hero experience ---------- */
 
 @media (min-width: 1024px) {
   .page {
     flex-direction: row;
   }
 
-  .brandPanel {
+  .heroPanel {
     flex: 1;
-    justify-content: space-between;
-    gap: var(--space-8);
+    height: auto;
+  }
+
+  .heroContent {
     padding: var(--space-8) var(--space-9);
-    background: var(--color-primary);
-    position: relative;
-    overflow: hidden;
+    gap: var(--space-8);
   }
 
-  .brandMark {
-    background: var(--color-primary-foreground);
-  }
-
-  .brandName {
-    color: var(--color-primary-foreground);
-  }
-
-  .flow {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-  }
-
-  .flowNode {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 52px;
-    height: 52px;
-    border-radius: var(--radius-md);
-    background: rgb(255 255 255 / 12%);
-    border: 1px solid rgb(255 255 255 / 18%);
-    color: var(--color-primary-foreground);
-    flex-shrink: 0;
-  }
-
-  /* Each stage sits at a slightly different depth - subtle, not a literal
-     diagram - ending in a solid, elevated surface for "bajo control". */
-  .flowNode1 {
-    width: 48px;
-    height: 48px;
-    background: rgb(255 255 255 / 8%);
-  }
-
-  .flowNode2 {
-    background: rgb(255 255 255 / 12%);
-    box-shadow: 0 6px 16px rgb(0 0 0 / 10%);
-  }
-
-  .flowNode3 {
-    background: rgb(255 255 255 / 16%);
-    box-shadow: 0 8px 20px rgb(0 0 0 / 14%);
-  }
-
-  .flowNode4 {
-    width: 58px;
-    height: 58px;
-    background: var(--color-primary-foreground);
-    border-color: var(--color-primary-foreground);
-    color: var(--color-primary);
-    box-shadow: 0 12px 28px rgb(0 0 0 / 22%);
-  }
-
-  .flowConnector {
-    width: 1.5px;
-    height: 28px;
-    background: rgb(255 255 255 / 22%);
-  }
-
-  .brandCopy {
-    display: block;
-  }
-
-  .headline {
-    margin: 0 0 var(--space-3);
+  .heroHeadline {
     font-size: var(--font-size-display);
     line-height: var(--line-height-display);
     font-weight: var(--font-weight-display);
     letter-spacing: var(--letter-spacing-display);
-    color: var(--color-primary-foreground);
   }
 
-  .tagline {
-    max-width: 34ch;
-    color: rgb(255 255 255 / 82%);
+  .heroTagline {
+    display: block;
+  }
+
+  .statsCard {
+    display: block;
   }
 
   .formPanel {

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { cx } from '@/shared/lib/cx'
 import { Card } from '@/shared/ui/Card'
 import { EmptyState } from '@/shared/ui/EmptyState'
+import { IconBadge, type IconBadgeTone } from '@/shared/ui/IconBadge'
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -18,13 +19,13 @@ const KIND_META: Record<
   AttentionItem['kind'],
   {
     icon: (props: IconProps) => ReactNode
-    tone: 'iconWarning' | 'iconNeutral'
+    tone: IconBadgeTone
     titleKey: 'attention.paymentPending' | 'attention.contractExpiring' | 'attention.documentPending'
   }
 > = {
-  payment: { icon: WalletIcon, tone: 'iconWarning', titleKey: 'attention.paymentPending' },
-  contract: { icon: KeyIcon, tone: 'iconWarning', titleKey: 'attention.contractExpiring' },
-  document: { icon: FileTextIcon, tone: 'iconNeutral', titleKey: 'attention.documentPending' },
+  payment: { icon: WalletIcon, tone: 'warning', titleKey: 'attention.paymentPending' },
+  contract: { icon: KeyIcon, tone: 'warning', titleKey: 'attention.contractExpiring' },
+  document: { icon: FileTextIcon, tone: 'neutral', titleKey: 'attention.documentPending' },
 }
 
 export interface AttentionPanelProps {
@@ -51,9 +52,7 @@ export function AttentionPanel({ items }: AttentionPanelProps) {
 
             return (
               <div key={item.id} className={styles['row']}>
-                <span className={cx(styles['icon'], styles[tone])} aria-hidden="true">
-                  <Icon size={16} />
-                </span>
+                <IconBadge icon={<Icon size={16} />} tone={tone} size={32} radius="md" />
                 <div className={styles['body']}>
                   <div className={styles['titleRow']}>
                     <p className={cx('text-body-sm', styles['itemTitle'])}>{t(titleKey)}</p>
