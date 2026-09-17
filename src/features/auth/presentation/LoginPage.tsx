@@ -3,14 +3,21 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { cx } from '@/shared/lib/cx'
+import { ThemeControl } from '@/shared/theme/ThemeControl'
 import { Alert } from '@/shared/ui/Alert'
+import { BrandLogo } from '@/shared/ui/BrandLogo'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
-import { FileTextIcon, HomeIcon, KeyIcon, WalletIcon } from '@/shared/ui/icons'
 import { Input } from '@/shared/ui/Input'
 import { useLogin } from '../application/useLogin'
 import styles from './LoginPage.module.css'
 
+/**
+ * The official Habitex login: a theme-reactive property photo (day/night
+ * crossfade) with a compact metrics preview, next to a simple email/password
+ * form. Approved after a side-by-side comparison against an earlier
+ * split-screen concept (kept briefly as LoginPreviewPage, now removed).
+ */
 export default function LoginPage() {
   const { t } = useTranslation(['auth', 'common'])
   const login = useLogin()
@@ -37,37 +44,64 @@ export default function LoginPage() {
 
   return (
     <div className={styles['page']}>
-      <aside className={styles['brandPanel']} aria-hidden="true">
-        <div className={styles['brandMarkRow']}>
-          <span className={styles['brandMark']} />
-          <span className={styles['brandName']}>{t('common:home.title')}</span>
+      <aside className={styles['heroPanel']}>
+        <div className={styles['heroPhoto']} aria-hidden="true">
+          <div className={cx(styles['heroPhotoLayer'], styles['heroPhotoDay'])} />
+          <div className={cx(styles['heroPhotoLayer'], styles['heroPhotoNight'])} />
+          <div className={styles['heroScrim']} />
         </div>
 
-        <div className={styles['flow']}>
-          <span className={cx(styles['flowNode'], styles['flowNode1'])}>
-            <HomeIcon size={20} />
-          </span>
-          <span className={styles['flowConnector']} />
-          <span className={cx(styles['flowNode'], styles['flowNode2'])}>
-            <KeyIcon size={20} />
-          </span>
-          <span className={styles['flowConnector']} />
-          <span className={cx(styles['flowNode'], styles['flowNode3'])}>
-            <WalletIcon size={20} />
-          </span>
-          <span className={styles['flowConnector']} />
-          <span className={cx(styles['flowNode'], styles['flowNode4'])}>
-            <FileTextIcon size={20} />
-          </span>
-        </div>
+        <div className={styles['heroContent']}>
+          <div className={styles['heroTop']}>
+            <div className={styles['brandMarkRow']}>
+              <BrandLogo name={t('common:home.title')} />
+            </div>
+            <ThemeControl />
+          </div>
 
-        <div className={styles['brandCopy']}>
-          <p className={styles['headline']}>
-            {t('login.brandHeadlineLine1')}
-            <br />
-            {t('login.brandHeadlineLine2')}
-          </p>
-          <p className={cx('text-body', styles['tagline'])}>{t('login.brandCopy')}</p>
+          <div className={styles['heroBottom']}>
+            <div className={styles['heroCopy']}>
+              <p className={styles['heroHeadline']}>
+                {t('login.hero.headlineLine1')}
+                <br />
+                {t('login.hero.headlineLine2')}
+              </p>
+              <p className={cx('text-body', styles['heroTagline'])}>{t('login.hero.tagline')}</p>
+            </div>
+
+            <div className={styles['statsCard']}>
+              <p className={cx('text-label', styles['statsTitle'])}>
+                {t('login.hero.statsTitle')}
+              </p>
+              <div className={styles['statsGrid']}>
+                <div className={styles['statItem']}>
+                  <p className={cx('text-caption', styles['statLabel'])}>
+                    {t('login.hero.incomeLabel')}
+                  </p>
+                  <p className={cx('text-h3', 'tabular-nums', styles['statValue'])}>
+                    {t('login.hero.incomeValue')}
+                  </p>
+                  <p className={styles['statTrend']}>{t('login.hero.incomeTrend')}</p>
+                </div>
+                <div className={cx(styles['statItem'], styles['statItemDivider'])}>
+                  <p className={cx('text-h3', 'tabular-nums', styles['statValue'])}>
+                    {t('login.hero.propertiesValue')}
+                  </p>
+                  <p className={cx('text-caption', styles['statLabel'])}>
+                    {t('login.hero.propertiesLabel')}
+                  </p>
+                </div>
+                <div className={cx(styles['statItem'], styles['statItemDivider'])}>
+                  <p className={cx('text-h3', 'tabular-nums', styles['statValue'])}>
+                    {t('login.hero.occupancyValue')}
+                  </p>
+                  <p className={cx('text-caption', styles['statLabel'])}>
+                    {t('login.hero.occupancyLabel')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </aside>
 

@@ -1,15 +1,18 @@
 import type { ReactNode } from 'react'
 import { cx } from '@/shared/lib/cx'
 import { Card } from '@/shared/ui/Card'
+import { IconBadge, type IconBadgeTone } from '@/shared/ui/IconBadge'
 import styles from './KpiCard.module.css'
 
 export type KpiTone = 'success' | 'warning' | 'info' | 'neutral'
 
-const TONE_CLASS: Record<KpiTone, string> = {
-  success: 'toneSuccess',
-  warning: 'toneWarning',
-  info: 'toneInfo',
-  neutral: 'toneNeutral',
+/** KpiCard's own tone vocabulary predates IconBadge's - "neutral" here has
+ * always looked like IconBadge's "primary" tone (see KpiCard.module.css). */
+const ICON_BADGE_TONE: Record<KpiTone, IconBadgeTone> = {
+  success: 'success',
+  warning: 'warning',
+  info: 'info',
+  neutral: 'primary',
 }
 
 export interface KpiCardProps {
@@ -27,9 +30,7 @@ export function KpiCard({ icon, label, value, tone, trend, trendTone = 'neutral'
     <Card className={styles['card']}>
       <div className={styles['top']}>
         <p className="text-caption">{label}</p>
-        <span className={cx(styles['iconBadge'], styles[TONE_CLASS[tone]])} aria-hidden="true">
-          {icon}
-        </span>
+        <IconBadge icon={icon} tone={ICON_BADGE_TONE[tone]} size={30} radius="md" />
       </div>
       <p className={cx('text-h1', 'tabular-nums', styles['value'])}>{value}</p>
       {trend ? (

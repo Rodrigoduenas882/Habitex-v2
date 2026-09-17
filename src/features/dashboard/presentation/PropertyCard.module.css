@@ -72,15 +72,10 @@
   background: var(--color-surface-hover);
 }
 
+/* Base look (size/shape/tone) now comes from the shared IconBadge component -
+   this only adds the hover-swap-to-solid-primary behavior, which is unique
+   to this card and not part of the shared primitive. */
 .addIconCircle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-full);
-  background: var(--color-primary-subtle);
-  color: var(--color-primary-subtle-foreground);
   transition:
     background-color var(--transition-fast),
     color var(--transition-fast);

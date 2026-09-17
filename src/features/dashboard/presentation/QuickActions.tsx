@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cx } from '@/shared/lib/cx'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import {
   ArrowRightIcon,
   BuildingIcon,
@@ -32,9 +33,7 @@ export function QuickActions() {
       <div className={styles['grid']}>
         {ACTIONS.map(({ key, icon: Icon }) => (
           <button key={key} type="button" className={styles['action']}>
-            <span className={styles['iconBadge']} aria-hidden="true">
-              <Icon size={16} />
-            </span>
+            <IconBadge icon={<Icon size={16} />} tone="primary" size={28} radius="sm" />
             <span className={cx('text-body-sm', styles['label'])}>
               {t(`quickActions.${key}`)}
             </span>

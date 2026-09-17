@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabaseSessionRepository } from '../infrastructure/supabase-session.repository'
+import { sessionRepository } from '../composition'
 import { authQueryKeys } from './auth-query-keys'
 
 /**
@@ -16,7 +16,7 @@ export function useLogout() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: () => supabaseSessionRepository.signOut(),
+    mutationFn: () => sessionRepository.signOut(),
     onSuccess: () => {
       if (import.meta.env.DEV) {
         // TEMPORARY: remove alongside the repository's [auth-timing] logs.

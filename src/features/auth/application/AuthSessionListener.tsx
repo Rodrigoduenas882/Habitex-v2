@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import { supabaseSessionRepository } from '../infrastructure/supabase-session.repository'
+import { sessionRepository } from '../composition'
 import { authQueryKeys } from './auth-query-keys'
 
 /**
@@ -39,7 +39,7 @@ export function AuthSessionListener() {
   const previousUserIdRef = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
-    const unsubscribe = supabaseSessionRepository.onAuthStateChange((session) => {
+    const unsubscribe = sessionRepository.onAuthStateChange((session) => {
       const previousUserId = previousUserIdRef.current
       const currentUserId = session?.userId ?? null
       const isFirstObservedEvent = previousUserId === undefined

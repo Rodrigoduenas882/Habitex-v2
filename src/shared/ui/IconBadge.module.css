@@ -1,0 +1,46 @@
+.iconBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sm {
+  border-radius: var(--radius-sm);
+}
+
+.md {
+  border-radius: var(--radius-md);
+}
+
+.lg {
+  border-radius: var(--radius-lg);
+}
+
+.full {
+  border-radius: var(--radius-full);
+}
+
+.neutral {
+  composes: neutral from '../theme/tone.module.css';
+}
+
+.primary {
+  composes: primary from '../theme/tone.module.css';
+}
+
+.success {
+  composes: success from '../theme/tone.module.css';
+}
+
+.warning {
+  composes: warning from '../theme/tone.module.css';
+}
+
+.danger {
+  composes: danger from '../theme/tone.module.css';
+}
+
+.info {
+  composes: info from '../theme/tone.module.css';
+}
