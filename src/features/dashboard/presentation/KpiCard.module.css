@@ -1,0 +1,56 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.iconBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.toneSuccess {
+  background: var(--color-success-subtle);
+  color: var(--color-success-subtle-foreground);
+}
+
+.toneWarning {
+  background: var(--color-warning-subtle);
+  color: var(--color-warning-subtle-foreground);
+}
+
+.toneInfo {
+  background: var(--color-info-subtle);
+  color: var(--color-info-subtle-foreground);
+}
+
+.toneNeutral {
+  background: var(--color-primary-subtle);
+  color: var(--color-primary-subtle-foreground);
+}
+
+.value {
+  margin: 0;
+}
+
+.trend {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.trendPositive {
+  color: var(--color-success-subtle-foreground);
+}

@@ -1,0 +1,44 @@
+{
+  "greeting": {
+    "hello": "Hola, {{name}} 👋",
+    "helloGeneric": "Hola 👋",
+    "subtitle": "Aquí tienes un resumen de tu operación inmobiliaria.",
+    "period": "Hoy"
+  },
+  "kpis": {
+    "monthlyIncome": "Ingresos del mes",
+    "receivable": "Por cobrar",
+    "occupancy": "Ocupación",
+    "properties": "Inmuebles"
+  },
+  "quickActions": {
+    "title": "Acciones rápidas",
+    "addProperty": "Agregar inmueble",
+    "createRental": "Crear arriendo",
+    "registerPayment": "Registrar pago",
+    "uploadDocument": "Subir documento"
+  },
+  "financialOverview": {
+    "title": "Ingresos vs. gastos",
+    "subtitle": "Últimos 6 meses",
+    "income": "Ingresos",
+    "expenses": "Gastos"
+  },
+  "attention": {
+    "title": "Requiere tu atención",
+    "paymentPending": "Pago pendiente",
+    "contractExpiring": "Contrato por vencer",
+    "documentPending": "Documento pendiente",
+    "view": "Ver",
+    "emptyTitle": "Todo al día",
+    "emptyDescription": "No tienes pendientes por revisar en este momento."
+  },
+  "properties": {
+    "title": "Mis inmuebles",
+    "rented": "Arrendado",
+    "available": "Disponible",
+    "addProperty": "Agregar inmueble",
+    "previous": "Ver inmuebles anteriores",
+    "next": "Ver más inmuebles"
+  }
+}

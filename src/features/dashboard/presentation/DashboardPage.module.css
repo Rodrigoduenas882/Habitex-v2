@@ -1,0 +1,29 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  /* Prevent the horizontally-scrolling properties row from ever widening
+     the page itself. */
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.analytics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .analytics {
+    grid-template-columns: 2fr 1fr;
+    gap: var(--space-6);
+  }
+}

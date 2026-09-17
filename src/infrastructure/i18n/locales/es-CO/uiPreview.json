@@ -6,24 +6,6 @@
     "name": "Habitex",
     "tagline": "Administra arriendos, inmuebles y pagos con claridad y confianza."
   },
-  "nav": {
-    "home": "Inicio",
-    "rentals": "Arriendos",
-    "properties": "Inmuebles",
-    "people": "Personas",
-    "finances": "Finanzas",
-    "documents": "Documentos",
-    "settings": "Configuración",
-    "more": "Más"
-  },
-  "topbar": {
-    "currentAdministration": "Administración actual",
-    "administrationName": "Edificio Los Robles",
-    "notifications": "Notificaciones",
-    "profile": "Perfil",
-    "openNav": "Abrir menú",
-    "closeNav": "Cerrar menú"
-  },
   "sections": {
     "brand": "Identidad",
     "colors": "Colores",

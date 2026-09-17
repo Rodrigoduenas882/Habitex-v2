@@ -1,20 +1,53 @@
 import { useCallback, useEffect, useState } from 'react'
-import { applyTheme, resolveInitialTheme, type Theme } from './theme'
+import {
+  applyResolvedTheme,
+  getSystemTheme,
+  persistPreference,
+  resolveInitialPreference,
+  type Theme,
+  type ThemePreference,
+} from './theme'
 
 /**
  * Purely local UI preference (not server state, not shared across users), so
  * this is a small hook backed by localStorage rather than Zustand or Query.
+ *
+ * `preference` is what the user picked (light/dark/system); `resolvedTheme`
+ * is what's actually applied to the document. When the preference is
+ * 'system', resolvedTheme tracks the OS setting live via a matchMedia
+ * listener, so a system-level theme change updates the app immediately
+ * without a reload.
  */
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(resolveInitialTheme)
+  const [preference, setPreference] = useState<ThemePreference>(resolveInitialPreference)
+  const [systemTheme, setSystemTheme] = useState<Theme>(getSystemTheme)
 
   useEffect(() => {
-    applyTheme(theme)
-  }, [theme])
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
 
-  const toggleTheme = useCallback(() => {
-    setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+    function handleChange(event: MediaQueryListEvent) {
+      setSystemTheme(event.matches ? 'dark' : 'light')
+    }
+
+    media.addEventListener('change', handleChange)
+    return () => {
+      media.removeEventListener('change', handleChange)
+    }
   }, [])
 
-  return { theme, setTheme, toggleTheme }
+  const resolvedTheme: Theme = preference === 'system' ? systemTheme : preference
+
+  useEffect(() => {
+    applyResolvedTheme(resolvedTheme)
+  }, [resolvedTheme])
+
+  useEffect(() => {
+    persistPreference(preference)
+  }, [preference])
+
+  const setThemePreference = useCallback((next: ThemePreference) => {
+    setPreference(next)
+  }, [])
+
+  return { preference, resolvedTheme, setPreference: setThemePreference }
 }

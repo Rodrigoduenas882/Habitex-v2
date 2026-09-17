@@ -76,6 +76,10 @@
   --transition-fast: 120ms ease;
   --transition-base: 180ms ease;
   --transition-slow: 280ms ease;
+  /* Longer, dedicated duration for the Login hero photo's day/night
+     crossfade - a deliberately slower, more cinematic fade than any UI
+     chrome transition, not reused elsewhere. */
+  --transition-hero-crossfade: 400ms ease;
 
   /* Focus ring geometry */
   --focus-ring-width: 2px;
@@ -85,6 +89,18 @@
   --container-max-width: 1200px;
   --sidebar-width: 248px;
   --topbar-height: 64px;
+
+  /* Hero card surface (Login) - explicit exception, not a general pattern:
+     a translucent DARK glass + light backdrop-blur, deliberately the same
+     in Light and Dark app themes. This card floats over a photograph, not
+     an app surface, so it never follows --color-surface - a light-theme
+     "white glass" version was tried and read as low-contrast/washed-out
+     over the daytime photo, so it's fixed dark regardless of theme. Every
+     other surface in the app stays fully opaque and theme-reactive. */
+  --hero-card-surface: rgb(14 18 17 / 68%);
+  --hero-card-border: rgb(255 255 255 / 14%);
+  --hero-card-foreground-muted: rgb(255 255 255 / 74%);
+  --hero-card-trend-foreground: #7be3ac;
 }
 
 :root[data-theme='dark'] {
@@ -130,6 +146,9 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 20px 44px rgba(0, 0, 0, 0.6);
+
+  /* --hero-card-* intentionally NOT redefined here - see the :root
+     definition/comment. It's fixed dark glass in both themes. */
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -137,5 +156,6 @@
     --transition-fast: 0ms;
     --transition-base: 0ms;
     --transition-slow: 0ms;
+    --transition-hero-crossfade: 0ms;
   }
 }

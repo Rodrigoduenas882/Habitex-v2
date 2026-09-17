@@ -7,5 +7,5 @@ export const uiPreviewMockData = {
   receivedThisMonth: '$3.850.000',
   pendingAmount: '$950.000',
   pendingPaymentAmount: '$950.000',
-  userName: 'Rodrigo Dueñas',
+  userEmail: 'demo@habitex.app',
 } as const

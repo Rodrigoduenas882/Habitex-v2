@@ -23,6 +23,24 @@
         }
       })()
     </script>
+    <style>
+      /* Belt-and-suspenders against a background flash (not just the wrong
+         theme's text/borders) on first paint - `data-theme` is already set
+         by the script above by the time this is evaluated, but the real
+         stylesheet (tokens.css) is only guaranteed to be loaded/applied
+         *after* this point (in dev especially, where Vite injects CSS via
+         JS instead of a blocking <link>). Values below are copied from
+         tokens.css's --color-background - keep them in sync if that ever
+         changes; they're the only colors in the app allowed to be
+         hardcoded outside a token, precisely because they must render
+         before any CSS file has had a chance to load. */
+      html[data-theme='dark'] body {
+        background: #121514;
+      }
+      html:not([data-theme='dark']) body {
+        background: #f7f6f2;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

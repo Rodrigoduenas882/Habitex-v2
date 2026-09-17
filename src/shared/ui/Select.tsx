@@ -6,8 +6,10 @@ import styles from './Select.module.css'
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label: string
-  error?: string
-  hint?: string
+  // Explicit `| undefined` so callers can pass react-hook-form's
+  // `formState.errors.field?.message` directly under exactOptionalPropertyTypes.
+  error?: string | undefined
+  hint?: string | undefined
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(

@@ -1,0 +1,196 @@
+.page {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+}
+
+/* ---------- Brand panel (left on desktop, slim header on mobile/tablet) ---------- */
+
+.brandPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+}
+
+.brandMarkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.brandMark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.brandName {
+  font-weight: 700;
+  font-size: var(--font-size-h3);
+  color: var(--color-foreground);
+}
+
+.flow {
+  display: none;
+}
+
+.brandCopy {
+  display: none;
+}
+
+/* ---------- Form panel ---------- */
+
+.formPanel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4) var(--space-5) var(--space-8);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  border-radius: var(--radius-lg);
+}
+
+.header {
+  margin-bottom: var(--space-6);
+}
+
+.subtitle {
+  margin-top: var(--space-2);
+}
+
+.alert {
+  margin-bottom: var(--space-5);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.submit {
+  margin-top: var(--space-2);
+  width: 100%;
+}
+
+/* ---------- Tablet: simplify elegantly - same stacked layout, roomier ---------- */
+
+@media (min-width: 640px) {
+  .brandPanel {
+    padding: var(--space-6) var(--space-7) var(--space-4);
+  }
+
+  .formPanel {
+    padding: var(--space-4) var(--space-7) var(--space-9);
+  }
+}
+
+/* ---------- Desktop: true split-screen ---------- */
+
+@media (min-width: 1024px) {
+  .page {
+    flex-direction: row;
+  }
+
+  .brandPanel {
+    flex: 1;
+    justify-content: space-between;
+    gap: var(--space-8);
+    padding: var(--space-8) var(--space-9);
+    background: var(--color-primary);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .brandMark {
+    background: var(--color-primary-foreground);
+  }
+
+  .brandName {
+    color: var(--color-primary-foreground);
+  }
+
+  .flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .flowNode {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-md);
+    background: rgb(255 255 255 / 12%);
+    border: 1px solid rgb(255 255 255 / 18%);
+    color: var(--color-primary-foreground);
+    flex-shrink: 0;
+  }
+
+  /* Each stage sits at a slightly different depth - subtle, not a literal
+     diagram - ending in a solid, elevated surface for "bajo control". */
+  .flowNode1 {
+    width: 48px;
+    height: 48px;
+    background: rgb(255 255 255 / 8%);
+  }
+
+  .flowNode2 {
+    background: rgb(255 255 255 / 12%);
+    box-shadow: 0 6px 16px rgb(0 0 0 / 10%);
+  }
+
+  .flowNode3 {
+    background: rgb(255 255 255 / 16%);
+    box-shadow: 0 8px 20px rgb(0 0 0 / 14%);
+  }
+
+  .flowNode4 {
+    width: 58px;
+    height: 58px;
+    background: var(--color-primary-foreground);
+    border-color: var(--color-primary-foreground);
+    color: var(--color-primary);
+    box-shadow: 0 12px 28px rgb(0 0 0 / 22%);
+  }
+
+  .flowConnector {
+    width: 1.5px;
+    height: 28px;
+    background: rgb(255 255 255 / 22%);
+  }
+
+  .brandCopy {
+    display: block;
+  }
+
+  .headline {
+    margin: 0 0 var(--space-3);
+    font-size: var(--font-size-display);
+    line-height: var(--line-height-display);
+    font-weight: var(--font-weight-display);
+    letter-spacing: var(--letter-spacing-display);
+    color: var(--color-primary-foreground);
+  }
+
+  .tagline {
+    max-width: 34ch;
+    color: rgb(255 255 255 / 82%);
+  }
+
+  .formPanel {
+    flex: 1;
+    padding: var(--space-8);
+  }
+}

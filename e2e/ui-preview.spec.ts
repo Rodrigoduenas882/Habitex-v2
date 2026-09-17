@@ -11,17 +11,26 @@ test.describe('/ui-preview', () => {
     await expect(page.getByRole('heading', { name: 'App shell' })).toBeVisible()
   })
 
-  test('theme toggle switches and persists the theme across reloads', async ({ page }) => {
+  test('theme control switches Light/Dark/System and persists the choice across reloads', async ({
+    page,
+  }) => {
     await page.goto('/ui-preview')
     const html = page.locator('html')
 
-    await expect(html).not.toHaveAttribute('data-theme', 'dark')
+    await expect(page.getByRole('radiogroup', { name: 'Apariencia' })).toBeVisible()
 
-    await page.getByRole('button', { name: /cambiar a tema/i }).click()
+    await page.getByRole('radio', { name: 'Usar tema Oscuro' }).click()
     await expect(html).toHaveAttribute('data-theme', 'dark')
 
     await page.reload()
     await expect(html).toHaveAttribute('data-theme', 'dark')
+    await expect(page.getByRole('radio', { name: 'Usar tema Oscuro' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    await page.getByRole('radio', { name: 'Usar tema Claro' }).click()
+    await expect(html).toHaveAttribute('data-theme', 'light')
   })
 
   test('desktop shows the persistent sidebar, not a hamburger menu', async ({ page }) => {
@@ -37,6 +46,16 @@ test.describe('/ui-preview', () => {
 
     await expect(page.getByRole('button', { name: 'Abrir menú' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Más' })).toBeVisible()
+  })
+
+  test('tablet uses a hamburger menu, without a shrunk sidebar or the mobile bottom nav', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 820, height: 1180 })
+    await page.goto('/ui-preview')
+
+    await expect(page.getByRole('button', { name: 'Abrir menú' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Más' })).toBeHidden()
   })
 
   for (const viewport of [

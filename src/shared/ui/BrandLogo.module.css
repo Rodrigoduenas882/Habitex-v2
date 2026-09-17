@@ -1,0 +1,18 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.wordmark {
+  font-weight: 700;
+  font-size: var(--font-size-h3);
+  /* Inherits from whatever the consumer's own wrapper sets (default
+     foreground in the app shell, white over the Login hero photo) - no
+     color hardcoded here, so this never needs its own theme handling. */
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

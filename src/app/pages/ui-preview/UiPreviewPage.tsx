@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ThemeToggle } from '@/shared/theme/ThemeToggle'
+import { ThemeControl } from '@/shared/theme/ThemeControl'
 import { AlertsSection } from './AlertsSection'
 import { AppShellSection } from './AppShellSection'
 import { BrandSection } from './BrandSection'
@@ -30,7 +30,7 @@ export default function UiPreviewPage() {
     <div className={styles['page']}>
       <header className={styles['header']}>
         <p className="text-label">{t('meta.title')}</p>
-        <ThemeToggle />
+        <ThemeControl />
       </header>
 
       <div className={styles['container']}>
