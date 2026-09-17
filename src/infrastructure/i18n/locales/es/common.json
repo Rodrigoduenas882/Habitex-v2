@@ -28,6 +28,20 @@
   "theme": {
     "light": "Claro",
     "dark": "Oscuro",
-    "toggleLabel": "Cambiar a tema {{theme}}"
+    "system": "Sistema",
+    "groupLabel": "Apariencia",
+    "selectLabel": "Usar tema {{theme}}"
+  },
+  "nav": {
+    "home": "Inicio",
+    "rentals": "Arriendos",
+    "properties": "Inmuebles",
+    "people": "Personas",
+    "finances": "Finanzas",
+    "documents": "Documentos",
+    "settings": "Configuración",
+    "more": "Más",
+    "openMenu": "Abrir menú",
+    "closeMenu": "Cerrar menú"
   }
 }

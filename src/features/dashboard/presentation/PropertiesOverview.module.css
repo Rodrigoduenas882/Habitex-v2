@@ -1,0 +1,66 @@
+.title {
+  margin-bottom: var(--space-4);
+}
+
+.carousel {
+  position: relative;
+}
+
+/* Reserved lateral space for the floating controls, applied to the
+   non-scrolling wrapper (not the row itself) - so the buttons sit beside
+   the cards, never on top of them, at any scroll position. Reserved
+   symmetrically whenever either control can appear, so the row's own
+   width stays constant while scrolling between start/middle/end. */
+.carousel.hasControls {
+  padding: 0 var(--space-8);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  scroll-snap-type: x proximity;
+  /* Keep the horizontal scroll, hide the native scrollbar - the prev/next
+     controls (desktop) and swipe (touch) are the intended affordances. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.row::-webkit-scrollbar {
+  display: none;
+}
+
+.row > * {
+  scroll-snap-align: start;
+}
+
+.control {
+  display: inline-flex;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+}
+
+.control:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.controlLeft {
+  left: var(--space-1);
+}
+
+.controlRight {
+  right: var(--space-1);
+}
+
+/* Touch devices rely on swipe - the controls would only crowd the row
+   without adding value there, so they're desktop-only. */
+@media (max-width: 1023px) {
+  .control {
+    display: none;
+  }
+}

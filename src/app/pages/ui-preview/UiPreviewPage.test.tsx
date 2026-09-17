@@ -21,13 +21,13 @@ describe('UiPreviewPage', () => {
     expect(screen.getByRole('tablist')).toBeInTheDocument()
   })
 
-  it('toggles the document theme when the theme switch is used', async () => {
+  it('changes the document theme when a theme option is selected', async () => {
     const user = userEvent.setup()
     render(<UiPreviewPage />)
 
     expect(document.documentElement.getAttribute('data-theme')).not.toBe('dark')
 
-    await user.click(screen.getByRole('button', { name: /cambiar a tema/i }))
+    await user.click(screen.getByRole('radio', { name: 'Usar tema Oscuro' }))
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })

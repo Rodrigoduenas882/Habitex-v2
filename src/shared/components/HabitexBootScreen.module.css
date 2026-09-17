@@ -1,0 +1,63 @@
+.screen {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  background: var(--color-background);
+}
+
+/* Height reserved up front so the dots fading in never shifts layout. The
+   delay avoids a flicker on resolutions fast enough that this screen is
+   barely visible at all - the mark above still appears instantly; this
+   never delays the app itself, only whether the dots got a chance to fade
+   in before the screen unmounts. */
+.dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 8px;
+  opacity: 0;
+  animation: reveal 200ms ease forwards;
+  animation-delay: 180ms;
+}
+
+@keyframes reveal {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Sequential, subtle: opacity + a tiny lift, never a bounce/scale - each
+   dot rises and settles in turn, not all together. Reduced motion is
+   handled globally (see shared/theme/global.css), which collapses this to
+   an effectively static, single frame. */
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  animation: dotRise 1.2s ease-in-out infinite;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes dotRise {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}

@@ -5,8 +5,10 @@ import styles from './Input.module.css'
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string
-  error?: string
-  hint?: string
+  // Explicit `| undefined` (not just `?:`) so callers can pass react-hook-form's
+  // `formState.errors.field?.message` directly under exactOptionalPropertyTypes.
+  error?: string | undefined
+  hint?: string | undefined
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(

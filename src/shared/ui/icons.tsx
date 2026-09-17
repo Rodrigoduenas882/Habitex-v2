@@ -141,6 +141,16 @@ export function MoonIcon(props: IconProps) {
   )
 }
 
+export function MonitorIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect x="3.5" y="5" width="17" height="12" rx="1.5" />
+      <path d="M9 20h6" />
+      <path d="M12 17v3" />
+    </IconBase>
+  )
+}
+
 export function CheckIcon(props: IconProps) {
   return (
     <IconBase {...props}>
@@ -155,6 +165,48 @@ export function AlertTriangleIcon(props: IconProps) {
       <path d="M12 4.5 21 19.5H3L12 4.5Z" />
       <path d="M12 10v4" />
       <path d="M12 16.8v.2" />
+    </IconBase>
+  )
+}
+
+export function LogOutIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M9 20H5.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1H9" />
+      <path d="M16 16.5 20.5 12 16 7.5" />
+      <path d="M20 12H9" />
+    </IconBase>
+  )
+}
+
+export function PlusIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </IconBase>
+  )
+}
+
+export function ArrowRightIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 12h16M13 6l6 6-6 6" />
+    </IconBase>
+  )
+}
+
+export function ChevronLeftIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M15 6l-6 6 6 6" />
+    </IconBase>
+  )
+}
+
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M9 6l6 6-6 6" />
     </IconBase>
   )
 }

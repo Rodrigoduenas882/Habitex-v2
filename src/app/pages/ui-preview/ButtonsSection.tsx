@@ -6,7 +6,7 @@ import { IconButton } from '@/shared/ui/IconButton'
 import { Section } from './Section'
 
 export function ButtonsSection() {
-  const { t } = useTranslation('uiPreview')
+  const { t } = useTranslation(['uiPreview', 'common'])
   const [loading, setLoading] = useState(false)
 
   return (
@@ -31,10 +31,10 @@ export function ButtonsSection() {
         >
           {t('buttons.loading')}
         </Button>
-        <IconButton icon={<SettingsIcon size={18} />} aria-label={t('nav.settings')} />
+        <IconButton icon={<SettingsIcon size={18} />} aria-label={t('common:nav.settings')} />
         <IconButton
           icon={<CloseIcon size={18} />}
-          aria-label={t('topbar.closeNav')}
+          aria-label={t('common:nav.closeMenu')}
           variant="secondary"
         />
       </div>

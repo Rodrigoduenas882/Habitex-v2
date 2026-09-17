@@ -1,6 +1,7 @@
 import 'i18next'
 import type auth from './locales/es-CO/auth.json'
 import type common from './locales/es-CO/common.json'
+import type dashboard from './locales/es-CO/dashboard.json'
 import type uiPreview from './locales/es-CO/uiPreview.json'
 
 declare module 'i18next' {
@@ -10,6 +11,7 @@ declare module 'i18next' {
       common: typeof common
       auth: typeof auth
       uiPreview: typeof uiPreview
+      dashboard: typeof dashboard
     }
   }
 }

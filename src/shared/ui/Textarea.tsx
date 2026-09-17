@@ -5,8 +5,10 @@ import styles from './Textarea.module.css'
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string
-  error?: string
-  hint?: string
+  // Explicit `| undefined` so callers can pass react-hook-form's
+  // `formState.errors.field?.message` directly under exactOptionalPropertyTypes.
+  error?: string | undefined
+  hint?: string | undefined
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(

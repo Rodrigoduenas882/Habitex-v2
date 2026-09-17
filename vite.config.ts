@@ -20,7 +20,7 @@ export default defineConfig({
       // Non-functional placeholders so env validation passes in tests.
       // No network calls happen against these during unit tests.
       VITE_SUPABASE_URL: 'https://placeholder.supabase.co',
-      VITE_SUPABASE_ANON_KEY: 'placeholder-anon-key',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_placeholder',
     },
   },
 })
