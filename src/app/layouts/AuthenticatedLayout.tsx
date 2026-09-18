@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useLogout } from '@/features/auth/application/useLogout'
 import { useAuthSession } from '@/features/auth/application/useAuthSession'
 import { HabitexBootScreen } from '@/shared/components/HabitexBootScreen'
@@ -13,22 +14,29 @@ import {
   SettingsIcon,
   UsersIcon,
   WalletIcon,
+  type IconProps,
 } from '@/shared/ui/icons'
 
+type NavKey = 'home' | 'rentals' | 'properties' | 'people' | 'finances' | 'documents' | 'settings'
+
 /**
- * Only "Inicio" is a real route so far - the rest are planned sections shown
- * for navigation context, matching the approved Design System shell. They
- * don't navigate anywhere yet; that's intentional, not a bug.
+ * "Inicio" and "Inmuebles" are real routes; the rest are planned sections
+ * shown for navigation context, matching the approved Design System shell.
+ * They don't navigate anywhere yet - that's intentional, not a bug.
  */
-const NAV_KEYS = [
-  { key: 'home', icon: HomeIcon },
+const NAV_KEYS: ReadonlyArray<{
+  key: NavKey
+  icon: (props: IconProps) => ReactNode
+  to?: string
+}> = [
+  { key: 'home', icon: HomeIcon, to: '/' },
   { key: 'rentals', icon: KeyIcon },
-  { key: 'properties', icon: BuildingIcon },
+  { key: 'properties', icon: BuildingIcon, to: '/properties' },
   { key: 'people', icon: UsersIcon },
   { key: 'finances', icon: WalletIcon },
   { key: 'documents', icon: FileTextIcon },
   { key: 'settings', icon: SettingsIcon },
-] as const
+]
 
 const BOTTOM_NAV_KEYS = ['home', 'rentals', 'properties', 'finances']
 
@@ -36,12 +44,16 @@ export function AuthenticatedLayout() {
   const { t } = useTranslation(['common', 'auth'])
   const { data: session } = useAuthSession()
   const logout = useLogout()
+  const location = useLocation()
 
-  const navItems: AppShellNavItem[] = NAV_KEYS.map(({ key, icon: Icon }) => ({
+  const navItems: AppShellNavItem[] = NAV_KEYS.map(({ key, icon: Icon, to }) => ({
     key,
     label: t(`common:nav.${key}`),
     icon: <Icon size={18} />,
-    active: key === 'home',
+    // exactOptionalPropertyTypes: only include `to` when it actually has a
+    // route, instead of assigning `to: undefined`.
+    ...(to ? { to } : {}),
+    active: to != null && (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)),
   }))
 
   // Hide protected content the instant sign-out is requested, instead of

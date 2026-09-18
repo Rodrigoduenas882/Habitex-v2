@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { cx } from '@/shared/lib/cx'
 import styles from './AppShell.module.css'
 import { Avatar } from './Avatar'
@@ -11,6 +12,9 @@ export interface AppShellNavItem {
   label: string
   icon: ReactNode
   active?: boolean
+  /** Real route for this item. Omit to keep it inert (planned section, no
+   * screen yet) - same visual treatment either way. */
+  to?: string
 }
 
 export interface AppShellProps {
@@ -74,18 +78,31 @@ export function AppShell({
 
   const navList = (onNavigate?: () => void) => (
     <nav className={styles['nav']}>
-      {navItems.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          className={cx(styles['navItem'], item.active && styles['navItemActive'])}
-          aria-current={item.active ? 'page' : undefined}
-          onClick={onNavigate}
-        >
-          {item.icon}
-          {item.label}
-        </button>
-      ))}
+      {navItems.map((item) =>
+        item.to ? (
+          <Link
+            key={item.key}
+            to={item.to}
+            className={cx(styles['navItem'], item.active && styles['navItemActive'])}
+            aria-current={item.active ? 'page' : undefined}
+            onClick={onNavigate}
+          >
+            {item.icon}
+            {item.label}
+          </Link>
+        ) : (
+          <button
+            key={item.key}
+            type="button"
+            className={cx(styles['navItem'], item.active && styles['navItemActive'])}
+            aria-current={item.active ? 'page' : undefined}
+            onClick={onNavigate}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ),
+      )}
     </nav>
   )
 
@@ -158,17 +175,29 @@ export function AppShell({
         </main>
 
         <nav className={styles['bottomNav']} aria-label={brandName}>
-          {bottomNavItems.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={cx(styles['bottomNavItem'], item.active && styles['bottomNavItemActive'])}
-              aria-current={item.active ? 'page' : undefined}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
+          {bottomNavItems.map((item) =>
+            item.to ? (
+              <Link
+                key={item.key}
+                to={item.to}
+                className={cx(styles['bottomNavItem'], item.active && styles['bottomNavItemActive'])}
+                aria-current={item.active ? 'page' : undefined}
+              >
+                {item.icon}
+                {item.label}
+              </Link>
+            ) : (
+              <button
+                key={item.key}
+                type="button"
+                className={cx(styles['bottomNavItem'], item.active && styles['bottomNavItemActive'])}
+                aria-current={item.active ? 'page' : undefined}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ),
+          )}
           <button
             type="button"
             className={styles['bottomNavItem']}

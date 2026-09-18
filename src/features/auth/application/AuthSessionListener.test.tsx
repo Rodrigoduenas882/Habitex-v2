@@ -75,4 +75,27 @@ describe('AuthSessionListener', () => {
       'rental-belonging-to-A',
     ])
   })
+
+  /**
+   * Regression coverage for the administration-context queries specifically
+   * (features/administration/application/administration-query-keys.ts) -
+   * they live under ['account', ...] / ['administrations', ...], not
+   * ['auth', ...], precisely so this listener sweeps them like any other
+   * business data on identity change, with no extra cleanup code needed.
+   */
+  it('clears account/administrations-context data belonging to the previous user (A -> B)', () => {
+    const { client, emit } = mountListener()
+
+    emit({ userId: 'user-A', email: 'a@habitex.app', expiresAtUnix: null })
+    client.setQueryData(['account'], { id: 'acc-A', personId: 'person-A', status: 'some-status' })
+    client.setQueryData(
+      ['administrations', 'accessible'],
+      [{ id: 'admin-A', name: 'Administración de A', status: 'some-status' }],
+    )
+
+    emit({ userId: 'user-B', email: 'b@habitex.app', expiresAtUnix: null })
+
+    expect(client.getQueryData(['account'])).toBeUndefined()
+    expect(client.getQueryData(['administrations', 'accessible'])).toBeUndefined()
+  })
 })

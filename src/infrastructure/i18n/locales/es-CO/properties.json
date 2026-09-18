@@ -1,0 +1,29 @@
+{
+  "title": "Inmuebles",
+  "propertyType": {
+    "HOUSE": "Casa",
+    "APARTMENT": "Apartamento"
+  },
+  "rentalMode": {
+    "FULL_PROPERTY": "Inmueble completo",
+    "BY_ROOMS": "Por habitaciones"
+  },
+  "empty": {
+    "title": "Todavía no tienes inmuebles",
+    "description": "Cuando agregues un inmueble, aparecerá aquí."
+  },
+  "errors": {
+    "propertiesTitle": "No pudimos cargar tus inmuebles",
+    "propertiesDescription": "Ocurrió un error al consultar tus inmuebles. Intenta de nuevo más tarde.",
+    "administrationTitle": "No pudimos cargar tu administración",
+    "administrationDescription": "Ocurrió un error al resolver tu administración. Intenta de nuevo más tarde."
+  },
+  "noAdministration": {
+    "title": "Todavía no tienes una administración",
+    "description": "Tu cuenta no está asociada a ninguna administración por ahora."
+  },
+  "selectionRequired": {
+    "title": "Tienes varias administraciones",
+    "description": "Selecciona una administración para ver sus inmuebles. Esta opción estará disponible próximamente."
+  }
+}
