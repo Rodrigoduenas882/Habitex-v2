@@ -32,6 +32,14 @@ test('/properties/:id/rooms/setup is also protected: an unauthenticated visitor 
   await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible()
 })
 
+test('/rentals is also protected: an unauthenticated visitor is redirected to login', async ({
+  page,
+}) => {
+  await page.goto('/rentals')
+
+  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible()
+})
+
 test('login exposes the theme control', async ({ page }) => {
   await page.goto('/login')
 

@@ -20,9 +20,10 @@ import {
 type NavKey = 'home' | 'rentals' | 'properties' | 'people' | 'finances' | 'documents' | 'settings'
 
 /**
- * "Inicio" and "Inmuebles" are real routes; the rest are planned sections
- * shown for navigation context, matching the approved Design System shell.
- * They don't navigate anywhere yet - that's intentional, not a bug.
+ * "Inicio", "Arriendos" and "Inmuebles" are real routes; the rest are
+ * planned sections shown for navigation context, matching the approved
+ * Design System shell. They don't navigate anywhere yet - that's
+ * intentional, not a bug.
  */
 const NAV_KEYS: ReadonlyArray<{
   key: NavKey
@@ -30,7 +31,7 @@ const NAV_KEYS: ReadonlyArray<{
   to?: string
 }> = [
   { key: 'home', icon: HomeIcon, to: '/' },
-  { key: 'rentals', icon: KeyIcon },
+  { key: 'rentals', icon: KeyIcon, to: '/rentals' },
   { key: 'properties', icon: BuildingIcon, to: '/properties' },
   { key: 'people', icon: UsersIcon },
   { key: 'finances', icon: WalletIcon },

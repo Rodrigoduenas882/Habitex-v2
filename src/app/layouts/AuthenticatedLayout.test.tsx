@@ -30,6 +30,7 @@ function renderLayout(initialPath: string) {
           <Route element={<AuthenticatedLayout />}>
             <Route index element={<div>Home page</div>} />
             <Route path="properties" element={<div>Properties page</div>} />
+            <Route path="rentals" element={<div>Rentals page</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -59,12 +60,24 @@ describe('AuthenticatedLayout navigation', () => {
     expect(sidebar.getByRole('link', { name: 'Inicio' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('keeps a route-less item ("Arriendos") inert as a plain button, not a link', async () => {
+  it('navigates to /rentals when "Arriendos" is clicked, and marks it active', async () => {
+    getSession.mockResolvedValueOnce({ userId: 'user-1', email: 'a@habitex.app', expiresAtUnix: null })
+    const user = userEvent.setup()
+    const sidebar = renderLayout('/')
+    await screen.findByText('Home page')
+
+    await user.click(sidebar.getByRole('link', { name: 'Arriendos' }))
+
+    expect(await screen.findByText('Rentals page')).toBeInTheDocument()
+    expect(sidebar.getByRole('link', { name: 'Arriendos' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('keeps a route-less item ("Personas") inert as a plain button, not a link', async () => {
     getSession.mockResolvedValueOnce({ userId: 'user-1', email: 'a@habitex.app', expiresAtUnix: null })
     const sidebar = renderLayout('/')
     await screen.findByText('Home page')
 
-    expect(sidebar.queryByRole('link', { name: 'Arriendos' })).not.toBeInTheDocument()
-    expect(sidebar.getByRole('button', { name: 'Arriendos' })).toBeInTheDocument()
+    expect(sidebar.queryByRole('link', { name: 'Personas' })).not.toBeInTheDocument()
+    expect(sidebar.getByRole('button', { name: 'Personas' })).toBeInTheDocument()
   })
 })

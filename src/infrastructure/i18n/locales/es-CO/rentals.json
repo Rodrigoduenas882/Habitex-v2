@@ -1,0 +1,44 @@
+{
+  "title": "Arriendos",
+  "noAdministration": {
+    "title": "Todavía no tienes una administración",
+    "description": "Tu cuenta no está asociada a ninguna administración por ahora."
+  },
+  "selectionRequired": {
+    "title": "Tienes varias administraciones",
+    "description": "Selecciona una administración para ver sus arriendos. Esta opción estará disponible próximamente."
+  },
+  "errors": {
+    "administrationTitle": "No pudimos cargar tu administración",
+    "administrationDescription": "Ocurrió un error al resolver tu administración. Intenta de nuevo más tarde.",
+    "rentalsTitle": "No pudimos cargar tus arriendos",
+    "rentalsDescription": "Ocurrió un error al consultar tus arriendos. Intenta de nuevo más tarde."
+  },
+  "empty": {
+    "title": "Aún no tienes arriendos",
+    "description": "Cuando registres un arriendo, podrás hacer seguimiento a su estado y fechas desde aquí."
+  },
+  "status": {
+    "DRAFT": "Borrador",
+    "ACTIVE": "Activo",
+    "ENDING": "Finalizando",
+    "ENDED": "Finalizado",
+    "CANCELLED": "Cancelado"
+  },
+  "paymentTiming": {
+    "ADVANCE": "Pago anticipado",
+    "ARREARS": "Pago vencido"
+  },
+  "list": {
+    "title": {
+      "DRAFT": "Arriendo en borrador",
+      "ACTIVE": "Arriendo en curso",
+      "ENDING": "Arriendo finalizando",
+      "ENDED": "Arriendo finalizado",
+      "CANCELLED": "Arriendo cancelado"
+    },
+    "startDate": "Desde {{date}}",
+    "endDate": "Hasta {{date}}",
+    "paymentDay": "Pago el día {{day}}"
+  }
+}
