@@ -4,7 +4,7 @@ import { IconBadge } from '@/shared/ui/IconBadge'
 import { BuildingIcon, CarIcon, KeyIcon } from '@/shared/ui/icons'
 import styles from './PropertyTypeSelector.module.css'
 
-export type PropertyAddOption = 'full' | 'rooms'
+export type PropertyAddOption = 'full' | 'rooms' | 'parking'
 
 export interface PropertyTypeSelectorProps {
   onSelect: (option: PropertyAddOption) => void
@@ -12,8 +12,7 @@ export interface PropertyTypeSelectorProps {
 
 /**
  * "¿Qué quieres administrar?" - a radiogroup of three human-language
- * options. Parking is visible (communicates the future model) but disabled
- * - no ParkingRepository/domain exists yet, so it must not start a flow.
+ * options, all real flows.
  */
 export function PropertyTypeSelector({ onSelect }: PropertyTypeSelectorProps) {
   const { t } = useTranslation('properties')
@@ -58,14 +57,17 @@ export function PropertyTypeSelector({ onSelect }: PropertyTypeSelectorProps) {
         type="button"
         role="radio"
         aria-checked={false}
-        disabled
-        aria-label={`${t('addProperty.optionParking.title')} - ${t('addProperty.optionParking.comingSoon')}`}
-        className={cx(styles['option'], styles['optionDisabled'])}
+        aria-label={t('addProperty.optionParking.title')}
+        className={styles['option']}
+        onClick={() => {
+          onSelect('parking')
+        }}
       >
-        <IconBadge icon={<CarIcon size={20} />} tone="neutral" size={40} radius="md" />
-        <p className="text-h3">{t('addProperty.optionParking.title')}</p>
+        <IconBadge icon={<CarIcon size={20} />} tone="primary" size={40} radius="md" />
+        <p className="text-h3" aria-hidden="true">
+          {t('addProperty.optionParking.title')}
+        </p>
         <p className={cx('text-body-sm', 'text-muted')}>{t('addProperty.optionParking.description')}</p>
-        <span className={styles['comingSoon']}>{t('addProperty.optionParking.comingSoon')}</span>
       </button>
     </div>
   )

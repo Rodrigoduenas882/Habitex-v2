@@ -28,23 +28,3 @@
   border-color: var(--color-primary);
   box-shadow: var(--shadow-md);
 }
-
-.optionDisabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.optionDisabled:hover {
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-sm);
-}
-
-.comingSoon {
-  align-self: flex-start;
-  font-size: var(--font-size-caption);
-  font-weight: 600;
-  color: var(--color-muted);
-  background: var(--color-surface-hover);
-  border-radius: var(--radius-full);
-  padding: 2px var(--space-2);
-}

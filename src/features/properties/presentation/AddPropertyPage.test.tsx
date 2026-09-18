@@ -86,14 +86,19 @@ describe('AddPropertyPage', () => {
     expect(screen.getByRole('radio', { name: 'Habitaciones de una propiedad' })).toBeInTheDocument()
   })
 
-  it('shows Parking as disabled and labeled "Próximamente", not selectable', async () => {
+  it('Parking is a real, selectable option that renders ParkingForm', async () => {
     resolveOneAdministration()
+    const user = userEvent.setup()
     renderPage()
     await screen.findByText('¿Qué quieres administrar?')
 
-    const parkingOption = screen.getByRole('radio', { name: /Parqueadero/ })
-    expect(parkingOption).toBeDisabled()
-    expect(screen.getByText('Próximamente')).toBeInTheDocument()
+    const parkingOption = screen.getByRole('radio', { name: 'Parqueadero' })
+    expect(parkingOption).toBeEnabled()
+
+    await user.click(parkingOption)
+
+    expect(await screen.findByRole('heading', { name: 'Parqueadero' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Identificador')).toBeInTheDocument()
   })
 
   it('never shows technical terms like FULL_PROPERTY, BY_ROOMS or RPC names', async () => {

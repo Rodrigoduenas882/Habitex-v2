@@ -1,0 +1,53 @@
+{
+  "form": {
+    "title": "Parqueadero",
+    "sectionAssociation": "Asociación",
+    "sectionDetails": "Detalles del parqueadero",
+    "associated": {
+      "label": "¿Pertenece a un inmueble?",
+      "yes": "Sí, asociado a un inmueble",
+      "no": "No, es independiente"
+    },
+    "property": {
+      "label": "Selecciona el inmueble",
+      "placeholder": "Selecciona un inmueble",
+      "loadingHint": "Cargando tus inmuebles…",
+      "errorHint": "No pudimos cargar tus inmuebles. Intenta de nuevo.",
+      "emptyHint": "Todavía no tienes inmuebles para asociar."
+    },
+    "identifier": {
+      "label": "Identificador",
+      "hint": "Un nombre o número que te ayude a reconocerlo."
+    },
+    "location": { "label": "Ubicación" },
+    "covered": {
+      "label": "¿Es cubierto?",
+      "unspecified": "Sin especificar",
+      "yes": "Sí",
+      "no": "No"
+    },
+    "vehicleType": {
+      "label": "Vehículos permitidos",
+      "unspecified": "Sin especificar",
+      "CAR": "Carro",
+      "MOTORCYCLE": "Moto",
+      "BOTH": "Carro o moto"
+    },
+    "accessType": { "label": "Tipo de acceso" },
+    "observations": { "label": "Observaciones" },
+    "submit": "Guardar parqueadero",
+    "submitting": "Guardando…",
+    "validation": {
+      "identifierRequired": "Ingresa un identificador.",
+      "propertyRequired": "Selecciona un inmueble."
+    },
+    "errors": {
+      "createFailed": "No pudimos guardar el parqueadero. Intenta de nuevo."
+    }
+  },
+  "success": {
+    "title": "Parqueadero registrado",
+    "description": "\"{{identifier}}\" quedó registrado correctamente.",
+    "back": "Volver a inmuebles"
+  }
+}

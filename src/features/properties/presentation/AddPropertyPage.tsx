@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCurrentAdministration } from '@/features/administration/application/useCurrentAdministration'
+import { ParkingForm } from '@/features/parking/presentation/ParkingForm'
 import { Alert } from '@/shared/ui/Alert'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { BuildingIcon } from '@/shared/ui/icons'
@@ -80,6 +81,17 @@ export default function AddPropertyPage() {
   if (selection === 'rooms') {
     return (
       <AddRoomRentalPropertyForm
+        administrationId={administrationId}
+        onBack={() => {
+          setSelection(null)
+        }}
+      />
+    )
+  }
+
+  if (selection === 'parking') {
+    return (
+      <ParkingForm
         administrationId={administrationId}
         onBack={() => {
           setSelection(null)

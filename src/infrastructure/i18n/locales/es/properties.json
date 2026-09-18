@@ -40,8 +40,7 @@
     },
     "optionParking": {
       "title": "Parqueadero",
-      "description": "Próximamente.",
-      "comingSoon": "Próximamente"
+      "description": "Administra un espacio de parqueo, independiente o asociado a un inmueble."
     }
   },
   "form": {
