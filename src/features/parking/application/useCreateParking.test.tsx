@@ -3,6 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ParkingRepositoryError } from '../domain/parking.types'
+import { parkingQueryKeys } from './parking-query-keys'
 import { useCreateParking } from './useCreateParking'
 
 const { create } = vi.hoisted(() => ({ create: vi.fn() }))
@@ -56,6 +57,20 @@ describe('useCreateParking', () => {
     })
   })
 
+  it('invalidates ["administration", administrationId, "parkings"] for that administration on success', async () => {
+    create.mockResolvedValueOnce(undefined)
+    const client = createClient()
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries')
+    const { result } = renderHook(() => useCreateParking(), { wrapper: wrapperFor(client) })
+
+    result.current.mutate(INPUT)
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true)
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: parkingQueryKeys.list('admin-1') })
+  })
+
   it('does not invalidate the properties query - create_parking_asset never touches properties', async () => {
     create.mockResolvedValueOnce(undefined)
     const client = createClient()
@@ -67,6 +82,6 @@ describe('useCreateParking', () => {
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true)
     })
-    expect(invalidateSpy).not.toHaveBeenCalled()
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ['administration', 'admin-1', 'properties'] })
   })
 })

@@ -49,5 +49,22 @@
     "title": "Parqueadero registrado",
     "description": "\"{{identifier}}\" quedó registrado correctamente.",
     "back": "Volver a inmuebles"
+  },
+  "section": {
+    "title": "Parqueaderos",
+    "empty": {
+      "title": "Aún no tienes parqueaderos",
+      "description": "Registra un parqueadero independiente o asociado a uno de tus inmuebles."
+    },
+    "errors": {
+      "listFailed": "No pudimos cargar tus parqueaderos. Intenta de nuevo."
+    }
+  },
+  "list": {
+    "associatedWith": "Asociado a {{name}}",
+    "covered": {
+      "yes": "Cubierto",
+      "no": "Descubierto"
+    }
   }
 }

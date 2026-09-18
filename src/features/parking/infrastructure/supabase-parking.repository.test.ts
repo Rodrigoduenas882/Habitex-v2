@@ -1,10 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ParkingRepositoryError } from '../domain/parking.types'
 
-const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
+const { eq, select, from, rpc } = vi.hoisted(() => {
+  const eq = vi.fn()
+  const select = vi.fn((_columns: string) => ({ eq }))
+  const from = vi.fn((_table: string) => ({ select }))
+  const rpc = vi.fn()
+  return { eq, select, from, rpc }
+})
 
 vi.mock('@/infrastructure/supabase/client', () => ({
-  supabaseClient: { rpc },
+  supabaseClient: { from, rpc },
 }))
 
 import { supabaseParkingRepository } from './supabase-parking.repository'
@@ -78,6 +84,91 @@ describe('supabaseParkingRepository.create', () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
 
     await expect(supabaseParkingRepository.create(BASE_INPUT)).rejects.toBeInstanceOf(
+      ParkingRepositoryError,
+    )
+  })
+})
+
+describe('supabaseParkingRepository.listByAdministration', () => {
+  it('queries parkings scoped by administration_id and maps snake_case rows to the domain shape', async () => {
+    eq.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'parking-1',
+          administration_id: 'admin-1',
+          property_id: 'prop-1',
+          identifier: 'Parqueadero 12',
+          location: 'Sótano 1',
+          covered: true,
+          allowed_vehicle_type: 'CAR',
+        },
+      ],
+      error: null,
+    })
+
+    const result = await supabaseParkingRepository.listByAdministration('admin-1')
+
+    expect(from).toHaveBeenCalledWith('parkings')
+    expect(eq).toHaveBeenCalledWith('administration_id', 'admin-1')
+    expect(result).toEqual([
+      {
+        id: 'parking-1',
+        administrationId: 'admin-1',
+        propertyId: 'prop-1',
+        identifier: 'Parqueadero 12',
+        location: 'Sótano 1',
+        covered: true,
+        allowedVehicleType: 'CAR',
+      },
+    ])
+  })
+
+  it('never selects every column with *, and never selects accessType/observations/timestamps', () => {
+    for (const [columns] of select.mock.calls) {
+      expect(columns).not.toBe('*')
+      expect(columns).not.toContain('*')
+      expect(columns).not.toContain('access_type')
+      expect(columns).not.toContain('observations')
+      expect(columns).not.toContain('created_at')
+      expect(columns).not.toContain('updated_at')
+    }
+  })
+
+  it('preserves null propertyId, covered and allowedVehicleType exactly, without coercing them', async () => {
+    eq.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'parking-2',
+          administration_id: 'admin-1',
+          property_id: null,
+          identifier: 'Parqueadero 5',
+          location: null,
+          covered: null,
+          allowed_vehicle_type: null,
+        },
+      ],
+      error: null,
+    })
+
+    const result = await supabaseParkingRepository.listByAdministration('admin-1')
+
+    expect(result).toEqual([
+      {
+        id: 'parking-2',
+        administrationId: 'admin-1',
+        propertyId: null,
+        identifier: 'Parqueadero 5',
+        location: null,
+        covered: null,
+        allowedVehicleType: null,
+      },
+    ])
+  })
+
+  it('wraps a Supabase failure in ParkingRepositoryError instead of throwing the raw error', async () => {
+    eq.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    await expect(supabaseParkingRepository.listByAdministration('admin-1')).rejects.toBeInstanceOf(
       ParkingRepositoryError,
     )
   })

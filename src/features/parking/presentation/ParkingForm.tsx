@@ -25,10 +25,13 @@ export interface ParkingFormProps {
 /**
  * "Parqueadero" - calls ParkingRepository.create. Reuses
  * features/properties' useProperties for the optional association selector
- * (not moved, not duplicated). Unlike the property forms, success does not
- * navigate automatically: an independent parking never appears in
- * /properties, so an instant silent redirect would look like the creation
- * vanished. See this increment's report for why.
+ * (not moved, not duplicated). A parking now genuinely appears in
+ * /properties (Parqueaderos section, via useParkings) once its query is
+ * invalidated on success - but success still doesn't navigate
+ * automatically. The explicit confirmation + manual "Volver a inmuebles" is
+ * kept as the better UX on its own merits (it names what was just saved
+ * instead of relying on the visitor to spot it in a list), not as a
+ * workaround for a screen that couldn't show it yet.
  */
 export function ParkingForm({ administrationId, onBack }: ParkingFormProps) {
   const { t } = useTranslation(['parking', 'properties'])

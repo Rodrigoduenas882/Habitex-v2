@@ -1,5 +1,8 @@
 {
   "title": "Inmuebles",
+  "sections": {
+    "properties": "Propiedades"
+  },
   "propertyType": {
     "HOUSE": "Casa",
     "APARTMENT": "Apartamento"

@@ -1,19 +1,24 @@
 import type { ReactNode } from 'react'
+import type { UseQueryResult } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useCurrentAdministration } from '@/features/administration/application/useCurrentAdministration'
+import { useParkings } from '@/features/parking/application/useParkings'
+import type { Parking } from '@/features/parking/domain/parking.types'
+import { ParkingListCard } from '@/features/parking/presentation/ParkingListCard'
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
 import { EmptyState } from '@/shared/ui/EmptyState'
-import { BuildingIcon } from '@/shared/ui/icons'
+import { BuildingIcon, CarIcon } from '@/shared/ui/icons'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import styles from './PropertiesPage.module.css'
 import { PropertyListCard } from './PropertyListCard'
 import { useProperties } from '../application/useProperties'
+import type { Property } from '../domain/property.types'
 
-function PropertiesGridSkeleton() {
+function GridSkeleton({ testId }: { testId: string }) {
   return (
-    <div className={styles['grid']} data-testid="properties-loading" aria-hidden="true">
+    <div className={styles['grid']} data-testid={testId} aria-hidden="true">
       {Array.from({ length: 4 }, (_, index) => (
         <Skeleton key={index} height={196} radius="lg" />
       ))}
@@ -21,19 +26,115 @@ function PropertiesGridSkeleton() {
   )
 }
 
+interface PropertiesSectionProps {
+  query: UseQueryResult<Property[]>
+}
+
+function PropertiesSection({ query }: PropertiesSectionProps) {
+  const { t } = useTranslation('properties')
+
+  if (query.isLoading) {
+    return <GridSkeleton testId="properties-loading" />
+  }
+
+  if (query.isError) {
+    return (
+      <Alert tone="danger" title={t('errors.propertiesTitle')}>
+        {t('errors.propertiesDescription')}
+      </Alert>
+    )
+  }
+
+  const properties = query.data ?? []
+
+  if (properties.length === 0) {
+    return (
+      <EmptyState
+        icon={<BuildingIcon size={24} />}
+        title={t('empty.title')}
+        description={t('empty.description')}
+      />
+    )
+  }
+
+  return (
+    <div className={styles['grid']}>
+      {properties.map((property) => (
+        <PropertyListCard key={property.id} property={property} />
+      ))}
+    </div>
+  )
+}
+
+interface ParkingsSectionProps {
+  query: UseQueryResult<Parking[]>
+  propertiesQuery: UseQueryResult<Property[]>
+  emptyAction: ReactNode
+}
+
+function ParkingsSection({ query, propertiesQuery, emptyAction }: ParkingsSectionProps) {
+  const { t } = useTranslation('parking')
+
+  if (query.isLoading) {
+    return <GridSkeleton testId="parkings-loading" />
+  }
+
+  if (query.isError) {
+    return <Alert tone="danger">{t('section.errors.listFailed')}</Alert>
+  }
+
+  const parkings = query.data ?? []
+
+  if (parkings.length === 0) {
+    return (
+      <EmptyState
+        icon={<CarIcon size={24} />}
+        title={t('section.empty.title')}
+        description={t('section.empty.description')}
+        action={emptyAction}
+      />
+    )
+  }
+
+  // Cross-referenced against the real, already-loaded Properties list - no
+  // extra query. If Properties hasn't resolved successfully yet (still
+  // loading, or errored), the association is omitted rather than guessed.
+  const properties = propertiesQuery.isSuccess ? propertiesQuery.data : null
+
+  return (
+    <div className={styles['grid']}>
+      {parkings.map((parking) => {
+        const associatedPropertyName =
+          parking.propertyId && properties
+            ? (properties.find((property) => property.id === parking.propertyId)?.name ?? null)
+            : null
+
+        return (
+          <ParkingListCard
+            key={parking.id}
+            parking={parking}
+            associatedPropertyName={associatedPropertyName}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 /**
- * First real Properties screen: a read-only list scoped to the current
- * administration, plus the real "Agregar inmueble" CTA -> /properties/new.
- * The CTA only renders once an administration is actually resolved -
- * creation can't operate otherwise (see useCurrentAdministration).
+ * /properties: Propiedades + Parqueaderos as two independent, stacked
+ * sections (never a shared status - one source failing/loading never
+ * blocks the other). Administration Context gating still governs the whole
+ * page, same as before.
  */
 export default function PropertiesPage() {
-  const { t } = useTranslation('properties')
+  const { t } = useTranslation(['properties', 'parking'])
   const navigate = useNavigate()
   const currentAdministration = useCurrentAdministration()
   const administrationId =
     currentAdministration.status === 'resolved' ? currentAdministration.administration.id : undefined
   const propertiesQuery = useProperties(administrationId)
+  const parkingsQuery = useParkings(administrationId)
 
   const addPropertyCta = (
     <Button
@@ -45,21 +146,18 @@ export default function PropertiesPage() {
     </Button>
   )
 
-  let content: ReactNode
+  let gateContent: ReactNode = null
 
-  if (
-    currentAdministration.status === 'loading' ||
-    (currentAdministration.status === 'resolved' && propertiesQuery.isLoading)
-  ) {
-    content = <PropertiesGridSkeleton />
+  if (currentAdministration.status === 'loading') {
+    gateContent = <GridSkeleton testId="properties-loading" />
   } else if (currentAdministration.status === 'error') {
-    content = (
+    gateContent = (
       <Alert tone="danger" title={t('errors.administrationTitle')}>
         {t('errors.administrationDescription')}
       </Alert>
     )
   } else if (currentAdministration.status === 'none') {
-    content = (
+    gateContent = (
       <EmptyState
         icon={<BuildingIcon size={24} />}
         title={t('noAdministration.title')}
@@ -67,35 +165,13 @@ export default function PropertiesPage() {
       />
     )
   } else if (currentAdministration.status === 'selection-required') {
-    content = (
+    gateContent = (
       <EmptyState
         icon={<BuildingIcon size={24} />}
         title={t('selectionRequired.title')}
         description={t('selectionRequired.description')}
       />
     )
-  } else if (propertiesQuery.isError) {
-    content = (
-      <Alert tone="danger" title={t('errors.propertiesTitle')}>
-        {t('errors.propertiesDescription')}
-      </Alert>
-    )
-  } else {
-    const properties = propertiesQuery.data ?? []
-    content =
-      properties.length === 0 ? (
-        <EmptyState
-          icon={<BuildingIcon size={24} />}
-          title={t('empty.title')}
-          description={t('empty.description')}
-        />
-      ) : (
-        <div className={styles['grid']}>
-          {properties.map((property) => (
-            <PropertyListCard key={property.id} property={property} />
-          ))}
-        </div>
-      )
   }
 
   return (
@@ -104,7 +180,24 @@ export default function PropertiesPage() {
         <h1 className="text-h2">{t('title')}</h1>
         {currentAdministration.status === 'resolved' ? addPropertyCta : null}
       </div>
-      {content}
+
+      {gateContent ?? (
+        <>
+          <section className={styles['section']}>
+            <h2 className="text-h3">{t('sections.properties')}</h2>
+            <PropertiesSection query={propertiesQuery} />
+          </section>
+
+          <section className={styles['section']}>
+            <h2 className="text-h3">{t('parking:section.title')}</h2>
+            <ParkingsSection
+              query={parkingsQuery}
+              propertiesQuery={propertiesQuery}
+              emptyAction={addPropertyCta}
+            />
+          </section>
+        </>
+      )}
     </div>
   )
 }
