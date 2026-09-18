@@ -11,10 +11,17 @@ los documentos que enlaza.
 - **Trabajo visual, UI, UX, responsive, accesibilidad, componentes, tokens,
   theme, motion o branding** → leer `docs/DESIGN.md` antes de modificar, y
   seguir el proceso de `.claude/skills/habitex-design-review/SKILL.md`
-  (`docs/DESIGN.md` → `habitex-design-review` → UI/UX Pro Max cuando aporte
-  valor → implementación). `DESIGN.md` sigue siendo la autoridad visual;
-  `habitex-design-review` es el proceso de trabajo, no una fuente de verdad
-  nueva.
+  (`docs/DESIGN.md` → `habitex-design-review` → UI/UX Pro Max y/o Apple
+  Design cuando aporten valor → implementación). `DESIGN.md` sigue siendo
+  la autoridad visual; `habitex-design-review` es el proceso de trabajo, no
+  una fuente de verdad nueva. UI/UX Pro Max y Apple Design son consultivas
+  y están al mismo nivel — ninguna se carga por reflejo en cada cambio:
+    - UI/UX Pro Max → heurísticas de UX/layout, accesibilidad, forms,
+      responsive, navegación.
+    - Apple Design (`.claude/skills/apple-design/`) → interaction, motion,
+      feedback, transiciones, restraint/pulido. Nunca para overridear
+      tokens, identidad visual, primitives, responsive o excepciones ya
+      documentadas en `DESIGN.md` (ver esa skill para el detalle).
 - **Arquitectura, estructura, estado, datos, Supabase, Auth, repositories,
   adapters, testing o backend** → leer `docs/ARCHITECTURE.md` antes de
   modificar.
