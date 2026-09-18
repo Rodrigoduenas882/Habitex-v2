@@ -211,6 +211,16 @@ export function ChevronRightIcon(props: IconProps) {
   )
 }
 
+export function CarIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M5 15.5 6.5 10a2 2 0 0 1 1.9-1.4h7.2A2 2 0 0 1 17.5 10l1.5 5.5" />
+      <rect x="3.5" y="15.5" width="17" height="4" rx="1.5" />
+      <path d="M6.5 17.5h.01M17.5 17.5h.01" />
+    </IconBase>
+  )
+}
+
 export function InfoIcon(props: IconProps) {
   return (
     <IconBase {...props}>

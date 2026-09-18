@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { useCurrentAdministration } from '@/features/administration/application/useCurrentAdministration'
 import { Alert } from '@/shared/ui/Alert'
+import { Button } from '@/shared/ui/Button'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { BuildingIcon } from '@/shared/ui/icons'
 import { Skeleton } from '@/shared/ui/Skeleton'
@@ -21,15 +23,27 @@ function PropertiesGridSkeleton() {
 
 /**
  * First real Properties screen: a read-only list scoped to the current
- * administration. No create flow yet - the "add property" CTA is
- * deliberately absent rather than shown inert (see task scope).
+ * administration, plus the real "Agregar inmueble" CTA -> /properties/new.
+ * The CTA only renders once an administration is actually resolved -
+ * creation can't operate otherwise (see useCurrentAdministration).
  */
 export default function PropertiesPage() {
   const { t } = useTranslation('properties')
+  const navigate = useNavigate()
   const currentAdministration = useCurrentAdministration()
   const administrationId =
     currentAdministration.status === 'resolved' ? currentAdministration.administration.id : undefined
   const propertiesQuery = useProperties(administrationId)
+
+  const addPropertyCta = (
+    <Button
+      onClick={() => {
+        void navigate('/properties/new')
+      }}
+    >
+      {t('addProperty.cta')}
+    </Button>
+  )
 
   let content: ReactNode
 
@@ -86,7 +100,10 @@ export default function PropertiesPage() {
 
   return (
     <div className={styles['page']}>
-      <h1 className="text-h2">{t('title')}</h1>
+      <div className={styles['header']}>
+        <h1 className="text-h2">{t('title')}</h1>
+        {currentAdministration.status === 'resolved' ? addPropertyCta : null}
+      </div>
       {content}
     </div>
   )
