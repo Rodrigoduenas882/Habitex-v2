@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { useCurrentAdministration } from '@/features/administration/application/useCurrentAdministration'
 import { Alert } from '@/shared/ui/Alert'
+import { Button } from '@/shared/ui/Button'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { KeyIcon } from '@/shared/ui/icons'
 import { Skeleton } from '@/shared/ui/Skeleton'
@@ -20,18 +22,29 @@ function RentalsGridSkeleton() {
 }
 
 /**
- * /rentals: first real read-only vertical of the Arriendos module. Lists
- * rental_relationships scoped to the current administration - nothing
- * about the arrendable subject, tenant or economics yet (those live in
- * separate tables not read by this increment; see RentalRelationship's own
- * doc comment). No creation, no CTA to a route that doesn't exist yet.
+ * /rentals: lists rental_relationships scoped to the current
+ * administration, plus the CTA to /rentals/new (create_rental_draft) now
+ * that it's a real route. Nothing about term versions, dates, canon,
+ * services, contract, activation, occupancy or payments yet - those stay
+ * out of scope until later increments.
  */
 export default function RentalsPage() {
   const { t } = useTranslation('rentals')
+  const navigate = useNavigate()
   const currentAdministration = useCurrentAdministration()
   const administrationId =
     currentAdministration.status === 'resolved' ? currentAdministration.administration.id : undefined
   const rentalsQuery = useRentals(administrationId)
+
+  const addRentalCta = (
+    <Button
+      onClick={() => {
+        void navigate('/rentals/new')
+      }}
+    >
+      {t('addRental.cta')}
+    </Button>
+  )
 
   let content: ReactNode
 
@@ -72,7 +85,12 @@ export default function RentalsPage() {
     const rentals = rentalsQuery.data ?? []
     content =
       rentals.length === 0 ? (
-        <EmptyState icon={<KeyIcon size={24} />} title={t('empty.title')} description={t('empty.description')} />
+        <EmptyState
+          icon={<KeyIcon size={24} />}
+          title={t('empty.title')}
+          description={t('empty.description')}
+          action={addRentalCta}
+        />
       ) : (
         <div className={styles['grid']}>
           {rentals.map((rental) => (
@@ -84,7 +102,10 @@ export default function RentalsPage() {
 
   return (
     <div className={styles['page']}>
-      <h1 className="text-h2">{t('title')}</h1>
+      <div className={styles['header']}>
+        <h1 className="text-h2">{t('title')}</h1>
+        {currentAdministration.status === 'resolved' ? addRentalCta : null}
+      </div>
       {content}
     </div>
   )

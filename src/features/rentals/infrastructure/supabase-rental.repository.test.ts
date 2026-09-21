@@ -1,16 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
-import { RentalRepositoryError } from '../domain/rental.types'
+import { RentalRepositoryError, type CreateRentalDraftInput } from '../domain/rental.types'
 
-const { eq, order, select, from } = vi.hoisted(() => {
+const { eq, order, select, from, rpc } = vi.hoisted(() => {
   const order = vi.fn()
   const eq = vi.fn((_column: string, _value: string) => ({ order }))
   const select = vi.fn((_columns: string) => ({ eq }))
   const from = vi.fn((_table: string) => ({ select }))
-  return { eq, order, select, from }
+  const rpc = vi.fn()
+  return { eq, order, select, from, rpc }
 })
 
 vi.mock('@/infrastructure/supabase/client', () => ({
-  supabaseClient: { from },
+  supabaseClient: { from, rpc },
 }))
 
 import { supabaseRentalRepository } from './supabase-rental.repository'
@@ -142,5 +143,112 @@ describe('supabaseRentalRepository.listByAdministration', () => {
     await expect(supabaseRentalRepository.listByAdministration('admin-1')).rejects.toBeInstanceOf(
       RentalRepositoryError,
     )
+  })
+})
+
+const EXISTING_TENANT_INPUT: CreateRentalDraftInput = {
+  administrationId: 'admin-1',
+  rentalSubjectId: 'subj-1',
+  tenant: { kind: 'existing', personId: 'person-1' },
+}
+
+const NEW_TENANT_INPUT: CreateRentalDraftInput = {
+  administrationId: 'admin-1',
+  rentalSubjectId: 'subj-1',
+  tenant: {
+    kind: 'new',
+    fullName: 'Nueva Persona',
+    documentType: 'CC',
+    documentNumber: '123',
+    documentCountry: 'CO',
+    nationalityCountry: 'CO',
+    email: 'nueva@example.com',
+    phone: '3001234567',
+  },
+}
+
+describe('supabaseRentalRepository.createDraft', () => {
+  it('calls create_rental_draft with p_tenant_person_id set and every p_tenant_* new-tenant field null, for an existing tenant', async () => {
+    rpc.mockResolvedValueOnce({
+      data: [{ rental_relationship_id: 'rel-1', tenant_person_id: 'person-1' }],
+      error: null,
+    })
+
+    const result = await supabaseRentalRepository.createDraft(EXISTING_TENANT_INPUT)
+
+    expect(rpc).toHaveBeenCalledWith('create_rental_draft', {
+      p_administration_id: 'admin-1',
+      p_rental_subject_id: 'subj-1',
+      p_tenant_person_id: 'person-1',
+      p_tenant_full_name: null,
+      p_tenant_document_type: null,
+      p_tenant_document_number: null,
+      p_tenant_document_country: null,
+      p_tenant_nationality_country: null,
+      p_tenant_email: null,
+      p_tenant_phone: null,
+    })
+    expect(result).toEqual({ rentalRelationshipId: 'rel-1', tenantPersonId: 'person-1' })
+  })
+
+  it('calls create_rental_draft with p_tenant_person_id null and the real new-tenant fields, for a new tenant', async () => {
+    rpc.mockResolvedValueOnce({
+      data: [{ rental_relationship_id: 'rel-2', tenant_person_id: 'person-2' }],
+      error: null,
+    })
+
+    await supabaseRentalRepository.createDraft(NEW_TENANT_INPUT)
+
+    expect(rpc).toHaveBeenCalledWith('create_rental_draft', {
+      p_administration_id: 'admin-1',
+      p_rental_subject_id: 'subj-1',
+      p_tenant_person_id: null,
+      p_tenant_full_name: 'Nueva Persona',
+      p_tenant_document_type: 'CC',
+      p_tenant_document_number: '123',
+      p_tenant_document_country: 'CO',
+      p_tenant_nationality_country: 'CO',
+      p_tenant_email: 'nueva@example.com',
+      p_tenant_phone: '3001234567',
+    })
+  })
+
+  it('handles the RPC returning a single object instead of a one-element array', async () => {
+    rpc.mockResolvedValueOnce({
+      data: { rental_relationship_id: 'rel-3', tenant_person_id: 'person-1' },
+      error: null,
+    })
+
+    const result = await supabaseRentalRepository.createDraft(EXISTING_TENANT_INPUT)
+
+    expect(result).toEqual({ rentalRelationshipId: 'rel-3', tenantPersonId: 'person-1' })
+  })
+
+  it('wraps a Supabase RPC failure in RentalRepositoryError instead of throwing the raw error', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    await expect(supabaseRentalRepository.createDraft(EXISTING_TENANT_INPUT)).rejects.toBeInstanceOf(
+      RentalRepositoryError,
+    )
+  })
+
+  it('throws RentalRepositoryError if the RPC returns no row at all', async () => {
+    rpc.mockResolvedValueOnce({ data: [], error: null })
+
+    await expect(supabaseRentalRepository.createDraft(EXISTING_TENANT_INPUT)).rejects.toBeInstanceOf(
+      RentalRepositoryError,
+    )
+  })
+
+  it('never calls .from() (create_rental_draft is the only write path, no direct insert)', async () => {
+    rpc.mockResolvedValueOnce({
+      data: [{ rental_relationship_id: 'rel-1', tenant_person_id: 'person-1' }],
+      error: null,
+    })
+    from.mockClear()
+
+    await supabaseRentalRepository.createDraft(EXISTING_TENANT_INPUT)
+
+    expect(from).not.toHaveBeenCalled()
   })
 })

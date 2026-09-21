@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
@@ -39,6 +40,7 @@ function renderPage() {
       <MemoryRouter initialEntries={['/rentals']}>
         <Routes>
           <Route path="/rentals" element={<RentalsPage />} />
+          <Route path="/rentals/new" element={<div>Add rental page</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -128,5 +130,17 @@ describe('RentalsPage', () => {
     renderPage()
 
     expect(listByAdministration).not.toHaveBeenCalled()
+  })
+
+  it('the "Registrar arriendo" CTA navigates to /rentals/new', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RENTAL_1])
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Arriendo en curso')
+
+    await user.click(screen.getByRole('button', { name: 'Registrar arriendo' }))
+
+    expect(await screen.findByText('Add rental page')).toBeInTheDocument()
   })
 })
