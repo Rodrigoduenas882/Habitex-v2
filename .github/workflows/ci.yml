@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only by default - this workflow only verifies code, it never deploys,
+# comments, or writes anything back to the repo.
+permissions:
+  contents: read
+
+# Cancel a stale run on the same PR/branch when a new push arrives, so we
+# don't burn CI minutes re-checking commits nobody cares about anymore.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pinned to the exact version package.json's "packageManager" field
+      # already declares, so CI never silently drifts from local dev.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.5.0
+
+      # Node 24 matches this project's @types/node major version.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # --frozen-lockfile: fails the build instead of silently updating
+      # pnpm-lock.yaml if it's ever out of sync with package.json.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Real scripts already defined in package.json - nothing invented here.
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # No Supabase secrets required: vite.config.ts already stubs
+      # VITE_SUPABASE_URL/VITE_SUPABASE_PUBLISHABLE_KEY with non-functional
+      # placeholders for the test environment - no network calls happen
+      # against them.
+      - name: Test
+        run: pnpm test
+
+      # vite build does not execute src/shared/lib/env.ts's runtime Zod
+      # validation (that only runs in the browser) - a production build
+      # succeeds without any real Supabase env vars present, verified
+      # locally against this exact workflow before committing.
+      - name: Build
+        run: pnpm build
