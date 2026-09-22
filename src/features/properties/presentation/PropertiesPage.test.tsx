@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import PropertiesPage from './PropertiesPage'
@@ -73,6 +73,14 @@ function resolveOneAdministration() {
 }
 
 describe('PropertiesPage', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
   it('shows a loading state while the current administration is still resolving', () => {
     listAccessibleAdministrations.mockReturnValueOnce(new Promise(() => {}))
     renderPage()
@@ -94,6 +102,36 @@ describe('PropertiesPage', () => {
     expect(await screen.findByText('Todavía no tienes una administración')).toBeInTheDocument()
     expect(listPropertiesByAdministration).not.toHaveBeenCalled()
     expect(listParkingsByAdministration).not.toHaveBeenCalled()
+  })
+
+  it('shows the AdministrationPicker for multiple administrations, without auto-selecting one', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    renderPage()
+
+    expect(await screen.findByText('Selecciona una administración')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Administración Uno, Activa' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Administración Dos, Activa' })).toBeInTheDocument()
+    expect(listPropertiesByAdministration).not.toHaveBeenCalled()
+    expect(listParkingsByAdministration).not.toHaveBeenCalled()
+  })
+
+  it('selecting an administration from the picker resolves the page to that administration', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1])
+    listParkingsByAdministration.mockResolvedValueOnce([])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('radio', { name: 'Administración Dos, Activa' }))
+
+    expect(await screen.findByText('Apartamento 302')).toBeInTheDocument()
+    expect(listPropertiesByAdministration).toHaveBeenCalledWith('admin-2')
   })
 
   it('shows both section headers once resolved', async () => {

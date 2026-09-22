@@ -1,4 +1,5 @@
 import 'i18next'
+import type administration from './locales/es-CO/administration.json'
 import type auth from './locales/es-CO/auth.json'
 import type common from './locales/es-CO/common.json'
 import type dashboard from './locales/es-CO/dashboard.json'
@@ -18,6 +19,7 @@ declare module 'i18next' {
       properties: typeof properties
       parking: typeof parking
       rentals: typeof rentals
+      administration: typeof administration
     }
   }
 }

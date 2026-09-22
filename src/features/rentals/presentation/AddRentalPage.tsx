@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useCurrentAdministration } from '@/features/administration/application/useCurrentAdministration'
+import { useActiveAdministration } from '@/features/administration/application/useActiveAdministration'
+import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
 import { Alert } from '@/shared/ui/Alert'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { KeyIcon } from '@/shared/ui/icons'
@@ -20,7 +21,7 @@ import type { RentalSubjectType } from '../domain/rental-subject.types'
  */
 export default function AddRentalPage() {
   const { t } = useTranslation('rentals')
-  const currentAdministration = useCurrentAdministration()
+  const currentAdministration = useActiveAdministration()
   const [subjectType, setSubjectType] = useState<RentalSubjectType | null>(null)
 
   if (currentAdministration.status === 'loading') {
@@ -57,10 +58,9 @@ export default function AddRentalPage() {
   if (currentAdministration.status === 'selection-required') {
     return (
       <div className={styles['page']}>
-        <EmptyState
-          icon={<KeyIcon size={24} />}
-          title={t('selectionRequired.title')}
-          description={t('selectionRequired.description')}
+        <AdministrationPicker
+          options={currentAdministration.options}
+          onSelect={currentAdministration.select}
         />
       </div>
     )

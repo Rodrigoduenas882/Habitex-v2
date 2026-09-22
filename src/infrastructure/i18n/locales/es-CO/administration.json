@@ -1,0 +1,12 @@
+{
+  "status": {
+    "ACTIVE": "Activa",
+    "SUSPENDED": "Suspendida",
+    "ARCHIVED": "Archivada"
+  },
+  "picker": {
+    "title": "Selecciona una administración",
+    "description": "Tienes acceso a varias administraciones. Elige con cuál quieres trabajar.",
+    "optionLabel": "{{name}}, {{status}}"
+  }
+}

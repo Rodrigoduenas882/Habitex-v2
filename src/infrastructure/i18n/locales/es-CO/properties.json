@@ -25,10 +25,6 @@
     "title": "Todavía no tienes una administración",
     "description": "Tu cuenta no está asociada a ninguna administración por ahora."
   },
-  "selectionRequired": {
-    "title": "Tienes varias administraciones",
-    "description": "Selecciona una administración para ver sus inmuebles. Esta opción estará disponible próximamente."
-  },
   "addProperty": {
     "cta": "Agregar inmueble",
     "title": "¿Qué quieres administrar?",

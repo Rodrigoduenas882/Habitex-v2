@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { useCurrentAdministration } from '@/features/administration/application/useCurrentAdministration'
+import { useActiveAdministration } from '@/features/administration/application/useActiveAdministration'
+import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
 import { EmptyState } from '@/shared/ui/EmptyState'
@@ -31,7 +32,7 @@ function RentalsGridSkeleton() {
 export default function RentalsPage() {
   const { t } = useTranslation('rentals')
   const navigate = useNavigate()
-  const currentAdministration = useCurrentAdministration()
+  const currentAdministration = useActiveAdministration()
   const administrationId =
     currentAdministration.status === 'resolved' ? currentAdministration.administration.id : undefined
   const rentalsQuery = useRentals(administrationId)
@@ -69,10 +70,9 @@ export default function RentalsPage() {
     )
   } else if (currentAdministration.status === 'selection-required') {
     content = (
-      <EmptyState
-        icon={<KeyIcon size={24} />}
-        title={t('selectionRequired.title')}
-        description={t('selectionRequired.description')}
+      <AdministrationPicker
+        options={currentAdministration.options}
+        onSelect={currentAdministration.select}
       />
     )
   } else if (rentalsQuery.isError) {

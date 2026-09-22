@@ -1,10 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import type { AuthSession, AuthStateListener } from '../domain/session.types'
 import { AuthSessionListener } from './AuthSessionListener'
 import { authQueryKeys } from './auth-query-keys'
+
+const SELECTED_ADMINISTRATION_STORAGE_KEY = 'habitex:selected-administration-id'
 
 const { onAuthStateChange } = vi.hoisted(() => ({ onAuthStateChange: vi.fn() }))
 
@@ -16,6 +18,14 @@ vi.mock('../infrastructure/supabase-session.repository', () => ({
     signOut: vi.fn(),
   },
 }))
+
+beforeEach(() => {
+  window.localStorage.clear()
+})
+
+afterEach(() => {
+  window.localStorage.clear()
+})
 
 function mountListener() {
   const client = createTestQueryClient()
@@ -97,5 +107,51 @@ describe('AuthSessionListener', () => {
 
     expect(client.getQueryData(['account'])).toBeUndefined()
     expect(client.getQueryData(['administrations', 'accessible'])).toBeUndefined()
+  })
+
+  /**
+   * Regression coverage for a HIGH finding: the persisted administration
+   * selection (administration-selection-storage.ts) lives in localStorage,
+   * outside the query cache, so it was never swept by this listener's
+   * removeQueries() cleanup above. On an identity change in the same tab
+   * (logout of A -> login of B, no reload - a flow ARCHITECTURE.md §7
+   * explicitly supports), a stale id A left behind could resolve
+   * useActiveAdministration straight to 'resolved' for B without B ever
+   * choosing it themselves - even when B also has legitimate access to that
+   * same administration (e.g. co-administrators) - violating the "never
+   * auto-pick" invariant documented on useCurrentAdministration.ts and
+   * useActiveAdministration.ts.
+   */
+  it('clears the persisted administration selection when a different user signs in (A -> B), even if B can access the same administration', () => {
+    const { emit } = mountListener()
+
+    emit({ userId: 'user-A', email: 'a@habitex.app', expiresAtUnix: null })
+    window.localStorage.setItem(SELECTED_ADMINISTRATION_STORAGE_KEY, 'shared-admin')
+
+    emit({ userId: 'user-B', email: 'b@habitex.app', expiresAtUnix: null })
+
+    expect(window.localStorage.getItem(SELECTED_ADMINISTRATION_STORAGE_KEY)).toBeNull()
+  })
+
+  it('clears the persisted administration selection on logout', () => {
+    const { emit } = mountListener()
+
+    emit({ userId: 'user-A', email: 'a@habitex.app', expiresAtUnix: null })
+    window.localStorage.setItem(SELECTED_ADMINISTRATION_STORAGE_KEY, 'admin-1')
+
+    emit(null)
+
+    expect(window.localStorage.getItem(SELECTED_ADMINISTRATION_STORAGE_KEY)).toBeNull()
+  })
+
+  it('does not clear the persisted administration selection for the same user (e.g. a token refresh)', () => {
+    const { emit } = mountListener()
+
+    emit({ userId: 'user-A', email: 'a@habitex.app', expiresAtUnix: 1000 })
+    window.localStorage.setItem(SELECTED_ADMINISTRATION_STORAGE_KEY, 'admin-1')
+
+    emit({ userId: 'user-A', email: 'a@habitex.app', expiresAtUnix: 2000 })
+
+    expect(window.localStorage.getItem(SELECTED_ADMINISTRATION_STORAGE_KEY)).toBe('admin-1')
   })
 })

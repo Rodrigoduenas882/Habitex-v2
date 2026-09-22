@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import AddRentalPage from './AddRentalPage'
@@ -51,6 +51,14 @@ function resolveOneAdministration() {
 }
 
 describe('AddRentalPage', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
   it('gates on Administration Context: shows loading while resolving', () => {
     listAccessibleAdministrations.mockReturnValueOnce(new Promise(() => {}))
     renderPage()
@@ -73,6 +81,31 @@ describe('AddRentalPage', () => {
 
     expect(await screen.findByText('Todavía no tienes una administración')).toBeInTheDocument()
     expect(screen.queryByText('¿Qué vas a arrendar?')).not.toBeInTheDocument()
+  })
+
+  it('gates on Administration Context: shows the AdministrationPicker for multiple administrations, never a bare selector', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    renderPage()
+
+    expect(await screen.findByText('Selecciona una administración')).toBeInTheDocument()
+    expect(screen.queryByText('¿Qué vas a arrendar?')).not.toBeInTheDocument()
+    expect(createDraft).not.toHaveBeenCalled()
+  })
+
+  it('selecting an administration from the picker resolves to the "¿Qué vas a arrendar?" selector', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('radio', { name: 'Administración Dos, Activa' }))
+
+    expect(await screen.findByText('¿Qué vas a arrendar?')).toBeInTheDocument()
   })
 
   it('shows "¿Qué vas a arrendar?" once resolved, and never writes anything to the backend just by opening', async () => {

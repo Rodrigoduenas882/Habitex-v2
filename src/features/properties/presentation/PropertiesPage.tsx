@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { useCurrentAdministration } from '@/features/administration/application/useCurrentAdministration'
+import { useActiveAdministration } from '@/features/administration/application/useActiveAdministration'
+import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
 import { useParkings } from '@/features/parking/application/useParkings'
 import type { Parking } from '@/features/parking/domain/parking.types'
 import { ParkingListCard } from '@/features/parking/presentation/ParkingListCard'
@@ -130,7 +131,7 @@ function ParkingsSection({ query, propertiesQuery, emptyAction }: ParkingsSectio
 export default function PropertiesPage() {
   const { t } = useTranslation(['properties', 'parking'])
   const navigate = useNavigate()
-  const currentAdministration = useCurrentAdministration()
+  const currentAdministration = useActiveAdministration()
   const administrationId =
     currentAdministration.status === 'resolved' ? currentAdministration.administration.id : undefined
   const propertiesQuery = useProperties(administrationId)
@@ -166,10 +167,9 @@ export default function PropertiesPage() {
     )
   } else if (currentAdministration.status === 'selection-required') {
     gateContent = (
-      <EmptyState
-        icon={<BuildingIcon size={24} />}
-        title={t('selectionRequired.title')}
-        description={t('selectionRequired.description')}
+      <AdministrationPicker
+        options={currentAdministration.options}
+        onSelect={currentAdministration.select}
       />
     )
   }
