@@ -93,6 +93,10 @@ No inventar tablas, RPCs, Edge Functions ni políticas. Si algo del backend
 no puede verificarse desde este repo, decirlo explícitamente en vez de
 asumirlo.
 
+El Supabase MCP configurado en este repo (`.mcp.json`) es **read-only**:
+solo para inspección (tablas, policies, advisors, migrations, logs). Nunca
+usarlo para modificar schema, datos, RLS, policies, Auth ni migrations.
+
 ---
 
 ## 6. Design
