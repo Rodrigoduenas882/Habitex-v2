@@ -11,6 +11,11 @@ import { AuthenticatedLayout } from '../layouts/AuthenticatedLayout'
 import { RootLayout } from '../layouts/RootLayout'
 
 const DashboardPage = lazy(() => import('@/features/dashboard/presentation/DashboardPage'))
+const PropertiesPage = lazy(() => import('@/features/properties/presentation/PropertiesPage'))
+const AddPropertyPage = lazy(() => import('@/features/properties/presentation/AddPropertyPage'))
+const RoomSetupPage = lazy(() => import('@/features/properties/presentation/RoomSetupPage'))
+const RentalsPage = lazy(() => import('@/features/rentals/presentation/RentalsPage'))
+const AddRentalPage = lazy(() => import('@/features/rentals/presentation/AddRentalPage'))
 const LoginPage = lazy(() => import('@/features/auth/presentation/LoginPage'))
 const UiPreviewPage = lazy(() => import('../pages/ui-preview/UiPreviewPage'))
 const NotFoundPage = lazy(() => import('@/shared/components/NotFoundPage'))
@@ -30,7 +35,17 @@ export const router = createBrowserRouter([
         children: [
           {
             element: <AuthenticatedLayout />,
-            children: [{ index: true, element: withSuspense(<DashboardPage />) }],
+            children: [
+              { index: true, element: withSuspense(<DashboardPage />) },
+              { path: 'properties', element: withSuspense(<PropertiesPage />) },
+              { path: 'properties/new', element: withSuspense(<AddPropertyPage />) },
+              {
+                path: 'properties/:propertyId/rooms/setup',
+                element: withSuspense(<RoomSetupPage />),
+              },
+              { path: 'rentals', element: withSuspense(<RentalsPage />) },
+              { path: 'rentals/new', element: withSuspense(<AddRentalPage />) },
+            ],
           },
         ],
       },

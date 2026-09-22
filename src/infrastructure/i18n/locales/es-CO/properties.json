@@ -1,0 +1,108 @@
+{
+  "title": "Inmuebles",
+  "sections": {
+    "properties": "Propiedades"
+  },
+  "propertyType": {
+    "HOUSE": "Casa",
+    "APARTMENT": "Apartamento"
+  },
+  "rentalMode": {
+    "FULL_PROPERTY": "Inmueble completo",
+    "BY_ROOMS": "Por habitaciones"
+  },
+  "empty": {
+    "title": "Todavía no tienes inmuebles",
+    "description": "Cuando agregues un inmueble, aparecerá aquí."
+  },
+  "errors": {
+    "propertiesTitle": "No pudimos cargar tus inmuebles",
+    "propertiesDescription": "Ocurrió un error al consultar tus inmuebles. Intenta de nuevo más tarde.",
+    "administrationTitle": "No pudimos cargar tu administración",
+    "administrationDescription": "Ocurrió un error al resolver tu administración. Intenta de nuevo más tarde."
+  },
+  "noAdministration": {
+    "title": "Todavía no tienes una administración",
+    "description": "Tu cuenta no está asociada a ninguna administración por ahora."
+  },
+  "selectionRequired": {
+    "title": "Tienes varias administraciones",
+    "description": "Selecciona una administración para ver sus inmuebles. Esta opción estará disponible próximamente."
+  },
+  "addProperty": {
+    "cta": "Agregar inmueble",
+    "title": "¿Qué quieres administrar?",
+    "back": "Volver",
+    "optionFull": {
+      "title": "Casa o apartamento completo",
+      "description": "Administra el arriendo de una propiedad completa."
+    },
+    "optionRooms": {
+      "title": "Habitaciones de una propiedad",
+      "description": "Administra habitaciones independientes dentro de una propiedad."
+    },
+    "optionParking": {
+      "title": "Parqueadero",
+      "description": "Administra un espacio de parqueo, independiente o asociado a un inmueble."
+    }
+  },
+  "form": {
+    "sectionInfo": "Información del inmueble",
+    "sectionCosts": "Costos",
+    "propertyType": { "label": "Tipo de inmueble" },
+    "name": {
+      "label": "Nombre del inmueble",
+      "hint": "Es el nombre con el que lo identificarás en Habitex, no necesariamente su dirección."
+    },
+    "address": { "label": "Dirección" },
+    "city": { "label": "Ciudad" },
+    "country": { "label": "País", "value": "Colombia" },
+    "hasAdministration": {
+      "label": "¿El inmueble paga administración?",
+      "yes": "Sí",
+      "no": "No"
+    },
+    "administrationFee": { "label": "Valor mensual de administración" },
+    "submitFull": "Guardar inmueble",
+    "submitRooms": "Guardar y configurar habitaciones",
+    "submitting": "Guardando…",
+    "validation": {
+      "nameRequired": "Ingresa el nombre del inmueble.",
+      "addressRequired": "Ingresa la dirección.",
+      "cityRequired": "Ingresa la ciudad.",
+      "administrationFeeRequired": "Ingresa un valor de administración válido (0 o más)."
+    },
+    "errors": {
+      "createFailed": "No pudimos guardar el inmueble. Intenta de nuevo."
+    }
+  },
+  "rooms": {
+    "setupTitle": "Configura las habitaciones",
+    "setupDescription": "Agrega al menos una habitación para poder arrendarla.",
+    "name": { "label": "Nombre de la habitación" },
+    "bathroomType": {
+      "label": "Tipo de baño",
+      "unspecified": "Sin especificar",
+      "PRIVATE": "Baño privado",
+      "SHARED": "Baño compartido"
+    },
+    "furnished": { "label": "¿Está amoblada?", "yes": "Sí", "no": "No" },
+    "description": { "label": "Descripción" },
+    "submit": "Agregar habitación",
+    "submitting": "Agregando…",
+    "addedTitle": "Habitaciones de este inmueble",
+    "noneYet": "Todavía no has agregado habitaciones.",
+    "loadingHint": "Cargando información de habitaciones…",
+    "finish": "Terminar configuración",
+    "finishDisabledHint": "Agrega al menos una habitación para poder terminar.",
+    "validation": {
+      "nameRequired": "Ingresa el nombre de la habitación."
+    },
+    "errors": {
+      "createFailed": "No pudimos guardar la habitación. Intenta de nuevo.",
+      "duplicateName": "Ya existe una habitación con ese nombre en este inmueble. Usa un nombre diferente.",
+      "listFailed": "No pudimos cargar las habitaciones de este inmueble. Intenta de nuevo.",
+      "missingProperty": "No pudimos identificar el inmueble."
+    }
+  }
+}

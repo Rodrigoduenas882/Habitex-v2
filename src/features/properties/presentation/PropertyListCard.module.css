@@ -1,0 +1,41 @@
+.card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.image {
+  position: relative;
+  height: 120px;
+  overflow: hidden;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
+}
+
+.skyline {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
+
+.body {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.detail {
+  color: var(--color-muted);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}

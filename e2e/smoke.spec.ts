@@ -8,6 +8,46 @@ test('unauthenticated visitor is redirected to login instead of granted access',
   await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible()
 })
 
+test('/properties is also protected: an unauthenticated visitor is redirected to login', async ({
+  page,
+}) => {
+  await page.goto('/properties')
+
+  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible()
+})
+
+test('/properties/new is also protected: an unauthenticated visitor is redirected to login', async ({
+  page,
+}) => {
+  await page.goto('/properties/new')
+
+  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible()
+})
+
+test('/properties/:id/rooms/setup is also protected: an unauthenticated visitor is redirected to login', async ({
+  page,
+}) => {
+  await page.goto('/properties/00000000-0000-0000-0000-000000000000/rooms/setup')
+
+  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible()
+})
+
+test('/rentals is also protected: an unauthenticated visitor is redirected to login', async ({
+  page,
+}) => {
+  await page.goto('/rentals')
+
+  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible()
+})
+
+test('/rentals/new is also protected: an unauthenticated visitor is redirected to login', async ({
+  page,
+}) => {
+  await page.goto('/rentals/new')
+
+  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible()
+})
+
 test('login exposes the theme control', async ({ page }) => {
   await page.goto('/login')
 

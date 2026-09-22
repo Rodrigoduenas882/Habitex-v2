@@ -1,0 +1,112 @@
+import { supabaseClient } from '@/infrastructure/supabase/client'
+import {
+  RentalRepositoryError,
+  type CreateRentalDraftInput,
+  type CreateRentalDraftResult,
+  type PaymentTiming,
+  type RentalRelationship,
+  type RentalRepository,
+  type RentalStatus,
+} from '../domain/rental.types'
+
+interface RentalRow {
+  id: string
+  administration_id: string
+  status: RentalStatus
+  jurisdiction_country: string
+  real_start_date: string | null
+  tracking_start_date: string | null
+  expected_end_date: string | null
+  actual_end_date: string | null
+  payment_day: number | null
+  payment_timing: PaymentTiming | null
+}
+
+const RENTAL_COLUMNS =
+  'id, administration_id, status, jurisdiction_country, real_start_date, tracking_start_date, expected_end_date, actual_end_date, payment_day, payment_timing'
+
+function toRentalRelationship(row: RentalRow): RentalRelationship {
+  return {
+    id: row.id,
+    administrationId: row.administration_id,
+    status: row.status,
+    jurisdictionCountry: row.jurisdiction_country,
+    realStartDate: row.real_start_date,
+    trackingStartDate: row.tracking_start_date,
+    expectedEndDate: row.expected_end_date,
+    actualEndDate: row.actual_end_date,
+    paymentDay: row.payment_day,
+    paymentTiming: row.payment_timing,
+  }
+}
+
+interface CreateRentalDraftRow {
+  rental_relationship_id: string
+  tenant_person_id: string
+}
+
+/** create_rental_draft returns table(...), which PostgREST can serialize as
+ * a one-element array or a single object depending on the client version -
+ * handled defensively rather than assumed. */
+function firstRow<T>(data: T | T[] | null): T | null {
+  if (Array.isArray(data)) return data[0] ?? null
+  return data
+}
+
+function toRpcArgs(input: CreateRentalDraftInput) {
+  const tenant = input.tenant
+  return {
+    p_administration_id: input.administrationId,
+    p_rental_subject_id: input.rentalSubjectId,
+    p_tenant_person_id: tenant.kind === 'existing' ? tenant.personId : null,
+    p_tenant_full_name: tenant.kind === 'new' ? tenant.fullName : null,
+    p_tenant_document_type: tenant.kind === 'new' ? tenant.documentType : null,
+    p_tenant_document_number: tenant.kind === 'new' ? tenant.documentNumber : null,
+    p_tenant_document_country: tenant.kind === 'new' ? tenant.documentCountry : null,
+    p_tenant_nationality_country: tenant.kind === 'new' ? tenant.nationalityCountry : null,
+    p_tenant_email: tenant.kind === 'new' ? tenant.email : null,
+    p_tenant_phone: tenant.kind === 'new' ? tenant.phone : null,
+  }
+}
+
+export const supabaseRentalRepository: RentalRepository = {
+  async listByAdministration(administrationId: string) {
+    // administration_id expresses this query's scope - RLS
+    // (can_view_relationship(id)) remains the actual security authority
+    // regardless of this filter. created_at is used only to order results
+    // (PostgREST orders against the underlying column independently of the
+    // select projection) - it is not part of the domain shape because
+    // nothing here needs it.
+    const { data, error } = await supabaseClient
+      .from('rental_relationships')
+      .select(RENTAL_COLUMNS)
+      .eq('administration_id', administrationId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      throw new RentalRepositoryError('Failed to list rental relationships for the administration', error)
+    }
+
+    return (data as RentalRow[]).map(toRentalRelationship)
+  },
+
+  async createDraft(input: CreateRentalDraftInput): Promise<CreateRentalDraftResult> {
+    // LESSOR (current_person_id()), administration management access,
+    // subject/administration ownership, tenant resolution (existing-linked
+    // vs. new Person via create_tenant_person) and LESSOR != TENANT all
+    // happen inside the RPC, atomically - no direct insert, no service
+    // role, no bypass, no client-side compensation on partial failure.
+    const response = await supabaseClient.rpc('create_rental_draft', toRpcArgs(input))
+
+    if (response.error) {
+      throw new RentalRepositoryError('Failed to create the rental draft', response.error)
+    }
+
+    const row = firstRow(response.data as CreateRentalDraftRow | CreateRentalDraftRow[] | null)
+    if (!row) {
+      throw new RentalRepositoryError('create_rental_draft returned no row')
+    }
+
+    return { rentalRelationshipId: row.rental_relationship_id, tenantPersonId: row.tenant_person_id }
+  },
+}

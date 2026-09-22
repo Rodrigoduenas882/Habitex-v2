@@ -1,0 +1,132 @@
+{
+  "title": "Arriendos",
+  "countries": {
+    "CO": "Colombia"
+  },
+  "noAdministration": {
+    "title": "Todavía no tienes una administración",
+    "description": "Tu cuenta no está asociada a ninguna administración por ahora."
+  },
+  "selectionRequired": {
+    "title": "Tienes varias administraciones",
+    "description": "Selecciona una administración para ver sus arriendos. Esta opción estará disponible próximamente."
+  },
+  "errors": {
+    "administrationTitle": "No pudimos cargar tu administración",
+    "administrationDescription": "Ocurrió un error al resolver tu administración. Intenta de nuevo más tarde.",
+    "rentalsTitle": "No pudimos cargar tus arriendos",
+    "rentalsDescription": "Ocurrió un error al consultar tus arriendos. Intenta de nuevo más tarde.",
+    "subjectsTitle": "No pudimos cargar los activos disponibles",
+    "subjectsDescription": "Ocurrió un error al consultar los activos de esta categoría. Intenta de nuevo más tarde."
+  },
+  "empty": {
+    "title": "Aún no tienes arriendos",
+    "description": "Cuando registres un arriendo, podrás hacer seguimiento a su estado y fechas desde aquí.",
+    "subjects": {
+      "FULL_PROPERTY": {
+        "title": "No tienes inmuebles completos disponibles",
+        "description": "Agrega un inmueble completo desde Inmuebles para poder arrendarlo."
+      },
+      "ROOM": {
+        "title": "No tienes habitaciones disponibles",
+        "description": "Agrega habitaciones a un inmueble desde Inmuebles para poder arrendarlas."
+      },
+      "PARKING": {
+        "title": "No tienes parqueaderos disponibles",
+        "description": "Agrega un parqueadero desde Inmuebles para poder arrendarlo."
+      }
+    }
+  },
+  "status": {
+    "DRAFT": "Borrador",
+    "ACTIVE": "Activo",
+    "ENDING": "Finalizando",
+    "ENDED": "Finalizado",
+    "CANCELLED": "Cancelado"
+  },
+  "paymentTiming": {
+    "ADVANCE": "Pago anticipado",
+    "ARREARS": "Pago vencido"
+  },
+  "list": {
+    "title": {
+      "DRAFT": "Arriendo en borrador",
+      "ACTIVE": "Arriendo en curso",
+      "ENDING": "Arriendo finalizando",
+      "ENDED": "Arriendo finalizado",
+      "CANCELLED": "Arriendo cancelado"
+    },
+    "startDate": "Desde {{date}}",
+    "endDate": "Hasta {{date}}",
+    "paymentDay": "Pago el día {{day}}"
+  },
+  "addRental": {
+    "cta": "Registrar arriendo",
+    "title": "¿Qué vas a arrendar?",
+    "back": "Volver",
+    "chooseAnother": "Elegir otra categoría",
+    "optionFullProperty": {
+      "title": "Inmueble completo",
+      "description": "Arrienda una casa o apartamento completo."
+    },
+    "optionRoom": {
+      "title": "Habitación",
+      "description": "Arrienda una habitación independiente de un inmueble."
+    },
+    "optionParking": {
+      "title": "Parqueadero",
+      "description": "Arrienda un espacio de parqueo."
+    }
+  },
+  "form": {
+    "sectionSubject": {
+      "FULL_PROPERTY": "¿Cuál inmueble?",
+      "ROOM": "¿Cuál habitación?",
+      "PARKING": "¿Cuál parqueadero?"
+    },
+    "subject": {
+      "label": "Activo a arrendar",
+      "placeholder": "Selecciona una opción"
+    },
+    "sectionTenant": "¿A quién se lo arriendas?",
+    "tenantMode": {
+      "label": "Arrendatario",
+      "new": "Nuevo arrendatario",
+      "existing": "Persona existente"
+    },
+    "existingTenant": {
+      "label": "Persona",
+      "placeholder": "Selecciona una persona",
+      "loadingHint": "Cargando personas de esta administración…",
+      "errorHint": "No pudimos cargar las personas de esta administración.",
+      "emptyHint": "Todavía no tienes personas registradas en esta administración. Usa \"Nuevo arrendatario\"."
+    },
+    "newTenant": {
+      "fullName": { "label": "Nombre completo" },
+      "documentType": {
+        "label": "Tipo de documento",
+        "none": "Sin documento",
+        "CC": "Cédula de ciudadanía",
+        "CE": "Cédula de extranjería",
+        "PASSPORT": "Pasaporte"
+      },
+      "documentNumber": { "label": "Número de documento" },
+      "documentCountry": { "label": "País del documento", "none": "Selecciona un país" },
+      "nationalityCountry": { "label": "Nacionalidad", "none": "Sin especificar" },
+      "email": { "label": "Correo electrónico" },
+      "phone": { "label": "Teléfono" }
+    },
+    "submit": "Continuar",
+    "submitting": "Creando arriendo…",
+    "validation": {
+      "subjectRequired": "Selecciona qué vas a arrendar.",
+      "existingTenantRequired": "Selecciona una persona.",
+      "fullNameRequired": "Ingresa el nombre completo del arrendatario.",
+      "documentAllOrNothing": "Completa tipo, número y país de documento, o deja los tres vacíos.",
+      "emailInvalid": "Ingresa un correo electrónico válido."
+    },
+    "errors": {
+      "createFailed": "No pudimos crear el arriendo. Intenta de nuevo."
+    }
+  }
+}
