@@ -4,12 +4,16 @@ Fuente de verdad técnica de Habitex: describe la arquitectura del frontend
 que vive en este repositorio y la dirección arquitectónica del producto.
 Toda regla cita el código que la respalda.
 
-> **Alcance de este repo.** Este repositorio contiene únicamente el
-> frontend. Las migrations, políticas RLS, funciones RPC, Storage y Edge
-> Functions de Supabase **no viven aquí** — se administran fuera de este
-> repo. Que esta auditoría solo pueda observar el uso de Supabase Auth desde
-> el frontend **no significa que Habitex "solo tenga Supabase Auth"** como
-> backend; significa que es lo único verificable desde este código. Ver §0.
+> **Alcance de este repo.** Este repositorio contiene el frontend y, desde
+> el baseline de `2026-09-22`, el historial versionado de migrations SQL de
+> Supabase (`supabase/migrations/`) — ver §0.1. El *contenido* de esas
+> migrations (schema, políticas RLS, funciones RPC) sigue gestionándose y
+> aplicándose fuera de este repo: aquí solo vive el registro versionado, no
+> el mecanismo de ejecución contra producción. Que esta auditoría solo
+> pueda observar el uso de Supabase Auth desde el código de `src/`
+> **no significa que Habitex "solo tenga Supabase Auth"** como backend;
+> significa que es lo único verificable desde el código de aplicación. Ver
+> §0.
 
 ---
 
@@ -20,19 +24,56 @@ producto":
 
 **A. Observable desde este repositorio (frontend):**
 Supabase Auth (`getSession`, `signInWithPassword`, `onAuthStateChange`,
-`signOut`) es la única superficie de Supabase que este código toca. No hay
-lectura/escritura de tablas, RPC, Storage ni Edge Functions en `src/`. No
-existe una carpeta `supabase/` (migrations, config) en este repo.
+`signOut`) es la única superficie de Supabase que el código de `src/` toca.
+No hay lectura/escritura de tablas, RPC, Storage ni Edge Functions en
+`src/`. `supabase/migrations/` (ver §0.1) sí vive en este repo, pero es
+historial versionado de schema/RLS/RPC — no código de aplicación, y no
+implica que `src/` llame a Supabase más allá de Auth.
 
-**B. Backend actual del producto** (fuera del alcance de este repo, pero
+**B. Backend actual del producto** (fuera del alcance de `src/`, pero
 real): Supabase como plataforma — Auth, PostgreSQL, RLS, RPC, Storage, Edge
-Functions. Las migrations y políticas se administran fuera de este
-repositorio. Este documento no describe políticas RLS específicas porque no
-son verificables desde aquí (ver §9) — solo el principio de que existen y
-son la autoridad de acceso a datos.
+Functions. El contenido de las migrations (§0.1) documenta ese schema tal
+como fue aplicado; su *aplicación* contra el proyecto real sigue siendo un
+paso manual fuera de este repo (Supabase CLI local, gate humano explícito
+por migration — ver §0.1). Este documento no describe políticas RLS
+específicas en prosa porque el propio SQL versionado en
+`supabase/migrations/` ya es la fuente exacta (ver §9) — solo el principio
+de que existen y son la autoridad de acceso a datos.
 
 **C. Evolución prevista**: ver §10. Ninguna decisión ahí está implementada
 todavía.
+
+### 0.1 Change management de Supabase (`supabase/migrations/`)
+
+Desde el baseline `2026-09-22` (checkpoint del reconstruction descrito en
+`docs/agentic/PROGRESS.md`), este repo versiona el historial completo de
+migrations SQL aplicadas al proyecto Supabase real, reconstruido 1:1 desde
+`supabase_migrations.schema_migrations` vía el MCP read-only (verificado
+por hash md5 contra cada migration remota — cero discrepancias). Reglas de
+este modelo, no negociables:
+
+- **`supabase/migrations/*.sql` es la fuente de verdad versionada** de todo
+  cambio de schema/RLS/RPC — un cambio que no exista como archivo aquí no
+  se considera parte del historial oficial, aunque exista en el proyecto
+  remoto.
+- **El Supabase MCP configurado en `.mcp.json` permanece SIEMPRE read-only**
+  (`read_only=true` es un parámetro de conexión reforzado por el propio
+  servidor de Supabase, no solo una convención local) — nunca es, ni será,
+  el mecanismo de escritura. Ver `CLAUDE.md §5`.
+- **Toda migration nueva requiere Human Gate explícito** antes de
+  ejecutarse contra el proyecto real — nunca automático, nunca implícito
+  por una autorización general previa.
+- **Ejecución actual**: Supabase CLI local, disparada manualmente por un
+  humano tras aprobar el SQL propuesto. No existe todavía automatización
+  vía GitHub Actions para esto (evaluado como fase posterior).
+- **Las migrations históricas nunca se modifican** una vez aplicadas — un
+  cambio de comportamiento siempre se expresa como una migration nueva
+  (`supabase migration new <name>`), nunca editando un archivo ya
+  aplicado.
+- El flujo completo (proponer → revisar → Human Gate → ejecutar vía CLI →
+  verificar vía MCP read-only → commit) está descrito en
+  `.claude/skills/habitex-orchestrator/SKILL.md` y en el historial de
+  `docs/agentic/PROGRESS.md`.
 
 ---
 
@@ -371,5 +412,6 @@ resuelve o aparece una nueva:
 `src/app/providers/{AppProviders,queryClient}.tsx`, `src/app/router/router.tsx`,
 `src/infrastructure/supabase/client.ts`, `src/shared/lib/env.ts`,
 `tsconfig.app.json`, `package.json`, `.env.example`, `.env.e2e`,
-`playwright.config.ts`, y la ausencia verificada de una carpeta `supabase/`
-en la raíz del repo.
+`playwright.config.ts`, y `supabase/migrations/` (51 migrations
+reconstruidas 1:1 desde `supabase_migrations.schema_migrations` vía MCP
+read-only, verificadas por hash — ver §0.1).

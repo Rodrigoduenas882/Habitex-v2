@@ -1,0 +1,3 @@
+create index rental_subject_sublease_occupancies_admin_idx on public.rental_subject_sublease_occupancies(administration_id);
+create index rental_subject_sublease_occupancies_source_idx on public.rental_subject_sublease_occupancies(source_relationship_id);
+create index rental_subject_sublease_occupancies_asset_right_idx on public.rental_subject_sublease_occupancies(asset_right_id);

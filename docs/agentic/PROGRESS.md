@@ -85,6 +85,52 @@ sección INC-002).
 - **Human gates**: ninguno disparado — el incremento no tocó
   schema/RLS/Auth/dependencias/arquitectura.
 
+## Infraestructura: Supabase migrations baseline (2026-09-22, sin commit)
+
+Tras seleccionar INC-001 (Account & Administration Bootstrap) como
+siguiente incremento, el RESEARCH GATE de INC-001 encontró una
+**PRODUCT/BACKEND CONTRADICTION** (clasificación C): el trigger
+`create_default_administration_trial()` provisiona `administration_subscriptions`
+con 30 días de trial y 0 días de gracia, en vez de los 14 días de trial +
+30 días de gracia documentados como Product Source of Truth. HUMAN GATE
+TRIGGERED — INC-001 queda pausado hasta resolver esto; no se implementó
+nada de INC-001 en `src/`.
+
+Antes de aplicar ese fix, el usuario pidió resolver primero cómo Habitex
+versiona y aplica cambios de backend Supabase (el propio fix del trial
+habría sido la primera migration bajo el sistema nuevo, pero ese fix
+**todavía no se creó como archivo** — es un paso posterior separado, no
+incluido en este checkpoint). Este checkpoint cubre solo la
+infraestructura de versionado:
+
+- **`supabase` CLI** agregada como devDependency vía pnpm
+  (`package.json`/`pnpm-lock.yaml`).
+- **`supabase/config.toml`** generado vía `supabase init` — sin secretos
+  (todo valor sensible usa `env(...)`).
+- **`supabase/migrations/*.sql`** — las 51 migrations históricas
+  reconstruidas 1:1 desde `supabase_migrations.schema_migrations` vía el
+  MCP read-only, verificadas byte a byte contra el remoto por dos métodos
+  independientes (md5 durante la reconstrucción; sha256 + longitud en
+  bytes durante la revisión independiente) — cero discrepancias.
+- **`docs/ARCHITECTURE.md §0/§0.1`** y **`CLAUDE.md §5`** actualizados para
+  documentar el nuevo modelo: MCP siempre read-only, Human Gate explícito
+  por migration, ejecución actual vía Supabase CLI local, migrations
+  históricas nunca se modifican.
+- **Revisión independiente** (`habitex-reviewer`, contexto separado):
+  sin BLOCKER. 1 finding MEDIUM (esta misma referencia cruzada —
+  corregida al escribir esta entrada). Validación completa
+  (`typecheck`/`lint`/`test`/`build`) en PASS, 334/334 tests, sin
+  regresiones. `git status`/`diff --stat` confirmaron que nada bajo `src/`
+  fue tocado.
+- **Sin escritura contra Supabase remoto en ningún momento**: no hubo
+  `supabase login`/`link`/`db push`/`migration up`/`migration repair`, ni
+  SQL Editor. El MCP read-only fue la única vía de lectura.
+- **Estado**: cambios en el working tree, **sin commit todavía** —
+  pendiente de que el usuario decida el mecanismo de ejecución para la
+  siguiente fase (ya acordado como Supabase CLI local + Human Gate
+  explícito, sin GitHub Actions por ahora) y confirme si commitear este
+  baseline antes o junto con el fix del trial.
+
 ## Decisiones humanas pendientes
 
 Ver `docs/agentic/HABITEX_COMPLETION_PLAN.md` §"Unresolved product
