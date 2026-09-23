@@ -23,12 +23,13 @@ frontend), pusheado a `origin/chore/agentic-foundation` (`59778fc`).
 
 **INC-003 — Trial/Subscription status visibility**: **completo**
 (frontend, sin backend gate — RLS ya soportaba la lectura), implementado,
-validado e independientemente revisado. Checkpoint local pendiente de
-push. Ver detalle en "Último incremento ejecutado" más abajo.
+validado e independientemente revisado. Checkpoint `a859e6c` pusheado a
+`origin/chore/agentic-foundation`. Ver detalle en "Último incremento
+ejecutado" más abajo.
 
 ## Estado
 
-`INC-003 checkpointed locally — pending human review before push/merge`.
+`INC-003 completo — checkpoint a859e6c pusheado a origin/chore/agentic-foundation`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -37,9 +38,10 @@ push. Ver detalle en "Último incremento ejecutado" más abajo.
   `useSubscription` + `supabase-subscription.repository` — implementados,
   validados de forma independiente, revisados por `habitex-reviewer` (0
   BLOCKER/HIGH/MEDIUM, 1 LOW no bloqueante registrado abajo), y
-  checkpointed localmente (ver "Último checkpoint").
-- El checkpoint de INC-003 sigue pendiente de push/merge — push/merge
-  nunca son automáticos en este workflow.
+  checkpointed y pusheado (ver "Último checkpoint").
+- El checkpoint de INC-003 (`a859e6c`) ya está pusheado a
+  `origin/chore/agentic-foundation` tras aprobación humana — HEAD y origin
+  sincronizados.
 
 ## Subtareas
 
@@ -58,15 +60,13 @@ push. Ver detalle en "Último incremento ejecutado" más abajo.
 | Infraestructura: Supabase migrations baseline (CLI, 51 migrations históricas reconstruidas) | done — pusheado (`a173cdb`) |
 | INC-001 — backend gate (fix trial/grace, migration autorada + aplicada + verificada) | done — aplicada en producción, commit `89d7e22`, pusheado a `origin/chore/agentic-foundation` |
 | INC-001 — frontend (bootstrap flow: guards de ruta, `BootstrapAccountPage`, `useBootstrapAccount`) | done — commit `59778fc`, pusheado a `origin/chore/agentic-foundation` |
-| INC-003 — Trial/Subscription status visibility (`SubscriptionStatusBanner`, `useSubscription`, `supabase-subscription.repository`) | done — implementado, validado, revisado (0 fix cycles necesarios), checkpoint local pendiente de push |
+| INC-003 — Trial/Subscription status visibility (`SubscriptionStatusBanner`, `useSubscription`, `supabase-subscription.repository`) | done — implementado, validado, revisado (0 fix cycles necesarios), checkpoint `a859e6c` pusheado |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
-`59778fc`) ya está en `origin/chore/agentic-foundation`; el nuevo
-checkpoint de INC-003 (ver "Último checkpoint") sigue pendiente de
-revisión humana antes de push — push/merge nunca son automáticos en este
-workflow (ver `SKILL.md` §"Reglas globales").
+`59778fc`) e INC-003 (`a859e6c`) ya están en
+`origin/chore/agentic-foundation` — HEAD y origin sincronizados.
 
 ## Último incremento ejecutado
 
@@ -258,20 +258,18 @@ real y storage no bloqueantes). Ninguna de estas bloquea la aprobación del
 plan en sí — bloquean incrementos específicos (algunas como RESEARCH GATE
 explícito) cuando se lleguen a ejecutar.
 
-Decisión pendiente adicional: push/merge del nuevo checkpoint de INC-003
-— siempre gate humano, nunca automático en este workflow.
-
 ## Último checkpoint
 
-- **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit)_
+- **SHA**: `a859e6c`
 - **Branch**: `chore/agentic-foundation`
 - **Contenido del checkpoint**: INC-003 — `SubscriptionStatusBanner`,
   `useSubscription`, `supabase-subscription.repository`, dominio/tipos de
   `Subscription`, wiring en `composition.ts`, banner montado en
-  `AuthenticatedLayout`, i18n, tests, y esta actualización de
+  `AuthenticatedLayout`, i18n, tests, y la actualización correspondiente de
   `PROGRESS.md`.
 - **Fecha**: 2026-09-23
+- **Estado**: pusheado a `origin/chore/agentic-foundation` tras aprobación
+  humana. HEAD == origin, sin pendientes.
 - **No incluido**: ningún cambio de Supabase/migrations nuevo (INC-003 no
   requirió backend gate — RLS ya soportaba la lectura).
 
@@ -290,8 +288,10 @@ reviewer):
 
 ## Siguiente acción recomendada
 
-**Revisión humana del checkpoint de INC-003 antes de push/merge.** INC-001
-(backend + frontend) ya está en `origin`.
+INC-001 e INC-003 (backend + frontend) ya están completos, revisados y
+pusheados a `origin/chore/agentic-foundation` (`a859e6c` == HEAD == origin,
+0 ahead/0 behind). Falta selección humana del próximo incremento a
+ejecutar.
 
 Con INC-001 y INC-003 completos, los siguientes incrementos del
 `HABITEX_COMPLETION_PLAN.md` quedan sin dependencias técnicas pendientes:
@@ -330,4 +330,4 @@ git, no aquí._
 | 2026-09-22 | `a173cdb` | `chore/agentic-foundation` | Adopción del baseline de Supabase migrations: CLI como devDependency, `supabase/config.toml`, 51 migrations históricas reconstruidas byte-exactas, `ARCHITECTURE.md`/`CLAUDE.md` actualizados. Sin cambios bajo `src/`. **Pusheado**. |
 | 2026-09-23 | `89d7e22` | `chore/agentic-foundation` | INC-001 backend gate: migration `fix_trial_grace_period` (14d trial / 44d management access, Option B para la fila legacy existente) autorada, aplicada contra el proyecto Supabase real y verificada remotamente. **Pusheado**. |
 | 2026-09-23 | `59778fc` | `chore/agentic-foundation` | INC-001 frontend: guards de ruta (`RequiresAccount`, `RedirectIfAccountExists`), `BootstrapAccountPage`, `useBootstrapAccount`, `bootstrapAccount` en el repository, wiring en `router.tsx`, i18n. 1 fix cycle (2 HIGH: race navigate/cache, flake de `App.test.tsx`) resuelto y re-verificado; corrección posterior del estado de push de `89d7e22` en `PROGRESS.md` (amend, sin cambio de mensaje). **Pusheado**. |
-| 2026-09-23 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-003 — Trial/Subscription status visibility: `SubscriptionStatusBanner` (fail-silent, no-gating), `useSubscription`, `supabase-subscription.repository`, montado en `AuthenticatedLayout`. Sin backend gate (RLS ya soportaba la lectura). 0 fix cycles — 1 LOW no bloqueante registrado (copy de CANCELED+gracia-vencida). **Local, pendiente de push**. |
+| 2026-09-23 | `a859e6c` | `chore/agentic-foundation` | INC-003 — Trial/Subscription status visibility: `SubscriptionStatusBanner` (fail-silent, no-gating), `useSubscription`, `supabase-subscription.repository`, montado en `AuthenticatedLayout`. Sin backend gate (RLS ya soportaba la lectura). 0 fix cycles — 1 LOW no bloqueante registrado (copy de CANCELED+gracia-vencida). **Pusheado**. |
