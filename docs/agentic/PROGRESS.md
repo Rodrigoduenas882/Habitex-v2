@@ -31,26 +31,42 @@ INC-003" más abajo.
 sin backend gate — el RPC `activate_rental_relationship` y
 `can_manage_administration()` ya enforce expiración/capacidad; sin nuevos
 grants/migrations, declinado explícitamente), implementado, validado e
-independientemente revisado (0 findings). Checkpoint local pendiente de
-push. Ver detalle en "Último incremento ejecutado" más abajo.
+independientemente revisado (0 findings). Checkpoint `10ec380` pusheado a
+`origin/chore/agentic-foundation`. Ver detalle en "Último incremento
+ejecutado" más abajo.
+
+**INC-008 — Rental Activation**: **reconciliado, NO completo** — el
+mecanismo de activación fue entregado por INC-004 (alcance ampliado,
+aprobado explícitamente); el resto del alcance original de INC-008 (copy
+dedicada para fallas de validación del RPC como `RENTAL_TERMS_INCOMPLETE`)
+sigue pendiente y depende de INC-006. Ver
+`docs/agentic/HABITEX_COMPLETION_PLAN.md` sección INC-008 (reescrita) y
+"Reconciliación INC-004/INC-008" más abajo.
 
 ## Estado
 
-`INC-004 completo — checkpoint local pendiente de push`.
+`INC-004 completo y pusheado — INC-008 reconciliado (reducido, no
+completo) — siguiente incremento recomendado: INC-006`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
 - INC-003 (frontend, sin backend gate): **completo y pusheado** (`a859e6c`).
-- INC-004: **completo**. Gate UX-only de expiración/capacidad
+- INC-004: **completo y pusheado** (`10ec380`). Gate UX-only de
+  expiración/capacidad
   (`hasManagementAccess`/`hasRelationshipCapacity`/`useManagementGate` en
   `administration`, `activeRelationshipCount`/`RentalRepository.activate`/
   `useActivateRental` en `rentals`) sobre las acciones de creación (property/
   room/parking/rental draft) y sobre la activación de `RentalRelationship`
   — implementado, validado de forma independiente, revisado por
   `habitex-reviewer` (contexto independiente, 0 BLOCKER/HIGH/MEDIUM/LOW), y
-  checkpointed localmente (ver "Último checkpoint").
-- El checkpoint de INC-004 sigue pendiente de push/merge — push/merge
-  nunca son automáticos en este workflow.
+  checkpointed y pusheado tras aprobación humana (ver "Último checkpoint").
+- INC-008: **NO completo** — reconciliado tras auditar la implementación
+  real de INC-004 contra sus criterios de aceptación originales. Créditado
+  a INC-004 todo lo que ya cubre (mecanismo de activación completo); su
+  alcance restante (copy de errores de validación de Rental Terms) queda
+  bloqueado por INC-006 (dependencia dura, no solo de producto — el RPC
+  real lo exige). Sin cambios de código en esta reconciliación, solo de
+  documentación.
 
 ## Subtareas
 
@@ -70,16 +86,16 @@ push. Ver detalle en "Último incremento ejecutado" más abajo.
 | INC-001 — backend gate (fix trial/grace, migration autorada + aplicada + verificada) | done — aplicada en producción, commit `89d7e22`, pusheado a `origin/chore/agentic-foundation` |
 | INC-001 — frontend (bootstrap flow: guards de ruta, `BootstrapAccountPage`, `useBootstrapAccount`) | done — commit `59778fc`, pusheado a `origin/chore/agentic-foundation` |
 | INC-003 — Trial/Subscription status visibility (`SubscriptionStatusBanner`, `useSubscription`, `supabase-subscription.repository`) | done — implementado, validado, revisado (0 fix cycles necesarios), checkpoint `a859e6c` pusheado |
-| INC-004 — Capacity & expiration gating (`useManagementGate`, `activeRelationshipCount`, `RentalRepository.activate`, `useActivateRental`, gate en creación de property/room/parking/rental draft y en activación de rental) | done — implementado (2 rondas: primitivas+rentals, luego properties/parking), validado, revisado (0 fix cycles necesarios), checkpoint local pendiente de push |
+| INC-004 — Capacity & expiration gating (`useManagementGate`, `activeRelationshipCount`, `RentalRepository.activate`, `useActivateRental`, gate en creación de property/room/parking/rental draft y en activación de rental) | done — implementado (2 rondas: primitivas+rentals, luego properties/parking), validado, revisado (0 fix cycles necesarios), checkpoint `10ec380` pusheado |
+| INC-008 — reconciliación de alcance tras INC-004 (`HABITEX_COMPLETION_PLAN.md` reescrito: scope reducido, dependencia dura de INC-006, "vista de detalle" retirada, INC-009 clarificado) | done — análisis + reescritura de plan, sin cambios de código; INC-008 en sí sigue **no completo** |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
-`59778fc`) e INC-003 (`a859e6c`) ya están en
-`origin/chore/agentic-foundation` — HEAD y origin sincronizados. El nuevo
-checkpoint de INC-004 (ver "Último checkpoint") sigue pendiente de revisión
-humana antes de push — push/merge nunca son automáticos en este workflow
-(ver `SKILL.md` §"Reglas globales").
+`59778fc`), INC-003 (`a859e6c`) e INC-004 (`10ec380`) ya están en
+`origin/chore/agentic-foundation` — HEAD y origin sincronizados. INC-008
+queda abierto con alcance reducido, bloqueado por INC-006 (no es un
+blocker de este momento, es la dependencia natural del roadmap).
 
 ## Último incremento ejecutado
 
@@ -193,6 +209,51 @@ evita sorpresas tardías al usuario.
   `EXECUTE` para `authenticated` (el frontend nunca las invoca); RLS de
   `rental_relationships_update_draft` confirma que `activate_rental_
   relationship` es el único camino real a `ACTIVE`.
+
+## Reconciliación INC-004/INC-008
+
+Tras completar y pushear INC-004, se auditó su implementación real contra
+los criterios de aceptación originales de **INC-008 — Rental Activation**
+(P1, dependiente de INC-006 en el plan original) porque ambos incrementos
+terminaron construyendo el mismo mecanismo de activación. Análisis
+solicitado y aprobado explícitamente por el usuario; resultado:
+
+- **Créditado a INC-004** (no se duplica en INC-008): integración con el
+  RPC `activate_rental_relationship`, `RentalRepository.activate()`,
+  `useActivateRental`, ciclo de vida de la mutation, invalidación de
+  query, acción "Activar" a nivel de lista, reflejo de `ACTIVE` tras
+  refetch, y el manejo de `MANAGEMENT_ACCESS_REQUIRED`/
+  `RELATIONSHIP_CAPACITY_REACHED`.
+- **Decisión de producto**: NO se construye una vista de detalle de
+  rental. El texto original de INC-008 asumía una — retirado del plan (ver
+  `HABITEX_COMPLETION_PLAN.md`, sección INC-008 reescrita). Activar desde
+  la lista existente es suficiente para el MVP actual; una experiencia de
+  detalle dedicada se reconsiderará más adelante, sin incremento nuevo
+  creado para eso ahora.
+- **INC-008 queda en el plan, con alcance reducido**: terminar la UX para
+  las fallas de validación del RPC que INC-004 dejó en un fallback
+  genérico a propósito (mínimo: `RENTAL_TERMS_INCOMPLETE`,
+  `INITIAL_TERM_VERSION_REQUIRED`) — inspeccionando en el momento de
+  ejecutarlo qué códigos siguen siendo alcanzables, sin construir UI para
+  invariantes que `create_rental_draft` ya hace inalcanzables
+  (`PRIMARY_SUBJECT_REQUIRED`/`ACTIVE_TENANT_REQUIRED`/
+  `ACTIVE_LESSOR_REQUIRED`).
+- **Corrección de un error en el plan original**: INC-008 decía "activar
+  sin términos no tiene sentido de producto, aunque el RPC no lo exija
+  técnicamente" — falso. Confirmado leyendo el cuerpo real del RPC durante
+  la investigación de INC-004: el RPC sí exige términos completos
+  (`RENTAL_TERMS_INCOMPLETE`/`INITIAL_TERM_VERSION_REQUIRED`). INC-006 es
+  ahora una **dependencia dura** del resto de INC-008, no solo una
+  recomendación de producto.
+- **INC-009** (lifecycle: cancel/ending/end) clarificado sin cambiar su
+  alcance: su dependencia técnica real en el mecanismo de activación ya
+  está resuelta por INC-004; lo que le falta a INC-008 (copy de errores)
+  no lo bloquea. La cadena real es INC-006 → (resto de INC-008) → un
+  rental `ACTIVE` real de punta a punta; `cancel_draft_rental` (parte de
+  INC-009) no depende de nada de esto porque opera sobre `DRAFT`.
+- **Sin cambios de código** en esta reconciliación — solo
+  `HABITEX_COMPLETION_PLAN.md` (sección INC-008 reescrita, nota de
+  dependencia de INC-009 clarificada) y este archivo.
 
 ### Incremento anterior: INC-003 — Trial/Subscription status visibility
 (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-003) — solo
@@ -384,18 +445,19 @@ explícito) cuando se lleguen a ejecutar.
 
 ## Último checkpoint
 
-- **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit)_
+- **SHA**: `10ec380` (INC-004) — commit de la reconciliación INC-008
+  (documentación únicamente) pendiente, ver más abajo.
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: INC-004 — primitivas de gate
+- **Contenido del checkpoint `10ec380`**: INC-004 — primitivas de gate
   (`management-access.ts`, `useManagementGate`), `activeRelationshipCount`,
   `RentalRepository.activate` + `RentalActivationError`, `useActivateRental`,
   UI de activación en `RentalsPage`/`RentalListCard`, gate en
   `AddRentalDraftForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/
-  `ParkingForm`, i18n, tests, y esta actualización de `PROGRESS.md`.
+  `ParkingForm`, i18n, tests, y la actualización correspondiente de
+  `PROGRESS.md`.
 - **Fecha**: 2026-09-23
-- **Estado**: commiteado localmente, **pendiente de push** — push/merge
-  nunca son automáticos en este workflow.
+- **Estado**: **pusheado** a `origin/chore/agentic-foundation` tras
+  aprobación humana. HEAD == origin, sin pendientes de INC-004.
 - **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
   (INC-004 confirmó que no se necesitaba ninguno; el grant opcional
   discutido en el research gate fue declinado explícitamente).
@@ -413,16 +475,24 @@ reviewer:
 | `pnpm test -- --run` | PASS — 436/436, 68 archivos |
 | `pnpm build` | PASS |
 
+La reconciliación INC-008 (esta actualización) es documentación
+únicamente — no hay validación de código que correr para ella.
+
 ## Siguiente acción recomendada
 
-**Revisión humana del checkpoint de INC-004 antes de push/merge.** INC-001
-e INC-003 (backend + frontend) ya están en `origin`.
+**INC-006 — Rental Terms.** Es el desbloqueador real tanto del resto de
+INC-008 (copy de errores de validación) como de que la activación
+construida en INC-004 sea usable de punta a punta para un rental real
+(hoy cualquier intento de activación real falla con
+`RENTAL_TERMS_INCOMPLETE`, correctamente absorbido por el fallback
+genérico de INC-004). INC-006 ya tiene un **RESEARCH GATE** en el plan
+(mecanismo de escritura de `rental_term_versions` — insert directo vs.
+RPC — sin confirmar todavía).
 
-Con INC-001, INC-003 e INC-004 completos, los siguientes incrementos del
-`HABITEX_COMPLETION_PLAN.md` quedan sin dependencias técnicas pendientes:
+Otros candidatos sin dependencias técnicas pendientes, por si se prefiere
+otro orden:
 
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
-- **INC-006** — Rental Terms (depende de INC-001).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
 - **INC-010** — Generic file upload/download primitive (sin dependencias
   técnicas; secuenciado antes de INC-011/INC-013 porque ambos lo
@@ -432,17 +502,13 @@ Con INC-001, INC-003 e INC-004 completos, los siguientes incrementos del
   técnicas, pero es config de Supabase Auth — dispara HUMAN GATE
   automático por tocar Auth).
 
-Nota: **INC-008 (Rental Activation)** ya no es un incremento separado en el
-sentido en que lo describía el plan original — la acción mínima de
-activar (`activate_rental_relationship`) fue construida como parte de
-INC-004 (alcance ampliado, aprobado explícitamente por el usuario para no
-partir el incremento). Si se llega a INC-008/INC-009 más adelante, ya
-existe `useActivateRental`/`RentalRepository.activate` para reutilizar —
-falta revisar si INC-008 todavía aporta algo más allá de lo ya cubierto
-(p. ej. una vista de detalle de rental) antes de darlo por completo.
+**INC-008** ya no es candidato de selección independiente por ahora — su
+alcance restante depende de INC-006 (ver "Reconciliación INC-004/INC-008"
+más arriba y la sección INC-008 reescrita en
+`HABITEX_COMPLETION_PLAN.md`).
 
-Hay varios candidatos sin dependencias pendientes — la priorización es
-del usuario, no del orchestrator (ver `SKILL.md` §"SELECT INCREMENT").
+La priorización final sigue siendo del usuario, no del orchestrator (ver
+`SKILL.md` §"SELECT INCREMENT").
 
 ---
 
@@ -463,4 +529,5 @@ git, no aquí._
 | 2026-09-23 | `89d7e22` | `chore/agentic-foundation` | INC-001 backend gate: migration `fix_trial_grace_period` (14d trial / 44d management access, Option B para la fila legacy existente) autorada, aplicada contra el proyecto Supabase real y verificada remotamente. **Pusheado**. |
 | 2026-09-23 | `59778fc` | `chore/agentic-foundation` | INC-001 frontend: guards de ruta (`RequiresAccount`, `RedirectIfAccountExists`), `BootstrapAccountPage`, `useBootstrapAccount`, `bootstrapAccount` en el repository, wiring en `router.tsx`, i18n. 1 fix cycle (2 HIGH: race navigate/cache, flake de `App.test.tsx`) resuelto y re-verificado; corrección posterior del estado de push de `89d7e22` en `PROGRESS.md` (amend, sin cambio de mensaje). **Pusheado**. |
 | 2026-09-23 | `a859e6c` | `chore/agentic-foundation` | INC-003 — Trial/Subscription status visibility: `SubscriptionStatusBanner` (fail-silent, no-gating), `useSubscription`, `supabase-subscription.repository`, montado en `AuthenticatedLayout`. Sin backend gate (RLS ya soportaba la lectura). 0 fix cycles — 1 LOW no bloqueante registrado (copy de CANCELED+gracia-vencida). **Pusheado**. |
-| 2026-09-23 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-004 — Capacity & expiration gating: `hasManagementAccess`/`hasRelationshipCapacity`/`useManagementGate` (administration), `activeRelationshipCount`/`RentalRepository.activate`/`RentalActivationError`/`useActivateRental` (rentals), UI de activación + gate en creación de property/room/parking/rental draft. Sin backend gate (RPC/RLS ya enforced; grant opcional declinado explícitamente). 2 rondas de `habitex-implementer` (primitivas+rentals, luego properties/parking). 0 fix cycles — 0 findings del reviewer. **Local, pendiente de push**. |
+| 2026-09-23 | `10ec380` | `chore/agentic-foundation` | INC-004 — Capacity & expiration gating: `hasManagementAccess`/`hasRelationshipCapacity`/`useManagementGate` (administration), `activeRelationshipCount`/`RentalRepository.activate`/`RentalActivationError`/`useActivateRental` (rentals), UI de activación + gate en creación de property/room/parking/rental draft. Sin backend gate (RPC/RLS ya enforced; grant opcional declinado explícitamente). 2 rondas de `habitex-implementer` (primitivas+rentals, luego properties/parking). 0 fix cycles — 0 findings del reviewer. **Pusheado**. |
+| 2026-09-23 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | Reconciliación INC-004/INC-008: auditoría de la implementación real de INC-004 contra los criterios de aceptación originales de INC-008. `HABITEX_COMPLETION_PLAN.md` reescrito (INC-008 con alcance reducido y dependencia dura de INC-006; nota de dependencia de INC-009 clarificada) + esta actualización de `PROGRESS.md`. Documentación únicamente, sin cambios de código. INC-008 permanece **NO completo**. |

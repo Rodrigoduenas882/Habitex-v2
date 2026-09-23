@@ -401,28 +401,83 @@ Human gate? · Acceptance criteria · Validation strategy · Risk.
 - **Risk**: MEDIUM-HIGH — superficie pública nueva, más atención de
   seguridad en la revisión.
 
-#### INC-008 — Rental Activation
+#### INC-008 — Rental Activation (UX restante para fallas de validación)
 - **Priority**: P1
-- **Goal**: `DRAFT` → `ACTIVE` vía `activate_rental_relationship`.
+- **Goal**: **reconciliado tras INC-004** (ver `PROGRESS.md`). El
+  mecanismo de activación (`DRAFT` → `ACTIVE` vía
+  `activate_rental_relationship` — RPC, repository, hook, mutation
+  lifecycle, invalidación de query, acción en la lista, reflejo de
+  `ACTIVE` tras refetch, y el gating de suscripción/capacidad vía
+  `MANAGEMENT_ACCESS_REQUIRED`/`RELATIONSHIP_CAPACITY_REACHED`) **ya fue
+  entregado por INC-004** y no se duplica aquí. Lo que queda de este
+  incremento es terminar la UX para el resto de fallas de validación del
+  RPC que INC-004 dejó deliberadamente en un fallback genérico.
 - **Product requirement**: "Una RentalRelationship puede activarse sin
   que Contract sea obligatoriamente el mecanismo que la habilita" —
-  explícito.
-- **Current evidence**: RPC en el advisor de seguridad;
-  `rental_relationships.activated_at` ya en schema.
-- **Scope**: acción de activación desde una vista de detalle del rental.
+  explícito, sigue vigente sin cambios por esta reducción de alcance.
+- **Current evidence**: leyendo el cuerpo real del RPC (no solo el
+  advisor de seguridad) durante la investigación de INC-004, se confirmó
+  que `activate_rental_relationship` también puede fallar con
+  `RENTAL_NOT_DRAFT`, `RENTAL_TERMS_INCOMPLETE`,
+  `INITIAL_TERM_VERSION_REQUIRED`, `PRIMARY_SUBJECT_REQUIRED`,
+  `ACTIVE_TENANT_REQUIRED`, `ACTIVE_LESSOR_REQUIRED`,
+  `RENTAL_SUBJECT_ALREADY_IN_USE`, `PARKING_ALREADY_SUBLEASED`. De estos,
+  `PRIMARY_SUBJECT_REQUIRED`/`ACTIVE_TENANT_REQUIRED`/
+  `ACTIVE_LESSOR_REQUIRED` ya están satisfechos de forma transitiva por
+  `create_rental_draft` (inserta ambos participantes `ACTIVE` y el
+  subject `PRIMARY` al crear el draft) y hoy no son alcanzables en el
+  flujo real de la app — no requieren UX dedicada salvo que un flujo
+  futuro cambie esa garantía.
+- **Scope**: **reducido respecto a la versión original** — ya NO incluye
+  nada del mecanismo de activación (ver "Goal"), que no se reconstruye ni
+  se duplica. Lo que sigue en alcance: copy/UX dedicada para las fallas de
+  validación del RPC que sean realmente alcanzables y útiles para el
+  usuario, como mínimo las relacionadas con Rental Terms
+  (`RENTAL_TERMS_INCOMPLETE`, `INITIAL_TERM_VERSION_REQUIRED`). Al
+  ejecutar este incremento: inspeccionar los códigos de validación
+  restantes contra el estado real de la app en ese momento y agregar copy
+  dedicada solo donde la falla sea alcanzable — no construir UI para
+  invariantes que los flujos existentes ya hacen inalcanzables (ver
+  "Current evidence").
 - **Out of scope**: contrato como prerrequisito (explícitamente no lo
-  es).
-- **Dependencies**: INC-006 (activar sin términos no tiene sentido de
-  producto, aunque el RPC no lo exija técnicamente).
-- **Likely domains/files**: `features/rentals/`.
-- **Existing Supabase support**: completo.
+  es); una vista de detalle de rental dedicada — **decisión de producto
+  explícita**: para el MVP actual, activar desde la lista existente
+  (`RentalsPage`/`RentalListCard`, ya construida por INC-004) es
+  suficiente. El texto original de este incremento asumía una "vista de
+  detalle del rental" que ningún incremento de este plan construye
+  (INC-006 la excluye explícitamente de su propio alcance) — esa
+  suposición queda retirada; no se crea un incremento nuevo para ella. Una
+  experiencia de detalle de rental dedicada puede reconsiderarse más
+  adelante, cuando el producto tenga suficiente información/acciones
+  relacionadas para justificarla.
+- **Dependencies**: INC-006 — **dependencia dura, no solo de producto**.
+  El RPC desplegado exige `rental_term_versions`/campos de términos
+  completos antes de activar (`RENTAL_TERMS_INCOMPLETE`,
+  `INITIAL_TERM_VERSION_REQUIRED`), confirmado leyendo el cuerpo real del
+  RPC. Corrige el texto original de este incremento, que decía "aunque el
+  RPC no lo exija técnicamente" — esa afirmación era incorrecta.
+- **Likely domains/files**: `features/rentals/` — extender el mapeo de
+  errores tipados que INC-004 ya introdujo
+  (`RentalActivationError`/`RentalActivationErrorCode` en
+  `domain/rental.types.ts`, `toRentalActivationError` en
+  `infrastructure/supabase-rental.repository.ts`) más i18n, no un
+  mecanismo nuevo.
+- **Existing Supabase support**: completo, sin cambios pendientes.
 - **Backend work required?**: no.
-- **Frontend work required?**: sí.
+- **Frontend work required?**: sí, pero acotado a extender lo que INC-004
+  ya construyó.
 - **Human gate?**: NONE.
-- **Acceptance criteria**: un rental con términos puede activarse; el
-  estado se refleja en la lista/detalle.
-- **Validation strategy**: tests de repo/hook/acción, typecheck/lint/test.
-- **Risk**: MEDIUM.
+- **Acceptance criteria**: al intentar activar un rental `DRAFT` sin
+  términos completos, el usuario ve un mensaje específico y accionable
+  (no el fallback genérico de INC-004) que referencia la causa real
+  (términos incompletos); el resto de las fallas de validación reciben
+  copy dedicada solo si son alcanzables en el flujo real de la app en ese
+  momento.
+- **Validation strategy**: tests de mapeo de error por código,
+  typecheck/lint/test.
+- **Risk**: LOW — el mecanismo de mayor riesgo ya fue entregado y
+  revisado de forma independiente en INC-004; lo que queda es
+  principalmente copy/UX.
 
 #### INC-009 — Rental lifecycle completion (cancel/ending/end)
 - **Priority**: P1
@@ -436,7 +491,16 @@ Human gate? · Acceptance criteria · Validation strategy · Risk.
 - **Out of scope**: `relationship_clearances` (move-out formal) — no
   abordado por la fuente de verdad, ver Unresolved domains si aplica a
   Acts.
-- **Dependencies**: INC-008.
+- **Dependencies**: INC-008 — **matiz tras la reconciliación de
+  INC-004/INC-008**: el mecanismo de activación en sí (necesario para
+  tener un rental `ACTIVE` real sobre el cual probar
+  `start_ending_rental`/`end_rental`) ya fue entregado por INC-004; lo que
+  queda pendiente de INC-008 (copy de errores de validación) no bloquea
+  este incremento. La cadena real de dependencias es INC-006 → (resto de
+  INC-008) → INC-009 solo en el sentido de que llevar un rental real de
+  punta a punta hasta `ACTIVE` requiere primero INC-006 (términos); la
+  parte de `cancel_draft_rental` de este incremento no depende de nada de
+  esto, ya que opera sobre `DRAFT`.
 - **Likely domains/files**: `features/rentals/`.
 - **Existing Supabase support**: completo.
 - **Backend work required?**: no.
