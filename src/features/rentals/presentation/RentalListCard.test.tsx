@@ -199,6 +199,24 @@ describe('RentalListCard', () => {
     expect(screen.getByText('Alcanzaste el límite de relaciones activas de tu plan.')).toBeInTheDocument()
   })
 
+  it('disables the Activate button and shows the termsIncomplete reason when blocked for that reason', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{
+          disabled: true,
+          blockReason: 'termsIncomplete',
+          isPending: false,
+          errorCode: null,
+          onActivate: () => {},
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Activar' })).toBeDisabled()
+    expect(screen.getByText('Completa los términos de este arriendo para poder activarlo.')).toBeInTheDocument()
+  })
+
   it('does not show a block reason while merely pending (normal disabled-while-submitting state)', () => {
     render(
       <RentalListCard
@@ -227,6 +245,59 @@ describe('RentalListCard', () => {
     )
 
     expect(screen.getByRole('alert')).toHaveTextContent('Alcanzaste el límite de relaciones activas de tu plan.')
+  })
+
+  it('shows the mapped error message for a terms_incomplete activation attempt', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{
+          disabled: false,
+          blockReason: null,
+          isPending: false,
+          errorCode: 'terms_incomplete',
+          onActivate: () => {},
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Completa los términos de este arriendo antes de activarlo.')
+  })
+
+  it('shows the mapped error message for an already_active activation attempt', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{
+          disabled: false,
+          blockReason: null,
+          isPending: false,
+          errorCode: 'already_active',
+          onActivate: () => {},
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Este arriendo ya fue activado. Actualiza la página para ver su estado actual.',
+    )
+  })
+
+  it('shows the mapped error message for a subject_in_use activation attempt', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{
+          disabled: false,
+          blockReason: null,
+          isPending: false,
+          errorCode: 'subject_in_use',
+          onActivate: () => {},
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('El activo de este arriendo ya está en uso en otra relación activa.')
   })
 
   it('shows a "Completar términos" action for a DRAFT rental, independent of the activation prop', () => {

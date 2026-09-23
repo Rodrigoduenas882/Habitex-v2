@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { RentalTermsRepositoryError, type CreateRentalTermVersionInput } from '../domain/rental-terms.types'
 
-const { eq, order, limit, maybeSingle, insert, single, from } = vi.hoisted(() => {
+const { eq, order, limit, maybeSingle, insert, single, from, inFilter } = vi.hoisted(() => {
   const maybeSingle = vi.fn()
   const limit = vi.fn(() => ({ maybeSingle }))
   const order = vi.fn(() => ({ limit }))
@@ -9,9 +9,10 @@ const { eq, order, limit, maybeSingle, insert, single, from } = vi.hoisted(() =>
   const insertSelect = vi.fn(() => ({ single }))
   const eq = vi.fn((_column: string, _value: string) => ({ order }))
   const insert = vi.fn(() => ({ select: insertSelect }))
-  const select = vi.fn((_columns: string) => ({ eq }))
+  const inFilter = vi.fn()
+  const select = vi.fn((_columns: string) => ({ eq, in: inFilter }))
   const from = vi.fn((_table: string) => ({ select, insert }))
-  return { eq, order, limit, maybeSingle, select, insert, single, from }
+  return { eq, order, limit, maybeSingle, select, insert, single, from, inFilter }
 })
 
 vi.mock('@/infrastructure/supabase/client', () => ({
@@ -113,6 +114,49 @@ describe('supabaseRentalTermsRepository.getCurrent', () => {
     maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
 
     await expect(supabaseRentalTermsRepository.getCurrent('rel-1')).rejects.toBeInstanceOf(
+      RentalTermsRepositoryError,
+    )
+  })
+})
+
+describe('supabaseRentalTermsRepository.listRelationshipIdsWithTerms', () => {
+  it('returns an empty Set without calling Supabase when given an empty array', async () => {
+    from.mockClear()
+
+    const result = await supabaseRentalTermsRepository.listRelationshipIdsWithTerms([])
+
+    expect(result).toEqual(new Set())
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it('queries rental_term_versions scoped by a single .in() call and returns the full match as a Set', async () => {
+    inFilter.mockResolvedValueOnce({
+      data: [{ rental_relationship_id: 'rel-1' }, { rental_relationship_id: 'rel-2' }],
+      error: null,
+    })
+
+    const result = await supabaseRentalTermsRepository.listRelationshipIdsWithTerms(['rel-1', 'rel-2'])
+
+    expect(from).toHaveBeenCalledWith('rental_term_versions')
+    expect(inFilter).toHaveBeenCalledWith('rental_relationship_id', ['rel-1', 'rel-2'])
+    expect(result).toEqual(new Set(['rel-1', 'rel-2']))
+  })
+
+  it('returns only the subset of ids that have a term version, for a partial match', async () => {
+    inFilter.mockResolvedValueOnce({
+      data: [{ rental_relationship_id: 'rel-1' }],
+      error: null,
+    })
+
+    const result = await supabaseRentalTermsRepository.listRelationshipIdsWithTerms(['rel-1', 'rel-2', 'rel-3'])
+
+    expect(result).toEqual(new Set(['rel-1']))
+  })
+
+  it('wraps a Supabase failure in RentalTermsRepositoryError instead of throwing the raw error', async () => {
+    inFilter.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    await expect(supabaseRentalTermsRepository.listRelationshipIdsWithTerms(['rel-1'])).rejects.toBeInstanceOf(
       RentalTermsRepositoryError,
     )
   })

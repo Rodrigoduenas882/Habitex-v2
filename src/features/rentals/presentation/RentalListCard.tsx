@@ -8,7 +8,7 @@ import type { RentalActivationErrorCode, RentalRelationship, RentalStatus } from
 import styles from './RentalListCard.module.css'
 
 /** Why the Activate button is currently disabled - null when it isn't. */
-export type RentalActivationBlockReason = 'managementAccess' | 'capacity' | null
+export type RentalActivationBlockReason = 'managementAccess' | 'capacity' | 'termsIncomplete' | null
 
 export interface RentalListCardActivation {
   disabled: boolean
@@ -41,6 +41,17 @@ const STATUS_TONE: Record<RentalStatus, BadgeTone> = {
   ENDED: 'neutral',
   CANCELLED: 'danger',
 }
+
+/**
+ * One reason-text i18n key per RentalActivationBlockReason - a lookup
+ * object instead of a growing ternary chain, since managementAccess lives
+ * under a different namespace ('administration') than the other two.
+ */
+const BLOCK_REASON_KEY = {
+  managementAccess: 'administration:managementAccessGate.blocked',
+  capacity: 'activate.capacityReasonBlocked',
+  termsIncomplete: 'activate.termsIncompleteReasonBlocked',
+} as const satisfies Record<Exclude<RentalActivationBlockReason, null>, string>
 
 function formatDate(value: string): string {
   // Stored as a plain date (no time/zone) - parsed at local midnight so it
@@ -110,11 +121,7 @@ export function RentalListCard({ rental, activation }: RentalListCardProps) {
             {t('activate.cta')}
           </Button>
           {activation.disabled && !activation.isPending && activation.blockReason ? (
-            <p className="text-caption text-muted">
-              {activation.blockReason === 'managementAccess'
-                ? t('administration:managementAccessGate.blocked')
-                : t('activate.capacityReasonBlocked')}
-            </p>
+            <p className="text-caption text-muted">{t(BLOCK_REASON_KEY[activation.blockReason])}</p>
           ) : null}
           {activation.errorCode ? (
             <Alert tone="danger">{t(`activate.errors.${activation.errorCode}`)}</Alert>

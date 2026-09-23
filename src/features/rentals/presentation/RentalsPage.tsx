@@ -14,7 +14,8 @@ import styles from './RentalsPage.module.css'
 import { RentalListCard, type RentalActivationBlockReason } from './RentalListCard'
 import { useActivateRental } from '../application/useActivateRental'
 import { useRentals } from '../application/useRentals'
-import { activeRelationshipCount, type RentalActivationError } from '../domain/rental.types'
+import { useRentalTermsExistence } from '../application/useRentalTermsExistence'
+import { activeRelationshipCount, type RentalActivationError, type RentalRelationship } from '../domain/rental.types'
 
 function RentalsGridSkeleton() {
   return (
@@ -27,14 +28,37 @@ function RentalsGridSkeleton() {
 }
 
 /**
+ * A DRAFT rental is ready to activate, from this page's own read-only
+ * client-side signals, only when both of activate_rental_relationship's own
+ * real checks pass: the 4 schedule columns are set (mirrors
+ * RENTAL_TERMS_INCOMPLETE) and a term version already exists for it (mirrors
+ * INITIAL_TERM_VERSION_REQUIRED - see useRentalTermsExistence). This is not
+ * a heuristic - it reads the exact same signals the RPC itself reads - but
+ * it is still only ever a proactive UX gate, never a substitute for the RPC
+ * rejecting an actually-invalid activation (see this page's own doc comment
+ * below).
+ */
+function hasCompleteSchedule(rental: RentalRelationship): boolean {
+  return (
+    rental.realStartDate !== null &&
+    rental.trackingStartDate !== null &&
+    rental.paymentDay !== null &&
+    rental.paymentTiming !== null
+  )
+}
+
+/**
  * /rentals: lists rental_relationships scoped to the current
  * administration, plus the CTA to /rentals/new (create_rental_draft) and,
- * for DRAFT rows, the "Activar" action (activate_rental_relationship). The
- * management-access/capacity gate here is UX convenience only (see
- * management-access.ts) - the RPC called by useActivateRental remains the
- * real, authoritative check regardless of what this page computed locally.
- * Nothing about term versions, dates, canon, services, contract, occupancy
- * or payments yet - those stay out of scope until later increments.
+ * for DRAFT rows, the "Activar" action (activate_rental_relationship) and
+ * the "Completar términos" action (/rentals/:id/terms, see RentalTermsPage).
+ * The management-access/capacity/terms-readiness gates here are UX
+ * convenience only (see management-access.ts and hasCompleteSchedule's own
+ * doc comment) - the RPC called by useActivateRental remains the real,
+ * authoritative check regardless of what this page computed locally; a
+ * rejection it actually returns is still caught and mapped via
+ * activationError/activationErrorRelationshipId exactly as before, whether
+ * or not this page's own gate predicted it.
  */
 export default function RentalsPage() {
   const { t } = useTranslation('rentals')
@@ -48,6 +72,9 @@ export default function RentalsPage() {
   const managementGate = useManagementGate(administrationId)
   const hasCapacity = hasRelationshipCapacity(managementGate.subscription ?? null, activeRelationshipCount(rentals))
   const activateRental = useActivateRental()
+
+  const draftRentalIds = rentals.filter((rental) => rental.status === 'DRAFT').map((rental) => rental.id)
+  const termsExistenceQuery = useRentalTermsExistence(administrationId, draftRentalIds)
 
   const activatingRelationshipId = activateRental.isPending ? activateRental.variables.relationshipId : null
   const activationError = activateRental.isError ? (activateRental.error as RentalActivationError) : null
@@ -117,30 +144,46 @@ export default function RentalsPage() {
         />
       ) : (
         <div className={styles['grid']}>
-          {rentals.map((rental) => (
-            <RentalListCard
-              key={rental.id}
-              rental={rental}
-              {...(rental.status === 'DRAFT'
-                ? {
-                    activation: {
-                      disabled:
-                        managementGate.blocked || !hasCapacity || activatingRelationshipId === rental.id,
-                      blockReason: activationBlockReason,
-                      isPending: activatingRelationshipId === rental.id,
-                      errorCode:
-                        activationErrorRelationshipId === rental.id ? (activationError?.code ?? null) : null,
-                      onActivate: () => {
-                        activateRental.mutate({
-                          administrationId: resolvedAdministrationId,
-                          relationshipId: rental.id,
-                        })
-                      },
-                    },
-                  }
-                : {})}
-            />
-          ))}
+          {rentals.map((rental) => {
+            if (rental.status !== 'DRAFT') {
+              return <RentalListCard key={rental.id} rental={rental} />
+            }
+
+            // Per-row, unlike managementAccess/capacity above (same for
+            // every row): a term version genuinely exists (or doesn't) per
+            // relationship. While termsExistenceQuery hasn't resolved yet,
+            // this fails open (not blocked for this reason) - same
+            // "never flash disabled while state is unknown" principle as
+            // useManagementGate - unless the schedule itself is already
+            // known to be incomplete, which this page can determine
+            // synchronously from data it already has.
+            const termsReady =
+              hasCompleteSchedule(rental) &&
+              (termsExistenceQuery.isPending ? true : (termsExistenceQuery.data?.has(rental.id) ?? false))
+
+            const rowBlockReason: RentalActivationBlockReason =
+              activationBlockReason ?? (termsReady ? null : 'termsIncomplete')
+
+            return (
+              <RentalListCard
+                key={rental.id}
+                rental={rental}
+                activation={{
+                  disabled:
+                    managementGate.blocked || !hasCapacity || !termsReady || activatingRelationshipId === rental.id,
+                  blockReason: rowBlockReason,
+                  isPending: activatingRelationshipId === rental.id,
+                  errorCode: activationErrorRelationshipId === rental.id ? (activationError?.code ?? null) : null,
+                  onActivate: () => {
+                    activateRental.mutate({
+                      administrationId: resolvedAdministrationId,
+                      relationshipId: rental.id,
+                    })
+                  },
+                }}
+              />
+            )
+          })}
         </div>
       )
   }

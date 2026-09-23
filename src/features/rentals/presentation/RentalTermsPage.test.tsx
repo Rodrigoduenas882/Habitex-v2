@@ -173,6 +173,20 @@ describe('RentalTermsPage', () => {
     expect(screen.queryByRole('button', { name: 'Guardar términos' })).not.toBeInTheDocument()
   })
 
+  it('renders the read-only view (not the editable form) for a non-DRAFT relationship even when no term version exists yet', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([{ ...UPDATED_RELATIONSHIP, status: 'ACTIVE' as const }])
+    getCurrent.mockResolvedValueOnce(null)
+    renderPage()
+
+    expect(
+      await screen.findByText('Estos términos ya fueron registrados y no se pueden editar todavía.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('No hay condiciones financieras registradas para este arriendo.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Valor del arriendo')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Guardar términos' })).not.toBeInTheDocument()
+  })
+
   it('calls updateSchedule then rentalTermsRepository.create, in that order, and navigates to /rentals on success', async () => {
     resolveOneAdministration()
     listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])

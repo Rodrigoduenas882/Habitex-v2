@@ -51,17 +51,42 @@ export function activeRelationshipCount(rentals: RentalRelationship[]): number {
 
 /**
  * Known, user-facing activate_rental_relationship failure categories.
- * Deliberately coarse, mirroring SessionAuthError's shape: only the two
- * cases this increment (INC-004) needs to distinguish in the UI get their
- * own code. Every other exception the RPC can raise (RENTAL_NOT_FOUND,
- * RENTAL_NOT_DRAFT, RENTAL_TERMS_INCOMPLETE, PRIMARY_SUBJECT_REQUIRED,
- * ACTIVE_TENANT_REQUIRED, ACTIVE_LESSOR_REQUIRED,
- * INITIAL_TERM_VERSION_REQUIRED, RENTAL_SUBJECT_ALREADY_IN_USE,
- * PARKING_ALREADY_SUBLEASED) falls back to 'unknown' by design - per-code UX
- * for those is out of scope here and belongs to a later increment
- * (INC-006/INC-008).
+ * Deliberately coarse, mirroring SessionAuthError's shape - only exceptions
+ * this frontend can actually reach through its own flows get their own
+ * code (see toRentalActivationError's own doc comment for the full
+ * RPC-string -> code mapping):
+ *
+ * - 'management_access_required' <- MANAGEMENT_ACCESS_REQUIRED (INC-004)
+ * - 'capacity_reached' <- RELATIONSHIP_CAPACITY_REACHED (INC-004)
+ * - 'terms_incomplete' <- RENTAL_TERMS_INCOMPLETE and
+ *   INITIAL_TERM_VERSION_REQUIRED (INC-008) - both mean the same thing from
+ *   the user's perspective ("finish this rental's terms first"), so they
+ *   share one code even though the RPC raises two distinct strings.
+ * - 'already_active' <- RENTAL_NOT_DRAFT (INC-008) - reachable via stale
+ *   client state (two tabs, two people managing the same administration)
+ *   where the rental was activated elsewhere while this view still shows
+ *   DRAFT.
+ * - 'subject_in_use' <- RENTAL_SUBJECT_ALREADY_IN_USE (INC-008) - reachable
+ *   because nothing today prevents creating two DRAFT rentals against the
+ *   same rental_subject_id; the conflict only surfaces at activation time.
+ *
+ * RENTAL_NOT_FOUND, PRIMARY_SUBJECT_REQUIRED, ACTIVE_TENANT_REQUIRED,
+ * ACTIVE_LESSOR_REQUIRED and PARKING_ALREADY_SUBLEASED remain deliberately
+ * unmapped and fall back to 'unknown' - none of them is reachable through
+ * any path this frontend exposes today (create_rental_draft already
+ * atomically creates the PRIMARY subject and both ACTIVE participants, and
+ * PARKING_ALREADY_SUBLEASED requires a sublease-authorization flow that has
+ * no frontend implementation anywhere in this repo). Per-code UX for those
+ * would be speculative and belongs to whichever increment actually builds
+ * the flow that can reach them.
  */
-export type RentalActivationErrorCode = 'management_access_required' | 'capacity_reached' | 'unknown'
+export type RentalActivationErrorCode =
+  | 'management_access_required'
+  | 'capacity_reached'
+  | 'terms_incomplete'
+  | 'already_active'
+  | 'subject_in_use'
+  | 'unknown'
 
 export class RentalActivationError extends Error {
   readonly code: RentalActivationErrorCode

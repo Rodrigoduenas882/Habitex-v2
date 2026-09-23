@@ -60,9 +60,13 @@
   "activate": {
     "cta": "Activar",
     "capacityReasonBlocked": "Alcanzaste el límite de relaciones activas de tu plan.",
+    "termsIncompleteReasonBlocked": "Completa los términos de este arriendo para poder activarlo.",
     "errors": {
       "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",
       "capacity_reached": "Alcanzaste el límite de relaciones activas de tu plan.",
+      "terms_incomplete": "Completa los términos de este arriendo antes de activarlo.",
+      "already_active": "Este arriendo ya fue activado. Actualiza la página para ver su estado actual.",
+      "subject_in_use": "El activo de este arriendo ya está en uso en otra relación activa.",
       "unknown": "No pudimos activar esta relación. Intenta de nuevo."
     }
   },
@@ -165,7 +169,8 @@
     "submit": "Guardar términos",
     "submitting": "Guardando términos…",
     "readOnly": {
-      "notice": "Estos términos ya fueron registrados y no se pueden editar todavía."
+      "notice": "Estos términos ya fueron registrados y no se pueden editar todavía.",
+      "financialUnavailable": "No hay condiciones financieras registradas para este arriendo."
     },
     "validation": {
       "realStartDateRequired": "Ingresa la fecha real de inicio.",

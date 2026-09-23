@@ -68,8 +68,22 @@ export class RentalTermsRepositoryError extends Error {
  * increment never creates more than one version, this is simply "the one
  * version if it exists yet" - not real "current vs. historical" versioning
  * logic.
+ *
+ * listRelationshipIdsWithTerms (INC-008) is the precise, non-heuristic
+ * signal for "does this DRAFT rental have terms yet" - as opposed to
+ * inferring it from rental_relationships' own schedule columns alone
+ * (real_start_date/tracking_start_date/payment_day/payment_timing), which
+ * could theoretically be set without a rental_term_versions row existing
+ * (see useSaveRentalTerms's documented partial-failure case, where
+ * updateSchedule succeeds but create fails). Takes a batch of relationship
+ * ids and returns the subset that already have at least one term version, in
+ * a single `.in(...)` query - not N+1 - because this is a UX-readiness read
+ * (e.g. gating the "Activar" action on the rentals list), not a new
+ * aggregate. Same rental_terms_select RLS policy already covers it
+ * (can_view_relationship, broader than can_manage_administration) - no RPC.
  */
 export interface RentalTermsRepository {
   create(input: CreateRentalTermVersionInput): Promise<RentalTermVersion>
   getCurrent(rentalRelationshipId: string): Promise<RentalTermVersion | null>
+  listRelationshipIdsWithTerms(rentalRelationshipIds: string[]): Promise<Set<string>>
 }

@@ -27,8 +27,10 @@ const UTILITIES_MODE_OPTIONS = ['TENANT', 'LESSOR', 'SPECIAL_AGREEMENT'] as cons
 const ADMINISTRATION_MODE_OPTIONS = ['NONE', 'INCLUDED', 'TENANT_DIRECT'] as const
 
 /**
- * Read-only rendering once a RentalTermVersion already exists for this
- * relationship - this increment is create+read only, not edit (see
+ * Read-only rendering once either a RentalTermVersion already exists for
+ * this relationship, or the relationship itself is no longer DRAFT (see
+ * RentalTermsForm's own doc comment for why the latter matters even without
+ * a term version) - this increment is create+read only, not edit (see
  * useSaveRentalTerms/RentalTermsRepository's own doc comments). A later
  * increment can add real editing if product asks for it; nothing here is
  * built speculatively for that. Schedule fields (trackingStartDate,
@@ -38,12 +40,21 @@ const ADMINISTRATION_MODE_OPTIONS = ['NONE', 'INCLUDED', 'TENANT_DIRECT'] as con
  * feature (no rental detail view - see this increment's own scope notes),
  * so the list is the only place those already-saved values can be read
  * from.
+ *
+ * `termVersion` is nullable: a non-DRAFT relationship with no term version
+ * yet is not expected in practice (activation itself requires one - see
+ * INITIAL_TERM_VERSION_REQUIRED), but this view must still render sensibly
+ * rather than crash on it (stale client state, RLS edge case, etc.) - the
+ * schedule fields still come from `relationship` either way, and the
+ * financial fields (rentAmount/administrationMode/utilitiesMode only ever
+ * exist on RentalTermVersion) show an explicit "not available" message
+ * instead of reading properties off `null`.
  */
 function RentalTermsReadOnlyView({
   termVersion,
   relationship,
 }: {
-  termVersion: RentalTermVersion
+  termVersion: RentalTermVersion | null
   relationship: RentalRelationship
 }) {
   const { t } = useTranslation('rentals')
@@ -51,7 +62,12 @@ function RentalTermsReadOnlyView({
   return (
     <div className={styles['form']}>
       <p className="text-body-sm text-muted">{t('termsForm.readOnly.notice')}</p>
-      <Input label={t('termsForm.realStartDate.label')} type="date" disabled defaultValue={termVersion.effectiveFrom} />
+      <Input
+        label={t('termsForm.realStartDate.label')}
+        type="date"
+        disabled
+        defaultValue={termVersion?.effectiveFrom ?? relationship.realStartDate ?? ''}
+      />
       <Input
         label={t('termsForm.trackingStartDate.label')}
         type="date"
@@ -74,22 +90,37 @@ function RentalTermsReadOnlyView({
         disabled
         defaultValue={relationship.expectedEndDate ?? ''}
       />
-      <Input label={t('termsForm.rentAmount.label')} type="number" disabled defaultValue={termVersion.rentAmount} />
-      <Select label={t('termsForm.administrationMode.label')} disabled defaultValue={termVersion.administrationMode}>
-        {ADMINISTRATION_MODE_OPTIONS.map((mode) => (
-          <option key={mode} value={mode}>
-            {t(`termsForm.administrationMode.${mode}`)}
-          </option>
-        ))}
-      </Select>
-      <Select label={t('termsForm.utilitiesMode.label')} disabled defaultValue={termVersion.utilitiesMode ?? ''}>
-        <option value="">{t('termsForm.utilitiesMode.none')}</option>
-        {UTILITIES_MODE_OPTIONS.map((mode) => (
-          <option key={mode} value={mode}>
-            {t(`termsForm.utilitiesMode.${mode}`)}
-          </option>
-        ))}
-      </Select>
+      {termVersion ? (
+        <>
+          <Input
+            label={t('termsForm.rentAmount.label')}
+            type="number"
+            disabled
+            defaultValue={termVersion.rentAmount}
+          />
+          <Select
+            label={t('termsForm.administrationMode.label')}
+            disabled
+            defaultValue={termVersion.administrationMode}
+          >
+            {ADMINISTRATION_MODE_OPTIONS.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`termsForm.administrationMode.${mode}`)}
+              </option>
+            ))}
+          </Select>
+          <Select label={t('termsForm.utilitiesMode.label')} disabled defaultValue={termVersion.utilitiesMode ?? ''}>
+            <option value="">{t('termsForm.utilitiesMode.none')}</option>
+            {UTILITIES_MODE_OPTIONS.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`termsForm.utilitiesMode.${mode}`)}
+              </option>
+            ))}
+          </Select>
+        </>
+      ) : (
+        <p className="text-body-sm text-muted">{t('termsForm.readOnly.financialUnavailable')}</p>
+      )}
     </div>
   )
 }
@@ -159,7 +190,14 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
     )
   }
 
-  if (termVersion) {
+  // Read-only whenever a term version already exists OR the relationship is
+  // no longer DRAFT - RLS (rental_terms_insert/rental_relationships_update_draft)
+  // already blocks any real write once non-DRAFT, so this is about not
+  // presenting a live, submittable form the backend would reject anyway
+  // (fixes the LOW finding from the INC-006 review: the previous condition
+  // only checked termVersion, so a non-DRAFT relationship with no term
+  // version somehow still rendered as an editable, submittable form).
+  if (termVersion || relationship.status !== 'DRAFT') {
     return (
       <div className={styles['page']}>
         <h1 className="text-h2">{t('termsForm.title')}</h1>

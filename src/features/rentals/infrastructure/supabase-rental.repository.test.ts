@@ -322,8 +322,44 @@ describe('supabaseRentalRepository.activate', () => {
     expect((error as RentalActivationError).code).toBe('capacity_reached')
   })
 
-  it('maps every other/unrecognized exception to a RentalActivationError with code unknown', async () => {
+  it('maps RENTAL_TERMS_INCOMPLETE to a RentalActivationError with code terms_incomplete', async () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'RENTAL_TERMS_INCOMPLETE' } })
+
+    const error = await supabaseRentalRepository.activate('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalActivationError)
+    expect((error as RentalActivationError).code).toBe('terms_incomplete')
+  })
+
+  it('maps INITIAL_TERM_VERSION_REQUIRED to the same terms_incomplete code as RENTAL_TERMS_INCOMPLETE', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'INITIAL_TERM_VERSION_REQUIRED' } })
+
+    const error = await supabaseRentalRepository.activate('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalActivationError)
+    expect((error as RentalActivationError).code).toBe('terms_incomplete')
+  })
+
+  it('maps RENTAL_NOT_DRAFT to a RentalActivationError with code already_active', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'RENTAL_NOT_DRAFT' } })
+
+    const error = await supabaseRentalRepository.activate('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalActivationError)
+    expect((error as RentalActivationError).code).toBe('already_active')
+  })
+
+  it('maps RENTAL_SUBJECT_ALREADY_IN_USE to a RentalActivationError with code subject_in_use', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'RENTAL_SUBJECT_ALREADY_IN_USE' } })
+
+    const error = await supabaseRentalRepository.activate('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalActivationError)
+    expect((error as RentalActivationError).code).toBe('subject_in_use')
+  })
+
+  it('maps every other/unrecognized exception (e.g. PRIMARY_SUBJECT_REQUIRED, deliberately unmapped) to code unknown', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'PRIMARY_SUBJECT_REQUIRED' } })
 
     const error = await supabaseRentalRepository.activate('rel-1').catch((e: unknown) => e)
 

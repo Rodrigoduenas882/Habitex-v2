@@ -84,4 +84,24 @@ export const supabaseRentalTermsRepository: RentalTermsRepository = {
 
     return data ? toRentalTermVersion(data) : null
   },
+
+  async listRelationshipIdsWithTerms(rentalRelationshipIds: string[]): Promise<Set<string>> {
+    // An empty .in() is either wasteful (a real round trip that always
+    // returns nothing) or invalid depending on the client - handled
+    // explicitly instead of relying on Supabase's own behavior for it.
+    if (rentalRelationshipIds.length === 0) {
+      return new Set()
+    }
+
+    const { data, error } = await supabaseClient
+      .from('rental_term_versions')
+      .select('rental_relationship_id')
+      .in('rental_relationship_id', rentalRelationshipIds)
+
+    if (error) {
+      throw new RentalTermsRepositoryError('Failed to check which rental relationships already have terms', error)
+    }
+
+    return new Set((data as { rental_relationship_id: string }[]).map((row) => row.rental_relationship_id))
+  },
 }

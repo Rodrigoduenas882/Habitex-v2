@@ -59,9 +59,11 @@ function firstRow<T>(data: T | T[] | null): T | null {
  * Translates activate_rental_relationship's bare exception string into our
  * own RentalActivationError so nothing above this repository ever depends
  * on the raw Postgres error message. Unmatched cases (every RPC exception
- * this increment doesn't distinguish in the UI - see RentalActivationError's
- * own doc comment) fall back to 'unknown' by design, same principle as
- * toSessionAuthError.
+ * this frontend can't actually reach - see RentalActivationError's own doc
+ * comment) fall back to 'unknown' by design, same principle as
+ * toSessionAuthError. RENTAL_TERMS_INCOMPLETE and
+ * INITIAL_TERM_VERSION_REQUIRED both map to the single 'terms_incomplete'
+ * code - two raw RPC strings, one user-facing meaning.
  */
 function toRentalActivationError(error: { message: string }): RentalActivationError {
   if (error.message === 'MANAGEMENT_ACCESS_REQUIRED') {
@@ -70,6 +72,18 @@ function toRentalActivationError(error: { message: string }): RentalActivationEr
 
   if (error.message === 'RELATIONSHIP_CAPACITY_REACHED') {
     return new RentalActivationError('capacity_reached', error)
+  }
+
+  if (error.message === 'RENTAL_TERMS_INCOMPLETE' || error.message === 'INITIAL_TERM_VERSION_REQUIRED') {
+    return new RentalActivationError('terms_incomplete', error)
+  }
+
+  if (error.message === 'RENTAL_NOT_DRAFT') {
+    return new RentalActivationError('already_active', error)
+  }
+
+  if (error.message === 'RENTAL_SUBJECT_ALREADY_IN_USE') {
+    return new RentalActivationError('subject_in_use', error)
   }
 
   return new RentalActivationError('unknown', error)
