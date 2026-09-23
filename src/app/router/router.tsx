@@ -3,6 +3,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { lazy, Suspense, type ReactNode } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
+import { RedirectIfAccountExists } from '@/features/administration/presentation/RedirectIfAccountExists'
+import { RequiresAccount } from '@/features/administration/presentation/RequiresAccount'
 import { ProtectedRoute } from '@/features/auth/presentation/ProtectedRoute'
 import { RedirectIfAuthenticated } from '@/features/auth/presentation/RedirectIfAuthenticated'
 import { HabitexBootScreen } from '@/shared/components/HabitexBootScreen'
@@ -10,6 +12,7 @@ import { RouteErrorBoundary } from '@/shared/components/RouteErrorBoundary'
 import { AuthenticatedLayout } from '../layouts/AuthenticatedLayout'
 import { RootLayout } from '../layouts/RootLayout'
 
+const BootstrapAccountPage = lazy(() => import('@/features/administration/presentation/BootstrapAccountPage'))
 const DashboardPage = lazy(() => import('@/features/dashboard/presentation/DashboardPage'))
 const PropertiesPage = lazy(() => import('@/features/properties/presentation/PropertiesPage'))
 const AddPropertyPage = lazy(() => import('@/features/properties/presentation/AddPropertyPage'))
@@ -34,17 +37,27 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: [
           {
-            element: <AuthenticatedLayout />,
+            path: 'bootstrap',
+            element: <RedirectIfAccountExists />,
+            children: [{ index: true, element: withSuspense(<BootstrapAccountPage />) }],
+          },
+          {
+            element: <RequiresAccount />,
             children: [
-              { index: true, element: withSuspense(<DashboardPage />) },
-              { path: 'properties', element: withSuspense(<PropertiesPage />) },
-              { path: 'properties/new', element: withSuspense(<AddPropertyPage />) },
               {
-                path: 'properties/:propertyId/rooms/setup',
-                element: withSuspense(<RoomSetupPage />),
+                element: <AuthenticatedLayout />,
+                children: [
+                  { index: true, element: withSuspense(<DashboardPage />) },
+                  { path: 'properties', element: withSuspense(<PropertiesPage />) },
+                  { path: 'properties/new', element: withSuspense(<AddPropertyPage />) },
+                  {
+                    path: 'properties/:propertyId/rooms/setup',
+                    element: withSuspense(<RoomSetupPage />),
+                  },
+                  { path: 'rentals', element: withSuspense(<RentalsPage />) },
+                  { path: 'rentals/new', element: withSuspense(<AddRentalPage />) },
+                ],
               },
-              { path: 'rentals', element: withSuspense(<RentalsPage />) },
-              { path: 'rentals/new', element: withSuspense(<AddRentalPage />) },
             ],
           },
         ],

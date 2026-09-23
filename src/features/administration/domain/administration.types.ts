@@ -37,6 +37,18 @@ export class AdministrationContextError extends Error {
   }
 }
 
+export interface BootstrapAccountInput {
+  fullName: string
+  administrationName?: string
+}
+
+export interface BootstrapAccountResult {
+  personId: string
+  accountId: string
+  administrationId: string | null
+  created: boolean
+}
+
 /**
  * Resolves the account belonging to the currently authenticated Supabase
  * Auth user, scoped entirely by RLS (accounts.auth_user_id = auth.uid()) -
@@ -48,6 +60,12 @@ export class AdministrationContextError extends Error {
  */
 export interface AccountRepository {
   getCurrentAccount(): Promise<Account | null>
+
+  /**
+   * Idempotent on the backend: if the current auth user already has an
+   * account, this creates nothing and just returns it (created: false).
+   */
+  bootstrapAccount(input: BootstrapAccountInput): Promise<BootstrapAccountResult>
 }
 
 /**

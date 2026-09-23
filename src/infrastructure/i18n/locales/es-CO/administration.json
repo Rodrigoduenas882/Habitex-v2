@@ -8,5 +8,24 @@
     "title": "Selecciona una administración",
     "description": "Tienes acceso a varias administraciones. Elige con cuál quieres trabajar.",
     "optionLabel": "{{name}}, {{status}}"
+  },
+  "bootstrap": {
+    "title": "Crea tu cuenta",
+    "description": "Cuéntanos tu nombre para terminar de configurar tu cuenta en Habitex.",
+    "fullNameLabel": "Nombre completo",
+    "administrationNameLabel": "Nombre de tu administración",
+    "administrationNameHint": "Opcional. Si lo dejas en blanco, usamos un nombre por defecto que puedes cambiar después.",
+    "submit": "Crear cuenta",
+    "submitting": "Creando cuenta…",
+    "validation": {
+      "fullNameRequired": "Ingresa tu nombre completo."
+    },
+    "errors": {
+      "submitFailed": "No pudimos crear tu cuenta. Intenta de nuevo."
+    }
+  },
+  "guardError": {
+    "title": "No pudimos confirmar tu cuenta",
+    "description": "Ocurrió un problema al verificar tu cuenta. Intenta de nuevo."
   }
 }

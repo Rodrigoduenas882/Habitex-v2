@@ -16,7 +16,8 @@
     "save": "Guardar",
     "cancel": "Cancelar",
     "continue": "Continuar",
-    "delete": "Eliminar"
+    "delete": "Eliminar",
+    "retry": "Reintentar"
   },
   "status": {
     "active": "Activo",

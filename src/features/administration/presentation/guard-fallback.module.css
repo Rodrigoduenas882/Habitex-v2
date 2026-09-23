@@ -1,0 +1,19 @@
+/* Shared by RequiresAccount and RedirectIfAccountExists for their fail-closed
+   error state - same minimal centered layout as HabitexBootScreen occupies
+   while loading, just with an Alert + retry Button instead of the boot
+   animation. */
+.fallback {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  text-align: center;
+  background: var(--color-background);
+}
+
+.alert {
+  max-width: 420px;
+}
