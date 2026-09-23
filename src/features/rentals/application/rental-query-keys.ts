@@ -5,4 +5,6 @@
  */
 export const rentalQueryKeys = {
   list: (administrationId: string) => ['administration', administrationId, 'rentals'] as const,
+  terms: (administrationId: string, relationshipId: string) =>
+    ['administration', administrationId, 'rentals', relationshipId, 'terms'] as const,
 }

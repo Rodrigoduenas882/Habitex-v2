@@ -75,6 +75,23 @@ export class RentalActivationError extends Error {
 }
 
 /**
+ * Input for updateSchedule - the 4 rental_relationships columns
+ * activate_rental_relationship requires to be non-null before DRAFT ->
+ * ACTIVE can succeed (real_start_date, tracking_start_date, payment_day,
+ * payment_timing), plus expected_end_date (nullable, optional at this
+ * stage). realStartDate doubles as the first RentalTermVersion's
+ * effectiveFrom at the call site (see useSaveRentalTerms) - it is not
+ * collected twice.
+ */
+export interface RentalScheduleInput {
+  realStartDate: string
+  trackingStartDate: string
+  paymentDay: number
+  paymentTiming: PaymentTiming
+  expectedEndDate: string | null
+}
+
+/**
  * The tenant side of createDraft's input - exactly the two mutually
  * exclusive cases create_rental_draft itself supports. `kind` is decided by
  * the caller (which tab of "¿A quién se lo arriendas?" was used), never
@@ -128,12 +145,23 @@ export interface CreateRentalDraftResult {
  * DRAFT -> ACTIVE. It is the real security/business-rule boundary (RLS +
  * this RPC, SECURITY DEFINER); any client-side gate (management-access.ts,
  * activeRelationshipCount) is UX convenience layered on top, never a
- * substitute for calling this. No cancel/end/getById/update here -
- * lifecycle beyond DRAFT creation and activation is out of scope for this
- * increment.
+ * substitute for calling this. No cancel/end/getById here - lifecycle
+ * beyond DRAFT creation, schedule entry and activation is out of scope for
+ * this increment.
+ *
+ * updateSchedule issues a direct UPDATE on rental_relationships (no RPC
+ * exists for this) - RLS-gated by rental_relationships_update_draft, which
+ * only allows it while status = 'DRAFT' and the caller can manage the
+ * administration. Same table listByAdministration/activate already read,
+ * just a different operation on it. This writes the 4 columns
+ * activate_rental_relationship requires before DRAFT -> ACTIVE can succeed
+ * (see RentalScheduleInput's own doc comment) - it does not touch
+ * rental_term_versions (see RentalTermsRepository for that, a separate
+ * table/RLS/aggregate).
  */
 export interface RentalRepository {
   listByAdministration(administrationId: string): Promise<RentalRelationship[]>
   createDraft(input: CreateRentalDraftInput): Promise<CreateRentalDraftResult>
   activate(relationshipId: string): Promise<RentalRelationship>
+  updateSchedule(relationshipId: string, input: RentalScheduleInput): Promise<RentalRelationship>
 }

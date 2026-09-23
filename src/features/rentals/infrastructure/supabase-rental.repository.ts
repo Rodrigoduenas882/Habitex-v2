@@ -7,6 +7,7 @@ import {
   type PaymentTiming,
   type RentalRelationship,
   type RentalRepository,
+  type RentalScheduleInput,
   type RentalStatus,
 } from '../domain/rental.types'
 
@@ -153,5 +154,32 @@ export const supabaseRentalRepository: RentalRepository = {
     }
 
     return toRentalRelationship(row)
+  },
+
+  async updateSchedule(relationshipId: string, input: RentalScheduleInput): Promise<RentalRelationship> {
+    // Direct UPDATE, no RPC - RLS (rental_relationships_update_draft) is the
+    // real authority: it rejects this outright unless the row is still
+    // DRAFT and the caller can manage its administration. Same table
+    // listByAdministration/activate already read, just a different
+    // operation on it (see RentalRepository.updateSchedule's own doc
+    // comment).
+    const { data, error } = await supabaseClient
+      .from('rental_relationships')
+      .update({
+        real_start_date: input.realStartDate,
+        tracking_start_date: input.trackingStartDate,
+        payment_day: input.paymentDay,
+        payment_timing: input.paymentTiming,
+        expected_end_date: input.expectedEndDate,
+      })
+      .eq('id', relationshipId)
+      .select(RENTAL_COLUMNS)
+      .single()
+
+    if (error) {
+      throw new RentalRepositoryError('Failed to update the rental relationship schedule', error)
+    }
+
+    return toRentalRelationship(data)
   },
 }

@@ -15,6 +15,11 @@
   margin-top: var(--space-2);
 }
 
+.termsAction {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+}
+
 .activateRow {
   display: flex;
   flex-direction: column;

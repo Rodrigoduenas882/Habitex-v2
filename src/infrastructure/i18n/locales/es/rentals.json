@@ -54,7 +54,8 @@
     },
     "startDate": "Desde {{date}}",
     "endDate": "Hasta {{date}}",
-    "paymentDay": "Pago el día {{day}}"
+    "paymentDay": "Pago el día {{day}}",
+    "completeTerms": "Completar términos"
   },
   "activate": {
     "cta": "Activar",
@@ -132,6 +133,53 @@
     },
     "errors": {
       "createFailed": "No pudimos crear el arriendo. Intenta de nuevo."
+    }
+  },
+  "termsForm": {
+    "title": "Términos del arriendo",
+    "description": "Completa las fechas, el pago y las condiciones financieras. Estos datos son necesarios para poder activar este arriendo.",
+    "sectionSchedule": "Fechas y pago",
+    "sectionFinancial": "Condiciones financieras",
+    "realStartDate": { "label": "Fecha real de inicio" },
+    "trackingStartDate": { "label": "Fecha de inicio de seguimiento" },
+    "paymentDay": { "label": "Día de pago" },
+    "paymentTiming": { "label": "Momento de pago" },
+    "expectedEndDate": {
+      "label": "Fecha de finalización esperada",
+      "hint": "Opcional. Déjala vacía si el arriendo es indefinido."
+    },
+    "rentAmount": { "label": "Valor del arriendo" },
+    "administrationMode": {
+      "label": "Administración",
+      "NONE": "Sin administración",
+      "INCLUDED": "Incluida en el arriendo",
+      "TENANT_DIRECT": "El arrendatario la paga directamente"
+    },
+    "utilitiesMode": {
+      "label": "Servicios públicos",
+      "none": "Sin especificar",
+      "TENANT": "A cargo del arrendatario",
+      "LESSOR": "A cargo del arrendador",
+      "SPECIAL_AGREEMENT": "Acuerdo especial"
+    },
+    "submit": "Guardar términos",
+    "submitting": "Guardando términos…",
+    "readOnly": {
+      "notice": "Estos términos ya fueron registrados y no se pueden editar todavía."
+    },
+    "validation": {
+      "realStartDateRequired": "Ingresa la fecha real de inicio.",
+      "trackingStartDateRequired": "Ingresa la fecha de inicio de seguimiento.",
+      "trackingStartDateBeforeReal": "La fecha de inicio de seguimiento no puede ser anterior a la fecha real de inicio.",
+      "paymentDayInvalid": "Ingresa un día de pago válido, entre 1 y 31.",
+      "rentAmountInvalid": "Ingresa un valor de arriendo válido.",
+      "expectedEndDateBeforeReal": "La fecha de finalización esperada no puede ser anterior a la fecha real de inicio."
+    },
+    "errors": {
+      "missingRelationship": "No encontramos el arriendo indicado en la URL.",
+      "relationshipNotFound": "No encontramos este arriendo en tu administración.",
+      "saveFailed": "No pudimos guardar los términos de este arriendo. Intenta de nuevo.",
+      "partialFailure": "Guardamos las fechas y el pago, pero no pudimos guardar el valor del arriendo. Intenta de nuevo para completarlo."
     }
   }
 }

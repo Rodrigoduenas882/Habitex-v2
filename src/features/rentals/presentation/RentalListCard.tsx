@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { Alert } from '@/shared/ui/Alert'
 import { Badge, type BadgeTone } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -59,6 +60,7 @@ function formatDate(value: string): string {
  */
 export function RentalListCard({ rental, activation }: RentalListCardProps) {
   const { t } = useTranslation(['rentals', 'administration'])
+  const navigate = useNavigate()
 
   const endDate = rental.actualEndDate ?? rental.expectedEndDate
 
@@ -82,6 +84,19 @@ export function RentalListCard({ rental, activation }: RentalListCardProps) {
       <div className={styles['meta']}>
         <Badge tone={STATUS_TONE[rental.status]}>{t(`status.${rental.status}`)}</Badge>
       </div>
+      {rental.status === 'DRAFT' ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className={styles['termsAction']}
+          onClick={() => {
+            void navigate(`/rentals/${rental.id}/terms`)
+          }}
+        >
+          {t('list.completeTerms')}
+        </Button>
+      ) : null}
       {rental.status === 'DRAFT' && activation ? (
         <div className={styles['activateRow']}>
           <Button

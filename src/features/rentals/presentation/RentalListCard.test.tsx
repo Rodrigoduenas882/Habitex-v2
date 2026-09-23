@@ -1,9 +1,18 @@
-import { render, screen } from '@testing-library/react'
+import { render as rtlRender, screen, type RenderResult } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactElement } from 'react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import type { RentalRelationship, RentalStatus } from '../domain/rental.types'
 import { RentalListCard } from './RentalListCard'
+
+// RentalListCard navigates via useNavigate (the "Completar términos" link),
+// so it needs a Router context even in tests that never click it - wrapped
+// here once so every existing render(...) call site below stays unchanged.
+function render(ui: ReactElement): RenderResult {
+  return rtlRender(ui, { wrapper: MemoryRouter })
+}
 
 const BASE: RentalRelationship = {
   id: 'rental-1',
@@ -218,5 +227,33 @@ describe('RentalListCard', () => {
     )
 
     expect(screen.getByRole('alert')).toHaveTextContent('Alcanzaste el límite de relaciones activas de tu plan.')
+  })
+
+  it('shows a "Completar términos" action for a DRAFT rental, independent of the activation prop', () => {
+    render(<RentalListCard rental={{ ...BASE, id: 'rental-9', status: 'DRAFT' }} />)
+
+    expect(screen.getByRole('button', { name: 'Completar términos' })).toBeInTheDocument()
+  })
+
+  it('shows no "Completar términos" action for a non-DRAFT rental', () => {
+    render(<RentalListCard rental={{ ...BASE, status: 'ACTIVE' }} />)
+
+    expect(screen.queryByRole('button', { name: 'Completar términos' })).not.toBeInTheDocument()
+  })
+
+  it('navigates to /rentals/:id/terms when "Completar términos" is clicked', async () => {
+    const user = userEvent.setup()
+    rtlRender(
+      <MemoryRouter initialEntries={['/rentals']}>
+        <Routes>
+          <Route path="/rentals" element={<RentalListCard rental={{ ...BASE, id: 'rental-9', status: 'DRAFT' }} />} />
+          <Route path="/rentals/:id/terms" element={<div>Terms page for rental-9</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Completar términos' }))
+
+    expect(screen.getByText('Terms page for rental-9')).toBeInTheDocument()
   })
 })

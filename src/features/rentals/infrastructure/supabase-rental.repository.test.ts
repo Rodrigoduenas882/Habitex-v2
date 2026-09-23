@@ -1,13 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
-import { RentalActivationError, RentalRepositoryError, type CreateRentalDraftInput } from '../domain/rental.types'
+import {
+  RentalActivationError,
+  RentalRepositoryError,
+  type CreateRentalDraftInput,
+  type RentalScheduleInput,
+} from '../domain/rental.types'
 
-const { eq, order, select, from, rpc } = vi.hoisted(() => {
+const { eq, order, select, updateSingle, update, from, rpc } = vi.hoisted(() => {
   const order = vi.fn()
   const eq = vi.fn((_column: string, _value: string) => ({ order }))
   const select = vi.fn((_columns: string) => ({ eq }))
-  const from = vi.fn((_table: string) => ({ select }))
+  const updateSingle = vi.fn()
+  const updateSelect = vi.fn((_columns: string) => ({ single: updateSingle }))
+  const updateEq = vi.fn((_column: string, _value: string) => ({ select: updateSelect }))
+  const update = vi.fn((_values: Record<string, unknown>) => ({ eq: updateEq }))
+  const from = vi.fn((_table: string) => ({ select, update }))
   const rpc = vi.fn()
-  return { eq, order, select, from, rpc }
+  return { eq, order, select, updateSingle, update, from, rpc }
 })
 
 vi.mock('@/infrastructure/supabase/client', () => ({
@@ -335,5 +344,59 @@ describe('supabaseRentalRepository.activate', () => {
     await supabaseRentalRepository.activate('rel-1')
 
     expect(from).not.toHaveBeenCalled()
+  })
+})
+
+const SCHEDULE_INPUT: RentalScheduleInput = {
+  realStartDate: '2026-01-01',
+  trackingStartDate: '2026-01-01',
+  paymentDay: 5,
+  paymentTiming: 'ADVANCE',
+  expectedEndDate: null,
+}
+
+describe('supabaseRentalRepository.updateSchedule', () => {
+  it('issues a direct UPDATE on rental_relationships scoped by id, and maps the returned row to the domain shape', async () => {
+    updateSingle.mockResolvedValueOnce({ data: ACTIVATED_ROW, error: null })
+
+    const result = await supabaseRentalRepository.updateSchedule('rel-1', SCHEDULE_INPUT)
+
+    expect(from).toHaveBeenCalledWith('rental_relationships')
+    expect(update).toHaveBeenCalledWith({
+      real_start_date: '2026-01-01',
+      tracking_start_date: '2026-01-01',
+      payment_day: 5,
+      payment_timing: 'ADVANCE',
+      expected_end_date: null,
+    })
+    expect(result).toEqual({
+      id: 'rel-1',
+      administrationId: 'admin-1',
+      status: 'ACTIVE',
+      jurisdictionCountry: 'CO',
+      realStartDate: '2026-01-01',
+      trackingStartDate: '2026-01-01',
+      expectedEndDate: null,
+      actualEndDate: null,
+      paymentDay: 5,
+      paymentTiming: 'ADVANCE',
+    })
+  })
+
+  it('wraps a Supabase failure in RentalRepositoryError instead of throwing the raw error', async () => {
+    updateSingle.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    await expect(supabaseRentalRepository.updateSchedule('rel-1', SCHEDULE_INPUT)).rejects.toBeInstanceOf(
+      RentalRepositoryError,
+    )
+  })
+
+  it('never calls .rpc() (this is a direct UPDATE, not an RPC call)', async () => {
+    updateSingle.mockResolvedValueOnce({ data: ACTIVATED_ROW, error: null })
+    rpc.mockClear()
+
+    await supabaseRentalRepository.updateSchedule('rel-1', SCHEDULE_INPUT)
+
+    expect(rpc).not.toHaveBeenCalled()
   })
 })

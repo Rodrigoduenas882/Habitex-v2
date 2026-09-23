@@ -39,14 +39,23 @@ ejecutado" más abajo.
 mecanismo de activación fue entregado por INC-004 (alcance ampliado,
 aprobado explícitamente); el resto del alcance original de INC-008 (copy
 dedicada para fallas de validación del RPC como `RENTAL_TERMS_INCOMPLETE`)
-sigue pendiente y depende de INC-006. Ver
+sigue pendiente. Con INC-006 completo, su dependencia dura ya está
+satisfecha — es ahora el candidato natural de selección. Ver
 `docs/agentic/HABITEX_COMPLETION_PLAN.md` sección INC-008 (reescrita) y
 "Reconciliación INC-004/INC-008" más abajo.
 
+**INC-006 — Rental Terms**: **completo** (frontend-only, sin RPC — dos
+escrituras directas RLS-gated: `rental_relationships.{real_start_date,
+tracking_start_date, payment_day, payment_timing}` vía UPDATE, y un
+INSERT en `rental_term_versions`), implementado, validado e
+independientemente revisado (0 BLOCKER/HIGH; 2 LOW + 1 MEDIUM no
+bloqueantes registrados). Checkpoint local pendiente de push. Ver detalle
+en "Último incremento ejecutado" más abajo.
+
 ## Estado
 
-`INC-004 completo y pusheado — INC-008 reconciliado (reducido, no
-completo) — siguiente incremento recomendado: INC-006`.
+`INC-006 completo, checkpoint local pendiente de push — INC-008 sigue
+NO completo pero ya sin dependencias técnicas pendientes`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -63,10 +72,19 @@ completo) — siguiente incremento recomendado: INC-006`.
 - INC-008: **NO completo** — reconciliado tras auditar la implementación
   real de INC-004 contra sus criterios de aceptación originales. Créditado
   a INC-004 todo lo que ya cubre (mecanismo de activación completo); su
-  alcance restante (copy de errores de validación de Rental Terms) queda
-  bloqueado por INC-006 (dependencia dura, no solo de producto — el RPC
-  real lo exige). Sin cambios de código en esta reconciliación, solo de
-  documentación.
+  alcance restante (copy de errores de validación de Rental Terms) ya no
+  tiene dependencia técnica pendiente ahora que INC-006 está completo. Sin
+  cambios de código en la reconciliación en sí, solo de documentación.
+- INC-006: **completo**. Un rental `DRAFT` puede recibir sus términos
+  (fecha real/tracking, día y timing de pago, monto de renta, modo de
+  administración, responsabilidad de utilities) desde una acción nueva
+  ("Completar términos") en la lista de rentals, sin necesidad de una
+  vista de detalle general (decisión de producto ya tomada en la
+  reconciliación INC-004/INC-008) — implementado, validado de forma
+  independiente, revisado por `habitex-reviewer` (contexto independiente,
+  vía Supabase MCP read-only en vivo: 0 BLOCKER/HIGH, 2 LOW + 1 MEDIUM
+  registrados abajo, no bloqueantes), checkpointed localmente (ver "Último
+  checkpoint").
 
 ## Subtareas
 
@@ -88,18 +106,128 @@ completo) — siguiente incremento recomendado: INC-006`.
 | INC-003 — Trial/Subscription status visibility (`SubscriptionStatusBanner`, `useSubscription`, `supabase-subscription.repository`) | done — implementado, validado, revisado (0 fix cycles necesarios), checkpoint `a859e6c` pusheado |
 | INC-004 — Capacity & expiration gating (`useManagementGate`, `activeRelationshipCount`, `RentalRepository.activate`, `useActivateRental`, gate en creación de property/room/parking/rental draft y en activación de rental) | done — implementado (2 rondas: primitivas+rentals, luego properties/parking), validado, revisado (0 fix cycles necesarios), checkpoint `10ec380` pusheado |
 | INC-008 — reconciliación de alcance tras INC-004 (`HABITEX_COMPLETION_PLAN.md` reescrito: scope reducido, dependencia dura de INC-006, "vista de detalle" retirada, INC-009 clarificado) | done — análisis + reescritura de plan, sin cambios de código; INC-008 en sí sigue **no completo** |
+| INC-006 — Rental Terms (`RentalTermsRepository`, `RentalRepository.updateSchedule`, `useSaveRentalTerms`, `useRentalTermVersion`, `/rentals/:id/terms`, acción "Completar términos" en la lista) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 2 LOW + 1 MEDIUM registrados, no bloqueantes), checkpoint local pendiente de push |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`), INC-003 (`a859e6c`) e INC-004 (`10ec380`) ya están en
-`origin/chore/agentic-foundation` — HEAD y origin sincronizados. INC-008
-queda abierto con alcance reducido, bloqueado por INC-006 (no es un
-blocker de este momento, es la dependencia natural del roadmap).
+`origin/chore/agentic-foundation` — HEAD y origin sincronizados. El nuevo
+checkpoint de INC-006 (ver "Último checkpoint") sigue pendiente de
+revisión humana antes de push. INC-008 queda abierto con alcance
+reducido — ya sin dependencia técnica pendiente ahora que INC-006 está
+completo, pendiente de que el usuario lo seleccione como próximo
+incremento si lo prioriza.
 
 ## Último incremento ejecutado
 
-**INC-004 — Capacity & expiration gating**
+**INC-006 — Rental Terms**
+(`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-006) — permite que
+un rental `DRAFT` reciba sus términos (crear+leer, sin versionado/edición
+en este incremento).
+
+- **RESEARCH GATE**: resuelto sin escalar — confirmado vía Supabase MCP
+  read-only que `rental_term_versions` **no tiene RPC**; sus policies
+  (`rental_terms_insert/select/update/delete`) permiten escritura directa
+  del cliente mientras el `rental_relationships` padre siga `DRAFT`
+  (`EXISTS (... AND status='DRAFT' AND can_manage_administration(...))`),
+  lectura más amplia vía `can_view_relationship`. Además se confirmó que
+  "Rental Terms" en realidad son **dos escrituras separadas**, no una:
+  (1) 4 columnas propias de `rental_relationships`
+  (`real_start_date`/`tracking_start_date`/`payment_day`/`payment_timing`
+  — ya parte del `RentalRelationship` domain type desde INC-004, pero sin
+  nada que las escribiera todavía) vía UPDATE directo (RLS
+  `rental_relationships_update_draft`, ya existente); y (2) un INSERT en
+  `rental_term_versions`. Ninguna requiere RPC. **Sin HUMAN GATE de
+  Supabase/schema/RLS/grants** — corrige además una afirmación incorrecta
+  del plan original de INC-008 ("el RPC no lo exige técnicamente" — sí lo
+  exige, ver reconciliación INC-004/INC-008 arriba).
+- **Qué se agregó**:
+  - `RentalRepository.updateSchedule(relationshipId, input)` (extiende el
+    repository existente, mismo `RENTAL_COLUMNS`/mapeo que `activate`).
+  - Nuevo dominio/repository `rental-terms.types.ts` +
+    `supabase-rental-terms.repository.ts`: `RentalTermsRepository.create`
+    (siempre `version_number: 1`, `effective_until: null` — solo primera
+    versión, sin versionado) + `.getCurrent` (lectura). `special_terms`
+    (jsonb) deliberadamente no expuesto — fuera de alcance.
+  - `useSaveRentalTerms`: mutation que **secuencia** las dos escrituras
+    (`updateSchedule` → `create`) — no son atómicas (no existe RPC que las
+    envuelva, y no se autorizó crear uno). Si la primera falla, la
+    segunda nunca se intenta. Si la primera tiene éxito y la segunda
+    falla, se lanza un `SaveRentalTermsError` distinguible — la UI
+    muestra un mensaje distinto ("fechas/pago ya guardados, falta solo el
+    monto") en vez de implicar que no se guardó nada. Documentado como
+    no-atomicidad conocida y aceptada, no como bug a corregir aquí.
+  - `useRentalTermVersion` (lectura).
+  - Nueva ruta `/rentals/:id/terms` → `RentalTermsPage`: si ya existe una
+    versión de términos, renderiza un formulario **read-only** (sin botón
+    de submit, no solo deshabilitado visualmente); si no existe, el
+    formulario editable (React Hook Form + Zod, mismas convenciones que
+    `AddRentalDraftForm`). Gateado por `useManagementGate` (reutilizado,
+    no reimplementado) — sin gate de capacidad aquí (la capacidad solo
+    aplica a la activación, no a completar términos de un DRAFT).
+  - Acción nueva "Completar términos" en `RentalListCard` para filas
+    `DRAFT`, independiente del botón "Activar" ya existente (ambos pueden
+    coexistir en la misma fila).
+  - **Decisión de producto ya tomada, respetada**: sin vista de detalle
+    de rental — esta página es acotada a un solo propósito (términos),
+    siguiendo el patrón ya existente de `RoomSetupPage`, no una vista
+    general.
+  - i18n: `rentals.json` (es/es-CO) — namespace `termsForm.*` completo
+    (título, secciones, labels, validación, errores) + `list.completeTerms`.
+- **Tests**: nuevos en `rentals` (`rental-terms.types` vía el repository
+  test, `supabase-rental-terms.repository.test.ts`,
+  `useRentalTermVersion.test.tsx`, `useSaveRentalTerms.test.tsx`,
+  `RentalTermsPage.test.tsx`, ampliación de
+  `supabase-rental.repository.test.ts`/`RentalListCard.test.tsx`).
+  Cobertura verificada por el reviewer: escenario de falla parcial
+  (primera escritura ok, segunda falla → error distinguible mostrado),
+  escenario read-only-una-vez-creado (sin botón de submit, no solo
+  deshabilitado), guardado exitoso + invalidación de query correcta.
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente,
+  re-verificó políticas/grants reales contra Supabase MCP read-only, y
+  releyó `activate_rental_relationship` para confirmar que sigue exigiendo
+  la versión de términos de forma independiente) no encontró BLOCKER/HIGH.
+- **Deuda no bloqueante registrada** (2 LOW + 1 MEDIUM del reviewer, sin
+  fix loop por debajo del umbral BLOCKER/HIGH):
+  - LOW: `RentalTermsPage`'s editable-vs-read-only branch decide solo por
+    la ausencia/presencia de una versión de términos, no también por
+    `relationship.status !== 'DRAFT'` — en la práctica inalcanzable hoy
+    (activar ya exige que exista una versión de términos antes de poner
+    `ACTIVE`, y RLS bloquea cualquier escritura real fuera de `DRAFT`
+    igual), pero quedaría expuesto si una transición de estado futura
+    (fuera de este incremento) dejara un rental no-`DRAFT` sin versión de
+    términos.
+  - LOW: el botón "Activar" en una fila `DRAFT` sigue clickeable antes de
+    que existan términos (mostrará el fallback genérico de
+    `RENTAL_TERMS_INCOMPLETE` desde INC-004) — aspereza de UX menor, no
+    una regresión de este incremento; conectar ambos gates es candidato
+    natural para el alcance restante de INC-008.
+  - MEDIUM: el schema Zod de `rental-terms-form.ts` (boundary conditions:
+    `trackingStartDate === realStartDate` debe pasar, un día antes debe
+    fallar; `paymentDay` 0/32 deben fallar, 1/31 deben pasar; `rentAmount`
+    negativo debe fallar, 0 debe pasar) está correctamente implementado
+    (verificado por inspección + contra los `CHECK` reales de la DB) pero
+    **sin test dedicado** que fije esos boundaries — sin regresión hoy,
+    pero sin protección si alguien simplifica el `refine` más adelante.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
+  lint && pnpm test -- --run && pnpm build` — todos PASS. 72 archivos /
+  464 tests (0 fallos), 0 errores de lint (mismos 4 warnings preexistentes,
+  no relacionados).
+- **Human gates**: ninguno disparado — sin cambios de
+  schema/RLS/grants/migrations/dependencias/arquitectura (confirmado por
+  `git status`/`git diff --stat`, y por el reviewer vía MCP
+  `has_table_privilege`/`pg_policies` en vivo).
+- **Seguridad verificada** (vía MCP read-only, por el reviewer):
+  `authenticated` tiene exactamente los grants esperados
+  (INSERT/SELECT/UPDATE en `rental_term_versions`, UPDATE/SELECT en
+  `rental_relationships`); ambas escrituras nuevas son llamadas directas
+  de Supabase (`.insert(...)`/`.update(...)`), ninguna RPC; `activate_
+  rental_relationship` confirmado sin tocar y sigue exigiendo
+  `INITIAL_TERM_VERSION_REQUIRED` de forma independiente.
+
+### Incremento anterior: INC-004 — Capacity & expiration gating
 (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-004) — gating
 UX-only de acciones de gestión según expiración de suscripción
 (`management_access_until`) y capacidad de relaciones activas
@@ -445,55 +573,61 @@ explícito) cuando se lleguen a ejecutar.
 
 ## Último checkpoint
 
-- **SHA**: `10ec380` (INC-004) — commit de la reconciliación INC-008
-  (documentación únicamente) pendiente, ver más abajo.
+- **SHA**: _(pendiente — se crea inmediatamente después de esta
+  actualización de `PROGRESS.md`, en el mismo commit)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint `10ec380`**: INC-004 — primitivas de gate
-  (`management-access.ts`, `useManagementGate`), `activeRelationshipCount`,
-  `RentalRepository.activate` + `RentalActivationError`, `useActivateRental`,
-  UI de activación en `RentalsPage`/`RentalListCard`, gate en
-  `AddRentalDraftForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/
-  `ParkingForm`, i18n, tests, y la actualización correspondiente de
-  `PROGRESS.md`.
+- **Contenido del checkpoint**: INC-006 — `RentalRepository.updateSchedule`,
+  `RentalTermsRepository` (`create`/`getCurrent`), `useSaveRentalTerms`
+  (secuencia no-atómica documentada), `useRentalTermVersion`, ruta
+  `/rentals/:id/terms` (`RentalTermsPage`, editable vs. read-only según
+  exista o no una versión), acción "Completar términos" en
+  `RentalListCard`, i18n, tests, y esta actualización de `PROGRESS.md`.
 - **Fecha**: 2026-09-23
-- **Estado**: **pusheado** a `origin/chore/agentic-foundation` tras
-  aprobación humana. HEAD == origin, sin pendientes de INC-004.
+- **Estado**: commiteado localmente, **pendiente de push** — push/merge
+  nunca son automáticos en este workflow.
 - **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
-  (INC-004 confirmó que no se necesitaba ninguno; el grant opcional
-  discutido en el research gate fue declinado explícitamente).
+  (INC-006 confirmó que no se necesitaba ninguno — dos escrituras
+  directas, RLS-gated, sin RPC).
+
+Commits previos ya pusheados desde el último checkpoint de INC-004: la
+reconciliación INC-008 (`92e3917`, documentación únicamente) — ver
+"Registro de checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado de INC-004 (2 rondas), ejecutado de
-forma independiente por la sesión orquestadora y re-verificado por el
-reviewer:
+Medido sobre el resultado integrado de INC-006, ejecutado de forma
+independiente por la sesión orquestadora y re-verificado por el reviewer
+(incluyendo verificación en vivo vía Supabase MCP read-only de
+policies/grants):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 436/436, 68 archivos |
+| `pnpm test -- --run` | PASS — 464/464, 72 archivos |
 | `pnpm build` | PASS |
-
-La reconciliación INC-008 (esta actualización) es documentación
-únicamente — no hay validación de código que correr para ella.
 
 ## Siguiente acción recomendada
 
-**INC-006 — Rental Terms.** Es el desbloqueador real tanto del resto de
-INC-008 (copy de errores de validación) como de que la activación
-construida en INC-004 sea usable de punta a punta para un rental real
-(hoy cualquier intento de activación real falla con
-`RENTAL_TERMS_INCOMPLETE`, correctamente absorbido por el fallback
-genérico de INC-004). INC-006 ya tiene un **RESEARCH GATE** en el plan
-(mecanismo de escritura de `rental_term_versions` — insert directo vs.
-RPC — sin confirmar todavía).
+**INC-008 — Rental Activation (alcance restante).** Con INC-006 completo,
+su dependencia dura ya está satisfecha — es el candidato más natural:
+terminar la UX de los códigos de error de `activate_rental_relationship`
+que INC-004 dejó en el fallback genérico (mínimo `RENTAL_TERMS_INCOMPLETE`/
+`INITIAL_TERM_VERSION_REQUIRED`, ver la sección INC-008 reescrita en
+`HABITEX_COMPLETION_PLAN.md`). También conecta con la deuda LOW registrada
+en este mismo checkpoint (el botón "Activar" no sabe todavía si ya hay
+términos completos).
 
 Otros candidatos sin dependencias técnicas pendientes, por si se prefiere
 otro orden:
 
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
+- **INC-009** — Rental lifecycle completion (cancel/ending/end) — la
+  parte de `cancel_draft_rental` no depende de nada nuevo; la parte de
+  `start_ending_rental`/`end_rental` ya tiene, gracias a INC-004+INC-006,
+  un camino real para llevar un rental a `ACTIVE` y probarla de punta a
+  punta.
 - **INC-010** — Generic file upload/download primitive (sin dependencias
   técnicas; secuenciado antes de INC-011/INC-013 porque ambos lo
   consumen).
@@ -501,11 +635,6 @@ otro orden:
 - **INC-018** — Habilitar `leaked_password_protection` (sin dependencias
   técnicas, pero es config de Supabase Auth — dispara HUMAN GATE
   automático por tocar Auth).
-
-**INC-008** ya no es candidato de selección independiente por ahora — su
-alcance restante depende de INC-006 (ver "Reconciliación INC-004/INC-008"
-más arriba y la sección INC-008 reescrita en
-`HABITEX_COMPLETION_PLAN.md`).
 
 La priorización final sigue siendo del usuario, no del orchestrator (ver
 `SKILL.md` §"SELECT INCREMENT").
@@ -530,4 +659,5 @@ git, no aquí._
 | 2026-09-23 | `59778fc` | `chore/agentic-foundation` | INC-001 frontend: guards de ruta (`RequiresAccount`, `RedirectIfAccountExists`), `BootstrapAccountPage`, `useBootstrapAccount`, `bootstrapAccount` en el repository, wiring en `router.tsx`, i18n. 1 fix cycle (2 HIGH: race navigate/cache, flake de `App.test.tsx`) resuelto y re-verificado; corrección posterior del estado de push de `89d7e22` en `PROGRESS.md` (amend, sin cambio de mensaje). **Pusheado**. |
 | 2026-09-23 | `a859e6c` | `chore/agentic-foundation` | INC-003 — Trial/Subscription status visibility: `SubscriptionStatusBanner` (fail-silent, no-gating), `useSubscription`, `supabase-subscription.repository`, montado en `AuthenticatedLayout`. Sin backend gate (RLS ya soportaba la lectura). 0 fix cycles — 1 LOW no bloqueante registrado (copy de CANCELED+gracia-vencida). **Pusheado**. |
 | 2026-09-23 | `10ec380` | `chore/agentic-foundation` | INC-004 — Capacity & expiration gating: `hasManagementAccess`/`hasRelationshipCapacity`/`useManagementGate` (administration), `activeRelationshipCount`/`RentalRepository.activate`/`RentalActivationError`/`useActivateRental` (rentals), UI de activación + gate en creación de property/room/parking/rental draft. Sin backend gate (RPC/RLS ya enforced; grant opcional declinado explícitamente). 2 rondas de `habitex-implementer` (primitivas+rentals, luego properties/parking). 0 fix cycles — 0 findings del reviewer. **Pusheado**. |
-| 2026-09-23 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | Reconciliación INC-004/INC-008: auditoría de la implementación real de INC-004 contra los criterios de aceptación originales de INC-008. `HABITEX_COMPLETION_PLAN.md` reescrito (INC-008 con alcance reducido y dependencia dura de INC-006; nota de dependencia de INC-009 clarificada) + esta actualización de `PROGRESS.md`. Documentación únicamente, sin cambios de código. INC-008 permanece **NO completo**. |
+| 2026-09-23 | `92e3917` | `chore/agentic-foundation` | Reconciliación INC-004/INC-008: auditoría de la implementación real de INC-004 contra los criterios de aceptación originales de INC-008. `HABITEX_COMPLETION_PLAN.md` reescrito (INC-008 con alcance reducido y dependencia dura de INC-006; nota de dependencia de INC-009 clarificada) + actualización de `PROGRESS.md`. Documentación únicamente, sin cambios de código. INC-008 permanece **NO completo**. **Pusheado**. |
+| 2026-09-23 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-006 — Rental Terms: `RentalRepository.updateSchedule`, `RentalTermsRepository` (`create`/`getCurrent`, sin RPC), `useSaveRentalTerms` (secuencia no-atómica documentada, error distinguible en falla parcial), `useRentalTermVersion`, ruta `/rentals/:id/terms` (editable vs. read-only), acción "Completar términos" en `RentalListCard`. Sin backend gate (dos escrituras directas RLS-gated, sin RPC necesario). 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 2 LOW + 1 MEDIUM registrados, no bloqueantes. **Local, pendiente de push**. |
