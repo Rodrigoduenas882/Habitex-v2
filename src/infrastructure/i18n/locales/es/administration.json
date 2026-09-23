@@ -47,5 +47,8 @@
       "message": "Tu suscripción fue cancelada. Elige un plan para seguir usando Habitex."
     },
     "viewPlansCta": "Ver planes"
+  },
+  "managementAccessGate": {
+    "blocked": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta."
   }
 }

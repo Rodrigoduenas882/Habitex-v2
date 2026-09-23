@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { RentalRepositoryError, type CreateRentalDraftInput } from '../domain/rental.types'
+import { RentalActivationError, RentalRepositoryError, type CreateRentalDraftInput } from '../domain/rental.types'
 
 const { eq, order, select, from, rpc } = vi.hoisted(() => {
   const order = vi.fn()
@@ -248,6 +248,91 @@ describe('supabaseRentalRepository.createDraft', () => {
     from.mockClear()
 
     await supabaseRentalRepository.createDraft(EXISTING_TENANT_INPUT)
+
+    expect(from).not.toHaveBeenCalled()
+  })
+})
+
+const ACTIVATED_ROW = {
+  id: 'rel-1',
+  administration_id: 'admin-1',
+  status: 'ACTIVE',
+  jurisdiction_country: 'CO',
+  real_start_date: '2026-01-01',
+  tracking_start_date: '2026-01-01',
+  expected_end_date: null,
+  actual_end_date: null,
+  payment_day: 5,
+  payment_timing: 'ADVANCE',
+}
+
+describe('supabaseRentalRepository.activate', () => {
+  it('calls activate_rental_relationship with p_relationship_id and maps the returned row to the domain shape', async () => {
+    rpc.mockResolvedValueOnce({ data: ACTIVATED_ROW, error: null })
+
+    const result = await supabaseRentalRepository.activate('rel-1')
+
+    expect(rpc).toHaveBeenCalledWith('activate_rental_relationship', { p_relationship_id: 'rel-1' })
+    expect(result).toEqual({
+      id: 'rel-1',
+      administrationId: 'admin-1',
+      status: 'ACTIVE',
+      jurisdictionCountry: 'CO',
+      realStartDate: '2026-01-01',
+      trackingStartDate: '2026-01-01',
+      expectedEndDate: null,
+      actualEndDate: null,
+      paymentDay: 5,
+      paymentTiming: 'ADVANCE',
+    })
+  })
+
+  it('handles the RPC returning a one-element array instead of a single object', async () => {
+    rpc.mockResolvedValueOnce({ data: [ACTIVATED_ROW], error: null })
+
+    const result = await supabaseRentalRepository.activate('rel-1')
+
+    expect(result.status).toBe('ACTIVE')
+  })
+
+  it('maps MANAGEMENT_ACCESS_REQUIRED to a RentalActivationError with code management_access_required', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'MANAGEMENT_ACCESS_REQUIRED' } })
+
+    const error = await supabaseRentalRepository.activate('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalActivationError)
+    expect((error as RentalActivationError).code).toBe('management_access_required')
+  })
+
+  it('maps RELATIONSHIP_CAPACITY_REACHED to a RentalActivationError with code capacity_reached', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'RELATIONSHIP_CAPACITY_REACHED' } })
+
+    const error = await supabaseRentalRepository.activate('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalActivationError)
+    expect((error as RentalActivationError).code).toBe('capacity_reached')
+  })
+
+  it('maps every other/unrecognized exception to a RentalActivationError with code unknown', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'RENTAL_TERMS_INCOMPLETE' } })
+
+    const error = await supabaseRentalRepository.activate('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalActivationError)
+    expect((error as RentalActivationError).code).toBe('unknown')
+  })
+
+  it('throws RentalRepositoryError if the RPC returns no row at all', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null })
+
+    await expect(supabaseRentalRepository.activate('rel-1')).rejects.toBeInstanceOf(RentalRepositoryError)
+  })
+
+  it('never calls .from() (activate_rental_relationship is the only write path, no direct update)', async () => {
+    rpc.mockResolvedValueOnce({ data: ACTIVATED_ROW, error: null })
+    from.mockClear()
+
+    await supabaseRentalRepository.activate('rel-1')
 
     expect(from).not.toHaveBeenCalled()
   })

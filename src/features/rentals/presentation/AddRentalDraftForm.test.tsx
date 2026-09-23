@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import { RentalRepositoryError } from '../domain/rental.types'
@@ -11,6 +11,7 @@ import { AddRentalDraftForm } from './AddRentalDraftForm'
 const { listRentalSubjects } = vi.hoisted(() => ({ listRentalSubjects: vi.fn() }))
 const { listTenantCandidates } = vi.hoisted(() => ({ listTenantCandidates: vi.fn() }))
 const { createDraft } = vi.hoisted(() => ({ createDraft: vi.fn() }))
+const { getSubscription } = vi.hoisted(() => ({ getSubscription: vi.fn() }))
 
 vi.mock('../infrastructure/supabase-rental-subject.repository', () => ({
   supabaseRentalSubjectRepository: { listByAdministration: listRentalSubjects },
@@ -21,8 +22,30 @@ vi.mock('../infrastructure/supabase-tenant-candidate.repository', () => ({
 }))
 
 vi.mock('../infrastructure/supabase-rental.repository', () => ({
-  supabaseRentalRepository: { createDraft, listByAdministration: vi.fn() },
+  supabaseRentalRepository: { createDraft, listByAdministration: vi.fn(), activate: vi.fn() },
 }))
+
+vi.mock('@/features/administration/infrastructure/supabase-subscription.repository', () => ({
+  supabaseSubscriptionRepository: { getSubscription },
+}))
+
+/** Grants management access, no capacity limit - the default most tests rely on. */
+const UNLIMITED_SUBSCRIPTION = {
+  id: 'sub-1',
+  administrationId: 'admin-1',
+  status: 'ACTIVE' as const,
+  planCode: 'starter',
+  trialStartedAt: null,
+  trialEndsAt: null,
+  currentPeriodStartsAt: null,
+  currentPeriodEndsAt: null,
+  managementAccessUntil: null,
+  activeRelationshipLimit: null,
+}
+
+beforeEach(() => {
+  getSubscription.mockResolvedValue(UNLIMITED_SUBSCRIPTION)
+})
 
 const SUBJECT_1 = { id: 'subj-1', administrationId: 'admin-1', subjectType: 'FULL_PROPERTY' as const, label: 'la florida' }
 const CANDIDATE_1 = { id: 'person-1', fullName: 'María Pérez' }
@@ -374,6 +397,32 @@ describe('AddRentalDraftForm', () => {
     expect(await screen.findByText('No pudimos crear el arriendo. Intenta de nuevo.')).toBeInTheDocument()
     expect(screen.queryByText('Rentals list page')).not.toBeInTheDocument()
     expect(screen.queryByText(/postgres/i)).not.toBeInTheDocument()
+  })
+
+  it('disables the submit button and shows the management-access reason when the subscription denies access', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, status: 'EXPIRED' })
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeDisabled()
+    expect(
+      await screen.findByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).toBeInTheDocument()
+    expect(createDraft).not.toHaveBeenCalled()
+  })
+
+  it('leaves the submit button enabled and shows no gate reason when the subscription grants access', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeEnabled()
+    expect(
+      screen.queryByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).not.toBeInTheDocument()
   })
 
   it('navigates to /rentals only on real success', async () => {

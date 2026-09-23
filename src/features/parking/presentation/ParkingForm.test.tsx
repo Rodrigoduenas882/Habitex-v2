@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import { ParkingRepositoryError } from '../domain/parking.types'
@@ -10,6 +10,7 @@ import { ParkingForm } from './ParkingForm'
 
 const { listByAdministration } = vi.hoisted(() => ({ listByAdministration: vi.fn() }))
 const { create } = vi.hoisted(() => ({ create: vi.fn() }))
+const { getSubscription } = vi.hoisted(() => ({ getSubscription: vi.fn() }))
 
 vi.mock('@/features/properties/infrastructure/supabase-property.repository', () => ({
   supabasePropertyRepository: {
@@ -22,6 +23,28 @@ vi.mock('@/features/properties/infrastructure/supabase-property.repository', () 
 vi.mock('../infrastructure/supabase-parking.repository', () => ({
   supabaseParkingRepository: { create },
 }))
+
+vi.mock('@/features/administration/infrastructure/supabase-subscription.repository', () => ({
+  supabaseSubscriptionRepository: { getSubscription },
+}))
+
+/** Grants management access, no capacity limit - the default most tests rely on. */
+const UNLIMITED_SUBSCRIPTION = {
+  id: 'sub-1',
+  administrationId: 'admin-1',
+  status: 'ACTIVE' as const,
+  planCode: 'starter',
+  trialStartedAt: null,
+  trialEndsAt: null,
+  currentPeriodStartsAt: null,
+  currentPeriodEndsAt: null,
+  managementAccessUntil: null,
+  activeRelationshipLimit: null,
+}
+
+beforeEach(() => {
+  getSubscription.mockResolvedValue(UNLIMITED_SUBSCRIPTION)
+})
 
 const PROPERTY_1 = {
   id: 'prop-1',
@@ -313,5 +336,28 @@ describe('ParkingForm', () => {
     await user.click(screen.getByRole('button', { name: 'Volver a inmuebles' }))
 
     expect(await screen.findByText('Properties list page')).toBeInTheDocument()
+  })
+
+  it('disables the submit button and shows the management-access reason when the subscription denies access', async () => {
+    listByAdministration.mockResolvedValueOnce([])
+    getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, status: 'EXPIRED' })
+    renderForm()
+
+    expect(
+      await screen.findByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardar parqueadero' })).toBeDisabled()
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('leaves the submit button enabled and shows no gate reason when the subscription grants access', async () => {
+    listByAdministration.mockResolvedValueOnce([])
+    renderForm()
+    await waitForPropertiesToSettle()
+
+    expect(await screen.findByRole('button', { name: 'Guardar parqueadero' })).toBeEnabled()
+    expect(
+      screen.queryByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).not.toBeInTheDocument()
   })
 })

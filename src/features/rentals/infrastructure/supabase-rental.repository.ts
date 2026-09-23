@@ -1,5 +1,6 @@
 import { supabaseClient } from '@/infrastructure/supabase/client'
 import {
+  RentalActivationError,
   RentalRepositoryError,
   type CreateRentalDraftInput,
   type CreateRentalDraftResult,
@@ -51,6 +52,26 @@ interface CreateRentalDraftRow {
 function firstRow<T>(data: T | T[] | null): T | null {
   if (Array.isArray(data)) return data[0] ?? null
   return data
+}
+
+/**
+ * Translates activate_rental_relationship's bare exception string into our
+ * own RentalActivationError so nothing above this repository ever depends
+ * on the raw Postgres error message. Unmatched cases (every RPC exception
+ * this increment doesn't distinguish in the UI - see RentalActivationError's
+ * own doc comment) fall back to 'unknown' by design, same principle as
+ * toSessionAuthError.
+ */
+function toRentalActivationError(error: { message: string }): RentalActivationError {
+  if (error.message === 'MANAGEMENT_ACCESS_REQUIRED') {
+    return new RentalActivationError('management_access_required', error)
+  }
+
+  if (error.message === 'RELATIONSHIP_CAPACITY_REACHED') {
+    return new RentalActivationError('capacity_reached', error)
+  }
+
+  return new RentalActivationError('unknown', error)
 }
 
 function toRpcArgs(input: CreateRentalDraftInput) {
@@ -108,5 +129,29 @@ export const supabaseRentalRepository: RentalRepository = {
     }
 
     return { rentalRelationshipId: row.rental_relationship_id, tenantPersonId: row.tenant_person_id }
+  },
+
+  async activate(relationshipId: string): Promise<RentalRelationship> {
+    // MANAGEMENT_ACCESS_REQUIRED / RELATIONSHIP_CAPACITY_REACHED / DRAFT-only
+    // / terms-complete / primary-subject / active-tenant / active-lessor /
+    // initial-term-version / subject-not-already-occupied all happen inside
+    // the RPC (SECURITY DEFINER), atomically - no direct update, no service
+    // role, no bypass. RLS prevents a direct client UPDATE from ever setting
+    // status to ACTIVE, so this RPC is the only real path regardless of what
+    // any client-side gate computed beforehand.
+    const response = await supabaseClient.rpc('activate_rental_relationship', {
+      p_relationship_id: relationshipId,
+    })
+
+    if (response.error) {
+      throw toRentalActivationError(response.error)
+    }
+
+    const row = firstRow(response.data as RentalRow | RentalRow[] | null)
+    if (!row) {
+      throw new RentalRepositoryError('activate_rental_relationship returned no row')
+    }
+
+    return toRentalRelationship(row)
   },
 }

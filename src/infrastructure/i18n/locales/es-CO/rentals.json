@@ -56,6 +56,15 @@
     "endDate": "Hasta {{date}}",
     "paymentDay": "Pago el día {{day}}"
   },
+  "activate": {
+    "cta": "Activar",
+    "capacityReasonBlocked": "Alcanzaste el límite de relaciones activas de tu plan.",
+    "errors": {
+      "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",
+      "capacity_reached": "Alcanzaste el límite de relaciones activas de tu plan.",
+      "unknown": "No pudimos activar esta relación. Intenta de nuevo."
+    }
+  },
   "addRental": {
     "cta": "Registrar arriendo",
     "title": "¿Qué vas a arrendar?",

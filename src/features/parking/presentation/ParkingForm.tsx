@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { useManagementGate } from '@/features/administration/application/useManagementGate'
 import { useProperties } from '@/features/properties/application/useProperties'
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
@@ -34,9 +35,10 @@ export interface ParkingFormProps {
  * workaround for a screen that couldn't show it yet.
  */
 export function ParkingForm({ administrationId, onBack }: ParkingFormProps) {
-  const { t } = useTranslation(['parking', 'properties'])
+  const { t } = useTranslation(['parking', 'properties', 'administration'])
   const navigate = useNavigate()
   const createParking = useCreateParking()
+  const managementGate = useManagementGate(administrationId)
   const propertiesQuery = useProperties(administrationId)
   const properties = propertiesQuery.data ?? []
 
@@ -174,9 +176,18 @@ export function ParkingForm({ administrationId, onBack }: ParkingFormProps) {
           {...register('observations')}
         />
 
-        <Button type="submit" loading={createParking.isPending} className={styles['submit']}>
+        <Button
+          type="submit"
+          loading={createParking.isPending}
+          disabled={managementGate.blocked || createParking.isPending}
+          aria-disabled={managementGate.blocked ? 'true' : undefined}
+          className={styles['submit']}
+        >
           {createParking.isPending ? t('form.submitting') : t('form.submit')}
         </Button>
+        {managementGate.blocked ? (
+          <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
+        ) : null}
       </form>
     </div>
   )

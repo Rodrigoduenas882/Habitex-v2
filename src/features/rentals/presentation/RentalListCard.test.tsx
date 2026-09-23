@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import type { RentalRelationship, RentalStatus } from '../domain/rental.types'
 import { RentalListCard } from './RentalListCard'
@@ -106,5 +107,116 @@ describe('RentalListCard', () => {
     expect(screen.queryByText('rental-1')).not.toBeInTheDocument()
     expect(screen.queryByText('admin-1')).not.toBeInTheDocument()
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
+  })
+
+  it('shows no Activate button for a DRAFT rental when the activation prop is omitted', () => {
+    render(<RentalListCard rental={{ ...BASE, status: 'DRAFT' }} />)
+
+    expect(screen.queryByRole('button', { name: 'Activar' })).not.toBeInTheDocument()
+  })
+
+  it('shows no Activate button for a non-DRAFT rental even when activation is provided', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'ACTIVE' }}
+        activation={{ disabled: false, blockReason: null, isPending: false, errorCode: null, onActivate: () => {} }}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Activar' })).not.toBeInTheDocument()
+  })
+
+  it('shows an enabled Activate button for a DRAFT rental with no block reason', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{ disabled: false, blockReason: null, isPending: false, errorCode: null, onActivate: () => {} }}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Activar' })).toBeEnabled()
+  })
+
+  it('calls onActivate when the Activate button is clicked', async () => {
+    const onActivate = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{ disabled: false, blockReason: null, isPending: false, errorCode: null, onActivate }}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Activar' }))
+
+    expect(onActivate).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables the Activate button and shows the management-access reason when blocked for that reason', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{
+          disabled: true,
+          blockReason: 'managementAccess',
+          isPending: false,
+          errorCode: null,
+          onActivate: () => {},
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Activar' })).toBeDisabled()
+    expect(
+      screen.getByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).toBeInTheDocument()
+  })
+
+  it('disables the Activate button and shows the capacity reason when blocked for that reason', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{
+          disabled: true,
+          blockReason: 'capacity',
+          isPending: false,
+          errorCode: null,
+          onActivate: () => {},
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Activar' })).toBeDisabled()
+    expect(screen.getByText('Alcanzaste el límite de relaciones activas de tu plan.')).toBeInTheDocument()
+  })
+
+  it('does not show a block reason while merely pending (normal disabled-while-submitting state)', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{ disabled: true, blockReason: null, isPending: true, errorCode: null, onActivate: () => {} }}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Activar' })).toBeDisabled()
+    expect(screen.queryByText(/Alcanzaste el límite/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Tu acceso de administración venció/)).not.toBeInTheDocument()
+  })
+
+  it('shows the mapped error message for a failed activation attempt', () => {
+    render(
+      <RentalListCard
+        rental={{ ...BASE, status: 'DRAFT' }}
+        activation={{
+          disabled: false,
+          blockReason: null,
+          isPending: false,
+          errorCode: 'capacity_reached',
+          onActivate: () => {},
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Alcanzaste el límite de relaciones activas de tu plan.')
   })
 })

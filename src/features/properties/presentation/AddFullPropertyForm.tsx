@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { useManagementGate } from '@/features/administration/application/useManagementGate'
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
 import { useCreateFullProperty } from '../application/useCreateFullProperty'
@@ -21,9 +22,10 @@ export interface AddFullPropertyFormProps {
 
 /** "Casa o apartamento completo" - calls createFullProperty (FULL_PROPERTY, implied). */
 export function AddFullPropertyForm({ administrationId, onBack }: AddFullPropertyFormProps) {
-  const { t } = useTranslation('properties')
+  const { t } = useTranslation(['properties', 'administration'])
   const navigate = useNavigate()
   const createFullProperty = useCreateFullProperty(administrationId)
+  const managementGate = useManagementGate(administrationId)
 
   const schema = propertyBaseFormSchema(t)
   const {
@@ -68,9 +70,18 @@ export function AddFullPropertyForm({ administrationId, onBack }: AddFullPropert
           hasAdministration={hasAdministration}
           disabled={createFullProperty.isPending}
         />
-        <Button type="submit" loading={createFullProperty.isPending} className={styles['submit']}>
+        <Button
+          type="submit"
+          loading={createFullProperty.isPending}
+          disabled={managementGate.blocked || createFullProperty.isPending}
+          aria-disabled={managementGate.blocked ? 'true' : undefined}
+          className={styles['submit']}
+        >
           {createFullProperty.isPending ? t('form.submitting') : t('form.submitFull')}
         </Button>
+        {managementGate.blocked ? (
+          <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
+        ) : null}
       </form>
     </div>
   )

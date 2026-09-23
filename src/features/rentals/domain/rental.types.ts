@@ -38,6 +38,43 @@ export class RentalRepositoryError extends Error {
 }
 
 /**
+ * Mirrors the backend's active_relationship_count() SQL function exactly -
+ * ACTIVE and ENDING are the only statuses that count toward an
+ * administration's active_relationship_limit; DRAFT/ENDED/CANCELLED never
+ * do. Pure and read-only: used for the client-side capacity gate
+ * (management-access.ts's hasRelationshipCapacity), never as a replacement
+ * for the RPC's own authoritative check.
+ */
+export function activeRelationshipCount(rentals: RentalRelationship[]): number {
+  return rentals.filter((rental) => rental.status === 'ACTIVE' || rental.status === 'ENDING').length
+}
+
+/**
+ * Known, user-facing activate_rental_relationship failure categories.
+ * Deliberately coarse, mirroring SessionAuthError's shape: only the two
+ * cases this increment (INC-004) needs to distinguish in the UI get their
+ * own code. Every other exception the RPC can raise (RENTAL_NOT_FOUND,
+ * RENTAL_NOT_DRAFT, RENTAL_TERMS_INCOMPLETE, PRIMARY_SUBJECT_REQUIRED,
+ * ACTIVE_TENANT_REQUIRED, ACTIVE_LESSOR_REQUIRED,
+ * INITIAL_TERM_VERSION_REQUIRED, RENTAL_SUBJECT_ALREADY_IN_USE,
+ * PARKING_ALREADY_SUBLEASED) falls back to 'unknown' by design - per-code UX
+ * for those is out of scope here and belongs to a later increment
+ * (INC-006/INC-008).
+ */
+export type RentalActivationErrorCode = 'management_access_required' | 'capacity_reached' | 'unknown'
+
+export class RentalActivationError extends Error {
+  readonly code: RentalActivationErrorCode
+
+  constructor(code: RentalActivationErrorCode, cause?: unknown) {
+    super(`Rental activation error: ${code}`)
+    this.name = 'RentalActivationError'
+    this.code = code
+    this.cause = cause
+  }
+}
+
+/**
  * The tenant side of createDraft's input - exactly the two mutually
  * exclusive cases create_rental_draft itself supports. `kind` is decided by
  * the caller (which tab of "¿A quién se lo arriendas?" was used), never
@@ -85,10 +122,18 @@ export interface CreateRentalDraftResult {
  * (current_person_id(), resolved server-side - never sent from here) +
  * TENANT rental_participants rows. It never creates rental_term_versions or
  * occupancy - see activate_rental_relationship for what still gates
- * DRAFT -> ACTIVE. No activate/cancel/end/getById/update here - lifecycle
- * beyond DRAFT creation is out of scope for this increment.
+ * DRAFT -> ACTIVE.
+ *
+ * activate calls activate_rental_relationship - the only way to transition
+ * DRAFT -> ACTIVE. It is the real security/business-rule boundary (RLS +
+ * this RPC, SECURITY DEFINER); any client-side gate (management-access.ts,
+ * activeRelationshipCount) is UX convenience layered on top, never a
+ * substitute for calling this. No cancel/end/getById/update here -
+ * lifecycle beyond DRAFT creation and activation is out of scope for this
+ * increment.
  */
 export interface RentalRepository {
   listByAdministration(administrationId: string): Promise<RentalRelationship[]>
   createDraft(input: CreateRentalDraftInput): Promise<CreateRentalDraftResult>
+  activate(relationshipId: string): Promise<RentalRelationship>
 }

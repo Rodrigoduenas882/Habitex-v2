@@ -1,11 +1,30 @@
 import { useTranslation } from 'react-i18next'
+import { Alert } from '@/shared/ui/Alert'
 import { Badge, type BadgeTone } from '@/shared/ui/Badge'
+import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
-import type { RentalRelationship, RentalStatus } from '../domain/rental.types'
+import type { RentalActivationErrorCode, RentalRelationship, RentalStatus } from '../domain/rental.types'
 import styles from './RentalListCard.module.css'
+
+/** Why the Activate button is currently disabled - null when it isn't. */
+export type RentalActivationBlockReason = 'managementAccess' | 'capacity' | null
+
+export interface RentalListCardActivation {
+  disabled: boolean
+  blockReason: RentalActivationBlockReason
+  isPending: boolean
+  errorCode: RentalActivationErrorCode | null
+  onActivate: () => void
+}
 
 export interface RentalListCardProps {
   rental: RentalRelationship
+  /**
+   * Only ever rendered for status === 'DRAFT'; omit entirely on pages that
+   * don't wire activation (keeps this component usable without gate/mutation
+   * plumbing elsewhere).
+   */
+  activation?: RentalListCardActivation
 }
 
 /**
@@ -38,8 +57,8 @@ function formatDate(value: string): string {
  * status-derived phrase instead of a fabricated name. status is shown
  * exactly as the backend reports it, never derived from dates.
  */
-export function RentalListCard({ rental }: RentalListCardProps) {
-  const { t } = useTranslation('rentals')
+export function RentalListCard({ rental, activation }: RentalListCardProps) {
+  const { t } = useTranslation(['rentals', 'administration'])
 
   const endDate = rental.actualEndDate ?? rental.expectedEndDate
 
@@ -63,6 +82,30 @@ export function RentalListCard({ rental }: RentalListCardProps) {
       <div className={styles['meta']}>
         <Badge tone={STATUS_TONE[rental.status]}>{t(`status.${rental.status}`)}</Badge>
       </div>
+      {rental.status === 'DRAFT' && activation ? (
+        <div className={styles['activateRow']}>
+          <Button
+            type="button"
+            size="sm"
+            loading={activation.isPending}
+            disabled={activation.disabled}
+            aria-disabled={activation.disabled ? 'true' : undefined}
+            onClick={activation.onActivate}
+          >
+            {t('activate.cta')}
+          </Button>
+          {activation.disabled && !activation.isPending && activation.blockReason ? (
+            <p className="text-caption text-muted">
+              {activation.blockReason === 'managementAccess'
+                ? t('administration:managementAccessGate.blocked')
+                : t('activate.capacityReasonBlocked')}
+            </p>
+          ) : null}
+          {activation.errorCode ? (
+            <Alert tone="danger">{t(`activate.errors.${activation.errorCode}`)}</Alert>
+          ) : null}
+        </div>
+      ) : null}
     </Card>
   )
 }

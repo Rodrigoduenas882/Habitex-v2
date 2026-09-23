@@ -6,18 +6,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import RentalsPage from './RentalsPage'
+import { RentalActivationError } from '../domain/rental.types'
 
 const { listAccessibleAdministrations } = vi.hoisted(() => ({
   listAccessibleAdministrations: vi.fn(),
 }))
 const { listByAdministration } = vi.hoisted(() => ({ listByAdministration: vi.fn() }))
+const { getSubscription } = vi.hoisted(() => ({ getSubscription: vi.fn() }))
+const { activate } = vi.hoisted(() => ({ activate: vi.fn() }))
 
 vi.mock('@/features/administration/infrastructure/supabase-administration.repository', () => ({
   supabaseAdministrationRepository: { listAccessibleAdministrations },
 }))
 
+vi.mock('@/features/administration/infrastructure/supabase-subscription.repository', () => ({
+  supabaseSubscriptionRepository: { getSubscription },
+}))
+
 vi.mock('../infrastructure/supabase-rental.repository', () => ({
-  supabaseRentalRepository: { listByAdministration },
+  supabaseRentalRepository: { listByAdministration, createDraft: vi.fn(), activate },
 }))
 
 const RENTAL_1 = {
@@ -31,6 +38,22 @@ const RENTAL_1 = {
   actualEndDate: null,
   paymentDay: null,
   paymentTiming: null,
+}
+
+const RENTAL_DRAFT = { ...RENTAL_1, id: 'rental-draft-1', status: 'DRAFT' as const }
+
+/** Grants management access, no capacity limit - the "everything allowed" default most tests rely on. */
+const UNLIMITED_SUBSCRIPTION = {
+  id: 'sub-1',
+  administrationId: 'admin-1',
+  status: 'ACTIVE' as const,
+  planCode: 'starter',
+  trialStartedAt: null,
+  trialEndsAt: null,
+  currentPeriodStartsAt: null,
+  currentPeriodEndsAt: null,
+  managementAccessUntil: null,
+  activeRelationshipLimit: null,
 }
 
 function renderPage() {
@@ -56,6 +79,7 @@ function resolveOneAdministration() {
 describe('RentalsPage', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    getSubscription.mockResolvedValue(UNLIMITED_SUBSCRIPTION)
   })
 
   afterEach(() => {
@@ -167,5 +191,61 @@ describe('RentalsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Registrar arriendo' }))
 
     expect(await screen.findByText('Add rental page')).toBeInTheDocument()
+  })
+
+  it('shows an enabled Activate button for a DRAFT rental when access and capacity both allow it', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: 'Activar' })).toBeEnabled()
+  })
+
+  it('disables Activate and shows the management-access reason when the subscription denies access', async () => {
+    resolveOneAdministration()
+    getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, status: 'EXPIRED' })
+    listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: 'Activar' })).toBeDisabled()
+    expect(
+      await screen.findByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).toBeInTheDocument()
+  })
+
+  it('disables Activate and shows the capacity reason when the active count already meets the limit', async () => {
+    resolveOneAdministration()
+    getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, activeRelationshipLimit: 1 })
+    listByAdministration.mockResolvedValueOnce([RENTAL_1, RENTAL_DRAFT])
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: 'Activar' })).toBeDisabled()
+    expect(await screen.findByText('Alcanzaste el límite de relaciones activas de tu plan.')).toBeInTheDocument()
+  })
+
+  it('clicking Activate calls activate_rental_relationship with the real relationshipId', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])
+    activate.mockReturnValueOnce(new Promise(() => {}))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Activar' }))
+
+    expect(activate).toHaveBeenCalledWith('rental-draft-1')
+  })
+
+  it('shows a mapped error message scoped to the failed rental when activation is rejected', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])
+    activate.mockRejectedValueOnce(new RentalActivationError('capacity_reached'))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Activar' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Alcanzaste el límite de relaciones activas de tu plan.',
+    )
   })
 })

@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { useManagementGate } from '@/features/administration/application/useManagementGate'
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
 import { EmptyState } from '@/shared/ui/EmptyState'
@@ -37,11 +38,12 @@ export interface AddRentalDraftFormProps {
  * is the only mutation this form performs.
  */
 export function AddRentalDraftForm({ administrationId, subjectType, onBack }: AddRentalDraftFormProps) {
-  const { t } = useTranslation('rentals')
+  const { t } = useTranslation(['rentals', 'administration'])
   const navigate = useNavigate()
   const subjectsQuery = useRentalSubjects(administrationId, subjectType)
   const tenantCandidatesQuery = useTenantCandidates(administrationId)
   const createRentalDraft = useCreateRentalDraft()
+  const managementGate = useManagementGate(administrationId)
 
   const schema = addRentalDraftFormSchema(t)
   const {
@@ -250,9 +252,18 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
           </>
         ) : null}
 
-        <Button type="submit" loading={createRentalDraft.isPending} className={styles['submit']}>
+        <Button
+          type="submit"
+          loading={createRentalDraft.isPending}
+          disabled={managementGate.blocked || createRentalDraft.isPending}
+          aria-disabled={managementGate.blocked ? 'true' : undefined}
+          className={styles['submit']}
+        >
           {createRentalDraft.isPending ? t('form.submitting') : t('form.submit')}
         </Button>
+        {managementGate.blocked ? (
+          <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
+        ) : null}
       </form>
     </div>
   )

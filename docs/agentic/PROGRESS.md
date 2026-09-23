@@ -24,24 +24,33 @@ frontend), pusheado a `origin/chore/agentic-foundation` (`59778fc`).
 **INC-003 — Trial/Subscription status visibility**: **completo**
 (frontend, sin backend gate — RLS ya soportaba la lectura), implementado,
 validado e independientemente revisado. Checkpoint `a859e6c` pusheado a
-`origin/chore/agentic-foundation`. Ver detalle en "Último incremento
-ejecutado" más abajo.
+`origin/chore/agentic-foundation`. Ver detalle en "Incremento anterior:
+INC-003" más abajo.
+
+**INC-004 — Capacity & expiration gating**: **completo** (frontend-only,
+sin backend gate — el RPC `activate_rental_relationship` y
+`can_manage_administration()` ya enforce expiración/capacidad; sin nuevos
+grants/migrations, declinado explícitamente), implementado, validado e
+independientemente revisado (0 findings). Checkpoint local pendiente de
+push. Ver detalle en "Último incremento ejecutado" más abajo.
 
 ## Estado
 
-`INC-003 completo — checkpoint a859e6c pusheado a origin/chore/agentic-foundation`.
+`INC-004 completo — checkpoint local pendiente de push`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
-- INC-003: **completo**. `SubscriptionStatusBanner` (fail-silent,
-  no-gating, solo visibilidad) montado en `AuthenticatedLayout`,
-  `useSubscription` + `supabase-subscription.repository` — implementados,
-  validados de forma independiente, revisados por `habitex-reviewer` (0
-  BLOCKER/HIGH/MEDIUM, 1 LOW no bloqueante registrado abajo), y
-  checkpointed y pusheado (ver "Último checkpoint").
-- El checkpoint de INC-003 (`a859e6c`) ya está pusheado a
-  `origin/chore/agentic-foundation` tras aprobación humana — HEAD y origin
-  sincronizados.
+- INC-003 (frontend, sin backend gate): **completo y pusheado** (`a859e6c`).
+- INC-004: **completo**. Gate UX-only de expiración/capacidad
+  (`hasManagementAccess`/`hasRelationshipCapacity`/`useManagementGate` en
+  `administration`, `activeRelationshipCount`/`RentalRepository.activate`/
+  `useActivateRental` en `rentals`) sobre las acciones de creación (property/
+  room/parking/rental draft) y sobre la activación de `RentalRelationship`
+  — implementado, validado de forma independiente, revisado por
+  `habitex-reviewer` (contexto independiente, 0 BLOCKER/HIGH/MEDIUM/LOW), y
+  checkpointed localmente (ver "Último checkpoint").
+- El checkpoint de INC-004 sigue pendiente de push/merge — push/merge
+  nunca son automáticos en este workflow.
 
 ## Subtareas
 
@@ -61,16 +70,131 @@ ejecutado" más abajo.
 | INC-001 — backend gate (fix trial/grace, migration autorada + aplicada + verificada) | done — aplicada en producción, commit `89d7e22`, pusheado a `origin/chore/agentic-foundation` |
 | INC-001 — frontend (bootstrap flow: guards de ruta, `BootstrapAccountPage`, `useBootstrapAccount`) | done — commit `59778fc`, pusheado a `origin/chore/agentic-foundation` |
 | INC-003 — Trial/Subscription status visibility (`SubscriptionStatusBanner`, `useSubscription`, `supabase-subscription.repository`) | done — implementado, validado, revisado (0 fix cycles necesarios), checkpoint `a859e6c` pusheado |
+| INC-004 — Capacity & expiration gating (`useManagementGate`, `activeRelationshipCount`, `RentalRepository.activate`, `useActivateRental`, gate en creación de property/room/parking/rental draft y en activación de rental) | done — implementado (2 rondas: primitivas+rentals, luego properties/parking), validado, revisado (0 fix cycles necesarios), checkpoint local pendiente de push |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`) e INC-003 (`a859e6c`) ya están en
-`origin/chore/agentic-foundation` — HEAD y origin sincronizados.
+`origin/chore/agentic-foundation` — HEAD y origin sincronizados. El nuevo
+checkpoint de INC-004 (ver "Último checkpoint") sigue pendiente de revisión
+humana antes de push — push/merge nunca son automáticos en este workflow
+(ver `SKILL.md` §"Reglas globales").
 
 ## Último incremento ejecutado
 
-**INC-003 — Trial/Subscription status visibility**
+**INC-004 — Capacity & expiration gating**
+(`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-004) — gating
+UX-only de acciones de gestión según expiración de suscripción
+(`management_access_until`) y capacidad de relaciones activas
+(`active_relationship_limit`); el RPC/RLS del backend sigue siendo la
+autoridad real, este incremento no cierra ningún gap de seguridad, solo
+evita sorpresas tardías al usuario.
+
+- **RESEARCH GATE**: resuelto sin escalar — confirmado vía Supabase MCP
+  read-only que el backend ya enforce ambas reglas de forma autoritativa y
+  ya desplegada:
+  - Expiración: `has_management_access()` (status no `EXPIRED` y
+    `management_access_until` nulo o no vencido) compuesto en
+    `can_manage_administration()`, usado por `create_full_property_asset`,
+    `create_room_asset`, `create_room_rental_property`,
+    `create_parking_asset`, `create_rental_draft` y
+    `activate_rental_relationship`.
+  - Capacidad: `active_relationship_count()` (`status IN ('ACTIVE',
+    'ENDING')` — definición única y autoritativa, resuelve la pregunta
+    abierta del plan) enforced solo dentro de `activate_rental_relationship`
+    (crear property/room/parking/draft nunca consume capacidad, correcto
+    contra el product source of truth: "vacant properties/rooms must not
+    consume active capacity").
+  - RLS (`rental_relationships_update_draft`, `WITH CHECK (...  AND
+    status='DRAFT')`) impide cualquier bypass directo de DRAFT→ACTIVE fuera
+    del RPC — confirma que el backend es el límite de seguridad real, nunca
+    el frontend.
+  - Hallazgo de alcance: `report_payment`/`start_ending_rental`/
+    `end_rental` NO pasan por `can_manage_administration` server-side (usan
+    semántica distinta: visibilidad de participante o solo rol, sin chequeo
+    de suscripción) — **excluidos explícitamente del gate** por decisión
+    humana, para no contradecir el comportamiento real del backend.
+  - **Grants nuevos declinados explícitamente** por el usuario —
+    `active_relationship_count`/`relationship_capacity_available`/
+    `has_management_access` siguen sin `EXECUTE` para `authenticated`; el
+    frontend deriva todo del dato ya accesible bajo los grants existentes
+    (`useSubscription` ya seleccionaba `activeRelationshipLimit`; el conteo
+    activo se deriva de la lista de `rentals` ya fetched, scoped por RLS).
+    **Sin HUMAN GATE de Supabase/schema/RLS/grants.**
+- **Qué se agregó**:
+  - Primitivas compartidas (dominio `administration`):
+    `hasManagementAccess`/`hasRelationshipCapacity`
+    (`management-access.ts`, puras, espejo documentado de las funciones SQL
+    homónimas) + `useManagementGate` (hook, **fail-open** — nunca bloquea
+    mientras carga o si falla la query — a propósito distinto del
+    fail-closed de seguridad de `RequiresAccount`, porque esto es UX, no un
+    gate de seguridad).
+  - `activeRelationshipCount` (dominio `rentals`, ACTIVE+ENDING, espejo
+    exacto de `active_relationship_count()`).
+  - `RentalRepository.activate(relationshipId)` → RPC
+    `activate_rental_relationship`; `RentalActivationError`/
+    `RentalActivationErrorCode` (`management_access_required`/
+    `capacity_reached`/`unknown`, mapeo espejo de `SessionAuthError` de
+    auth — solo esos 2 códigos tienen copy específico, el resto de
+    excepciones del RPC (`RENTAL_NOT_DRAFT`, `RENTAL_TERMS_INCOMPLETE`,
+    etc.) caen a `unknown` a propósito, fuera de alcance de este
+    incremento).
+  - `useActivateRental` (mutation, invalida
+    `rentalQueryKeys.list(administrationId)` en éxito).
+  - UI: acción "Activar" en `RentalsPage`/`RentalListCard` para rentals
+    `DRAFT` (Button deshabilitado + párrafo de razón, patrón ya existente
+    de `RoomSetupPage`, sin primitive nuevo); gate del mismo tipo en
+    `AddRentalDraftForm`, `AddFullPropertyForm`,
+    `AddRoomRentalPropertyForm`, `ParkingForm`. Clic en "Activar" siempre
+    llama al RPC real — el estado del gate del cliente nunca reemplaza la
+    respuesta del servidor (verificado con un test explícito de "estado de
+    cliente obsoleto, servidor rechaza").
+  - **Excepción de alcance documentada**: `RoomSetupPage.tsx` queda sin
+    gate en este incremento — no resuelve `administrationId` hoy (por
+    diseño previo) y agregar ese plumbing nuevo se consideró fuera del
+    alcance "mínimo" de este incremento. No es un olvido.
+  - i18n: `administration.json` → `managementAccessGate.blocked`
+    (compartido entre rentals/properties/parking); `rentals.json` →
+    `activate.*` (cta, razón de capacidad, 3 mensajes de error). es/es-CO
+    mantenidos idénticos.
+- **Implementación en 2 rondas secuenciales** (`habitex-implementer`):
+  ronda 1 = primitivas compartidas + todo `rentals` (activación, gate,
+  UI, i18n); ronda 2 = gate reutilizado (sin reimplementar) en
+  `AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`ParkingForm`. Elegido
+  secuencial (no paralelo) por la dependencia real entre rondas y el
+  tamaño/alcance del incremento — `SCOPE/OVERLAP CHECK` confirmó además
+  cero solapamiento de archivos entre ambas rondas.
+- **Tests**: nuevos en `administration` (`management-access.test.ts`,
+  `useManagementGate.test.tsx`), `rentals` (`rental.types.test.ts`,
+  `useActivateRental.test.tsx`, repository, `RentalsPage`,
+  `RentalListCard`, `AddRentalDraftForm`), `properties`
+  (`AddFullPropertyForm.test.tsx`/`AddRoomRentalPropertyForm.test.tsx`
+  nuevos), `parking` (`ParkingForm.test.tsx` ampliado). Cobertura
+  explícitamente verificada por el reviewer: boundary de capacidad (count
+  exactamente en el límite → bloqueado, `count < limit` → permitido),
+  boundary de expiración (`managementAccessUntil` exacto, `>=` no `>`),
+  `activeRelationshipLimit === null` → ilimitado, y el escenario de
+  "estado de cliente obsoleto vs. rechazo real del servidor".
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente,
+  re-verificó contra Supabase MCP read-only en vivo) no encontró ningún
+  finding BLOCKER/HIGH/MEDIUM/LOW.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
+  lint && pnpm test -- --run && pnpm build` — todos PASS. 68 archivos / 436
+  tests (0 fallos), 0 errores de lint (mismos 4 warnings preexistentes de
+  `watch()`/React Compiler, no relacionados).
+- **Human gates**: ninguno disparado — sin cambios de
+  schema/RLS/grants/migrations/dependencias/arquitectura (confirmado por
+  ambos implementers vía `git status`/`git diff --stat`, y por el reviewer
+  vía MCP `list_migrations` — mismas 51 migrations que al inicio).
+- **Seguridad verificada** (vía MCP read-only, por el reviewer):
+  `active_relationship_count`/`has_management_access` confirmadas SIN
+  `EXECUTE` para `authenticated` (el frontend nunca las invoca); RLS de
+  `rental_relationships_update_draft` confirma que `activate_rental_
+  relationship` es el único camino real a `ACTIVE`.
+
+### Incremento anterior: INC-003 — Trial/Subscription status visibility
 (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-003) — solo
 visibilidad de lectura, sin gating de acciones (INC-004, futuro) ni
 checkout real de planes (POST-002, futuro).
@@ -260,44 +384,43 @@ explícito) cuando se lleguen a ejecutar.
 
 ## Último checkpoint
 
-- **SHA**: `a859e6c`
+- **SHA**: _(pendiente — se crea inmediatamente después de esta
+  actualización de `PROGRESS.md`, en el mismo commit)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: INC-003 — `SubscriptionStatusBanner`,
-  `useSubscription`, `supabase-subscription.repository`, dominio/tipos de
-  `Subscription`, wiring en `composition.ts`, banner montado en
-  `AuthenticatedLayout`, i18n, tests, y la actualización correspondiente de
-  `PROGRESS.md`.
+- **Contenido del checkpoint**: INC-004 — primitivas de gate
+  (`management-access.ts`, `useManagementGate`), `activeRelationshipCount`,
+  `RentalRepository.activate` + `RentalActivationError`, `useActivateRental`,
+  UI de activación en `RentalsPage`/`RentalListCard`, gate en
+  `AddRentalDraftForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/
+  `ParkingForm`, i18n, tests, y esta actualización de `PROGRESS.md`.
 - **Fecha**: 2026-09-23
-- **Estado**: pusheado a `origin/chore/agentic-foundation` tras aprobación
-  humana. HEAD == origin, sin pendientes.
-- **No incluido**: ningún cambio de Supabase/migrations nuevo (INC-003 no
-  requirió backend gate — RLS ya soportaba la lectura).
+- **Estado**: commiteado localmente, **pendiente de push** — push/merge
+  nunca son automáticos en este workflow.
+- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
+  (INC-004 confirmó que no se necesitaba ninguno; el grant opcional
+  discutido en el research gate fue declinado explícitamente).
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado de INC-003, ejecutado de forma
-independiente por la sesión orquestadora (y re-verificado por el
-reviewer):
+Medido sobre el resultado integrado de INC-004 (2 rondas), ejecutado de
+forma independiente por la sesión orquestadora y re-verificado por el
+reviewer:
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
-| `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no tocados por este cambio) |
-| `pnpm test -- --run` | PASS — 381/381, 62 archivos (corrido 2 veces por el reviewer para descartar flakiness del patrón nuevo `vi.useFakeTimers`) |
+| `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
+| `pnpm test -- --run` | PASS — 436/436, 68 archivos |
 | `pnpm build` | PASS |
 
 ## Siguiente acción recomendada
 
-INC-001 e INC-003 (backend + frontend) ya están completos, revisados y
-pusheados a `origin/chore/agentic-foundation` (`a859e6c` == HEAD == origin,
-0 ahead/0 behind). Falta selección humana del próximo incremento a
-ejecutar.
+**Revisión humana del checkpoint de INC-004 antes de push/merge.** INC-001
+e INC-003 (backend + frontend) ya están en `origin`.
 
-Con INC-001 y INC-003 completos, los siguientes incrementos del
+Con INC-001, INC-003 e INC-004 completos, los siguientes incrementos del
 `HABITEX_COMPLETION_PLAN.md` quedan sin dependencias técnicas pendientes:
 
-- **INC-004** — Capacity & expiration gating (depende de INC-003, recién
-  satisfecho; reutiliza el hook de lectura de `useSubscription`).
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
 - **INC-006** — Rental Terms (depende de INC-001).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
@@ -308,6 +431,15 @@ Con INC-001 y INC-003 completos, los siguientes incrementos del
 - **INC-018** — Habilitar `leaked_password_protection` (sin dependencias
   técnicas, pero es config de Supabase Auth — dispara HUMAN GATE
   automático por tocar Auth).
+
+Nota: **INC-008 (Rental Activation)** ya no es un incremento separado en el
+sentido en que lo describía el plan original — la acción mínima de
+activar (`activate_rental_relationship`) fue construida como parte de
+INC-004 (alcance ampliado, aprobado explícitamente por el usuario para no
+partir el incremento). Si se llega a INC-008/INC-009 más adelante, ya
+existe `useActivateRental`/`RentalRepository.activate` para reutilizar —
+falta revisar si INC-008 todavía aporta algo más allá de lo ya cubierto
+(p. ej. una vista de detalle de rental) antes de darlo por completo.
 
 Hay varios candidatos sin dependencias pendientes — la priorización es
 del usuario, no del orchestrator (ver `SKILL.md` §"SELECT INCREMENT").
@@ -331,3 +463,4 @@ git, no aquí._
 | 2026-09-23 | `89d7e22` | `chore/agentic-foundation` | INC-001 backend gate: migration `fix_trial_grace_period` (14d trial / 44d management access, Option B para la fila legacy existente) autorada, aplicada contra el proyecto Supabase real y verificada remotamente. **Pusheado**. |
 | 2026-09-23 | `59778fc` | `chore/agentic-foundation` | INC-001 frontend: guards de ruta (`RequiresAccount`, `RedirectIfAccountExists`), `BootstrapAccountPage`, `useBootstrapAccount`, `bootstrapAccount` en el repository, wiring en `router.tsx`, i18n. 1 fix cycle (2 HIGH: race navigate/cache, flake de `App.test.tsx`) resuelto y re-verificado; corrección posterior del estado de push de `89d7e22` en `PROGRESS.md` (amend, sin cambio de mensaje). **Pusheado**. |
 | 2026-09-23 | `a859e6c` | `chore/agentic-foundation` | INC-003 — Trial/Subscription status visibility: `SubscriptionStatusBanner` (fail-silent, no-gating), `useSubscription`, `supabase-subscription.repository`, montado en `AuthenticatedLayout`. Sin backend gate (RLS ya soportaba la lectura). 0 fix cycles — 1 LOW no bloqueante registrado (copy de CANCELED+gracia-vencida). **Pusheado**. |
+| 2026-09-23 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-004 — Capacity & expiration gating: `hasManagementAccess`/`hasRelationshipCapacity`/`useManagementGate` (administration), `activeRelationshipCount`/`RentalRepository.activate`/`RentalActivationError`/`useActivateRental` (rentals), UI de activación + gate en creación de property/room/parking/rental draft. Sin backend gate (RPC/RLS ya enforced; grant opcional declinado explícitamente). 2 rondas de `habitex-implementer` (primitivas+rentals, luego properties/parking). 0 fix cycles — 0 findings del reviewer. **Local, pendiente de push**. |
