@@ -85,7 +85,7 @@ sección INC-002).
 - **Human gates**: ninguno disparado — el incremento no tocó
   schema/RLS/Auth/dependencias/arquitectura.
 
-## Infraestructura: Supabase migrations baseline (2026-09-22, sin commit)
+## Infraestructura: Supabase migrations baseline
 
 Tras seleccionar INC-001 (Account & Administration Bootstrap) como
 siguiente incremento, el RESEARCH GATE de INC-001 encontró una
@@ -97,11 +97,8 @@ TRIGGERED — INC-001 queda pausado hasta resolver esto; no se implementó
 nada de INC-001 en `src/`.
 
 Antes de aplicar ese fix, el usuario pidió resolver primero cómo Habitex
-versiona y aplica cambios de backend Supabase (el propio fix del trial
-habría sido la primera migration bajo el sistema nuevo, pero ese fix
-**todavía no se creó como archivo** — es un paso posterior separado, no
-incluido en este checkpoint). Este checkpoint cubre solo la
-infraestructura de versionado:
+versiona y aplica cambios de backend Supabase. Ese trabajo de
+infraestructura quedó checkpointed:
 
 - **`supabase` CLI** agregada como devDependency vía pnpm
   (`package.json`/`pnpm-lock.yaml`).
@@ -117,19 +114,82 @@ infraestructura de versionado:
   por migration, ejecución actual vía Supabase CLI local, migrations
   históricas nunca se modifican.
 - **Revisión independiente** (`habitex-reviewer`, contexto separado):
-  sin BLOCKER. 1 finding MEDIUM (esta misma referencia cruzada —
-  corregida al escribir esta entrada). Validación completa
-  (`typecheck`/`lint`/`test`/`build`) en PASS, 334/334 tests, sin
-  regresiones. `git status`/`diff --stat` confirmaron que nada bajo `src/`
-  fue tocado.
+  sin BLOCKER. Validación completa (`typecheck`/`lint`/`test`/`build`) en
+  PASS, 334/334 tests, sin regresiones. `git status`/`diff --stat`
+  confirmaron que nada bajo `src/` fue tocado.
 - **Sin escritura contra Supabase remoto en ningún momento**: no hubo
   `supabase login`/`link`/`db push`/`migration up`/`migration repair`, ni
   SQL Editor. El MCP read-only fue la única vía de lectura.
-- **Estado**: cambios en el working tree, **sin commit todavía** —
-  pendiente de que el usuario decida el mecanismo de ejecución para la
-  siguiente fase (ya acordado como Supabase CLI local + Human Gate
-  explícito, sin GitHub Actions por ahora) y confirme si commitear este
-  baseline antes o junto con el fix del trial.
+- **Checkpoint**: `a173cdb` (commiteado y **pusheado** a
+  `origin/chore/agentic-foundation`).
+
+### Fix del trial/gracia — migration autorada, NO APLICADA todavía
+
+Decisión de producto aprobada explícitamente por el usuario para resolver
+la contradicción de arriba:
+
+- **Trial = 14 días**, **grace = 30 días adicionales** →
+  `trial_ends_at = trial_started_at + 14 days`,
+  `management_access_until = trial_started_at + 44 days`.
+- **Option B aprobada** para las filas existentes: reconciliar únicamente
+  las `administration_subscriptions` que todavía coincidan exactamente con
+  el patrón legacy 30d/30d (`status='TRIALING'`, `plan_code='TRIAL'`,
+  `trial_ends_at = trial_started_at + 30 days`,
+  `management_access_until = trial_ends_at`) — sin tocar
+  `trial_started_at`, sin afectar filas ya desviadas del patrón por otra
+  razón, idempotente por construcción.
+
+Migration autorada: `supabase/migrations/20260923010827_fix_trial_grace_period.sql`
+— `CREATE OR REPLACE FUNCTION public.create_default_administration_trial()`
+(misma firma, `RETURNS trigger`/`LANGUAGE plpgsql`/`SECURITY DEFINER`/
+`SET search_path=''` preservados) + el `UPDATE` acotado de Option B,
+envueltos en `begin;`/`commit;`. Revisada independientemente
+(`habitex-reviewer`, contexto fresco): sin BLOCKER, sin HIGH — veredicto
+"correcta y segura de aplicar, sin impedimento para continuar".
+
+**MIGRATION APLICADA (2026-09-23) contra el proyecto Supabase real**
+(`eurzpkgikzdvbblgtjwp`), vía `supabase db push` ejecutado directamente por
+el usuario (el intento de ejecutarlo desde el agente fue bloqueado por el
+clasificador de auto-mode de Claude Code — `[Blind Apply]` — y no se
+intentó ningún workaround). Pre-flight (project ref, `migration list`,
+`db push --dry-run`, y MCP read-only) confirmó inmediatamente antes de la
+ejecución que solo esta migration estaba pendiente y que la población
+legacy no había cambiado.
+
+**Verificación remota post-ejecución (MCP read-only)**:
+- `migration list`: local 52 / remoto 52, 0 pendientes, 0 mismatch.
+  `20260923010827` registrada exactamente una vez.
+- `create_default_administration_trial()`: `RETURNS trigger`,
+  `LANGUAGE plpgsql`, `SECURITY DEFINER`, `SET search_path TO ''`,
+  `trial_started_at=now()`, `trial_ends_at=now()+14 days`,
+  `management_access_until=now()+44 days` — confirmado carácter por
+  carácter contra la definición real desplegada.
+- Datos agregados (sin PII): `total_subscriptions=1`, `trialing=1`,
+  `matches_14d_trial=1`, `matches_44d_management=1`,
+  `legacy_30_30_remaining=0` — Option B reconcilió la única fila legacy
+  existente, cero filas 30d/30d restantes.
+- Invariantes de seguridad intactos: trigger `administrations_create_trial`
+  habilitado y sin cambios, grants de la función sin cambios
+  (`{postgres=X/postgres}`, nunca expuesta a `authenticated`/`anon`),
+  `bootstrap_account` no tocada, RLS de `administration_subscriptions`
+  intacta (única policy `administration_subscriptions_select`).
+- **Product invariant confirmado**: trial = 14 días, grace =
+  `management_access_until - trial_ends_at` = 30 días, ventana total de
+  gestión desde `trial_started_at` = 44 días.
+
+**Estado explícito:**
+- Migration aplicada y verificada remotamente — **PASS** en todas las
+  verificaciones.
+- Trial = 14 días, Grace = 30 días adicionales, management access hasta
+  el día 44 — confirmado en producción.
+- Option B (reconciliación legacy) completada.
+- **INC-001 Supabase/backend gate = RESOLVED.**
+- **INC-001 frontend implementation = NOT STARTED** — no se ha escrito
+  ningún código bajo `src/` para INC-001 todavía; sigue siendo trabajo
+  futuro separado, requiere su propio ciclo del `habitex-orchestrator`.
+- El commit local de esta migration (`supabase/migrations/20260923010827_fix_trial_grace_period.sql`
+  + esta actualización de `PROGRESS.md`) sigue **pendiente** — no se ha
+  hecho `git commit` ni `git push` todavía.
 
 ## Decisiones humanas pendientes
 
