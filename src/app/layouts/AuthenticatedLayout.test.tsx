@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import { AuthenticatedLayout } from './AuthenticatedLayout'
@@ -20,6 +20,30 @@ vi.mock('@/features/auth/infrastructure/supabase-session.repository', () => ({
     signOut: vi.fn(),
   },
 }))
+
+// SubscriptionStatusBanner (mounted inside AuthenticatedLayout) reaches
+// these two administration repositories - mocked the same way
+// PropertiesPage.test.tsx mocks them, so navigation tests below stay
+// unaffected by the banner instead of hitting the real Supabase client.
+const { listAccessibleAdministrations } = vi.hoisted(() => ({
+  listAccessibleAdministrations: vi.fn(),
+}))
+const { getSubscription } = vi.hoisted(() => ({ getSubscription: vi.fn() }))
+
+vi.mock('@/features/administration/infrastructure/supabase-administration.repository', () => ({
+  supabaseAdministrationRepository: { listAccessibleAdministrations },
+}))
+
+vi.mock('@/features/administration/infrastructure/supabase-subscription.repository', () => ({
+  supabaseSubscriptionRepository: { getSubscription },
+}))
+
+beforeEach(() => {
+  // Default: no accessible administration -> SubscriptionStatusBanner stays
+  // silent (status 'none'), same as before it existed. Individual tests
+  // override this when they need to exercise the banner itself.
+  listAccessibleAdministrations.mockResolvedValue([])
+})
 
 function renderLayout(initialPath: string) {
   const client = createTestQueryClient()
@@ -79,5 +103,49 @@ describe('AuthenticatedLayout navigation', () => {
 
     expect(sidebar.queryByRole('link', { name: 'Personas' })).not.toBeInTheDocument()
     expect(sidebar.getByRole('button', { name: 'Personas' })).toBeInTheDocument()
+  })
+})
+
+describe('AuthenticatedLayout SubscriptionStatusBanner wiring', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('renders the trial banner above the routed page once an administration and its subscription resolve', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-09-22T00:00:00Z'))
+
+    getSession.mockResolvedValueOnce({ userId: 'user-1', email: 'a@habitex.app', expiresAtUnix: null })
+    listAccessibleAdministrations.mockResolvedValue([
+      { id: 'admin-1', name: 'Edificio Central', status: 'ACTIVE' },
+    ])
+    getSubscription.mockResolvedValue({
+      id: 'sub-1',
+      administrationId: 'admin-1',
+      status: 'TRIALING',
+      planCode: 'starter',
+      trialStartedAt: '2026-09-08T00:00:00Z',
+      trialEndsAt: '2026-09-25T00:00:00Z',
+      currentPeriodStartsAt: null,
+      currentPeriodEndsAt: null,
+      managementAccessUntil: null,
+      activeRelationshipLimit: 10,
+    })
+
+    renderLayout('/')
+    await screen.findByText('Home page')
+
+    expect(await screen.findByText('Tu prueba gratuita termina en 3 días.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver planes' })).toBeDisabled()
+  })
+
+  it('renders nothing from the banner when there is no accessible administration', async () => {
+    getSession.mockResolvedValueOnce({ userId: 'user-1', email: 'a@habitex.app', expiresAtUnix: null })
+
+    renderLayout('/')
+    await screen.findByText('Home page')
+
+    expect(screen.queryByRole('button', { name: 'Ver planes' })).not.toBeInTheDocument()
+    expect(getSubscription).not.toHaveBeenCalled()
   })
 })

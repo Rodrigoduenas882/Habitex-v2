@@ -15,31 +15,31 @@
 ## Incremento actual (producto)
 
 **INC-001 — Account & Administration Bootstrap**: **completo** (backend +
-frontend), implementado, validado e independientemente revisado. Backend
-gate resuelto y aplicado contra el proyecto Supabase real; frontend
-implementado en esta sesión (guards de ruta + bootstrap flow). Ver detalle
-en "Último incremento ejecutado" más abajo.
+frontend), pusheado a `origin/chore/agentic-foundation` (`59778fc`).
 
 **INC-002 — Administration selection UI**: completo, pusheado a
 `origin/chore/agentic-foundation` (piloto original del
 `habitex-orchestrator`). Ver "Registro de checkpoints".
 
+**INC-003 — Trial/Subscription status visibility**: **completo**
+(frontend, sin backend gate — RLS ya soportaba la lectura), implementado,
+validado e independientemente revisado. Checkpoint local pendiente de
+push. Ver detalle en "Último incremento ejecutado" más abajo.
+
 ## Estado
 
-`INC-001 checkpointed locally — pending human review before push/merge`.
+`INC-003 checkpointed locally — pending human review before push/merge`.
 
-- Backend gate: **RESOLVED**. Migration `20260923010827_fix_trial_grace_period`
-  aplicada contra el proyecto Supabase real (`eurzpkgikzdvbblgtjwp`),
-  commiteada (`89d7e22`) y **pusheada** a `origin/chore/agentic-foundation`.
-- Frontend: **completo**. Guards de ruta (`RequiresAccount`,
-  `RedirectIfAccountExists`), `BootstrapAccountPage`, `useBootstrapAccount`,
-  `supabase-account.repository.bootstrapAccount` — implementados,
-  validados de forma independiente, revisados por `habitex-reviewer` con 1
-  ciclo de fix (2 HIGH corregidos y re-verificados como resueltos), y
+- INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
+  `59778fc`).
+- INC-003: **completo**. `SubscriptionStatusBanner` (fail-silent,
+  no-gating, solo visibilidad) montado en `AuthenticatedLayout`,
+  `useSubscription` + `supabase-subscription.repository` — implementados,
+  validados de forma independiente, revisados por `habitex-reviewer` (0
+  BLOCKER/HIGH/MEDIUM, 1 LOW no bloqueante registrado abajo), y
   checkpointed localmente (ver "Último checkpoint").
-- El checkpoint de INC-001 frontend (backend ya está en `origin`) sigue
-  pendiente de push/merge — push/merge nunca son automáticos en este
-  workflow.
+- El checkpoint de INC-003 sigue pendiente de push/merge — push/merge
+  nunca son automáticos en este workflow.
 
 ## Subtareas
 
@@ -57,115 +57,87 @@ en "Último incremento ejecutado" más abajo.
 | INC-002 — Administration selection UI (implementación + validación + review independiente) | done — pusheado a `origin/chore/agentic-foundation` |
 | Infraestructura: Supabase migrations baseline (CLI, 51 migrations históricas reconstruidas) | done — pusheado (`a173cdb`) |
 | INC-001 — backend gate (fix trial/grace, migration autorada + aplicada + verificada) | done — aplicada en producción, commit `89d7e22`, pusheado a `origin/chore/agentic-foundation` |
-| INC-001 — frontend (bootstrap flow: guards de ruta, `BootstrapAccountPage`, `useBootstrapAccount`) | done — implementado, validado, revisado (1 fix cycle), checkpoint local pendiente de crear en esta misma sesión |
+| INC-001 — frontend (bootstrap flow: guards de ruta, `BootstrapAccountPage`, `useBootstrapAccount`) | done — commit `59778fc`, pusheado a `origin/chore/agentic-foundation` |
+| INC-003 — Trial/Subscription status visibility (`SubscriptionStatusBanner`, `useSubscription`, `supabase-subscription.repository`) | done — implementado, validado, revisado (0 fix cycles necesarios), checkpoint local pendiente de push |
 
 ## Blockers
 
-Ninguno técnico ni de aprobación en este momento. `89d7e22` (backend
-gate) ya está en `origin/chore/agentic-foundation`; el nuevo checkpoint de
-INC-001 frontend (ver "Último checkpoint") sigue pendiente de revisión
-humana antes de push — push/merge nunca son automáticos en este workflow
-(ver `SKILL.md` §"Reglas globales").
+Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
+`59778fc`) ya está en `origin/chore/agentic-foundation`; el nuevo
+checkpoint de INC-003 (ver "Último checkpoint") sigue pendiente de
+revisión humana antes de push — push/merge nunca son automáticos en este
+workflow (ver `SKILL.md` §"Reglas globales").
 
 ## Último incremento ejecutado
 
-**INC-001 — Account & Administration Bootstrap** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
-sección INC-001) — **frontend scope**, resumido a partir del checkpoint de
-backend ya resuelto (`89d7e22`).
+**INC-003 — Trial/Subscription status visibility**
+(`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-003) — solo
+visibilidad de lectura, sin gating de acciones (INC-004, futuro) ni
+checkout real de planes (POST-002, futuro).
 
+- **RESEARCH GATE condicional del plan**: resuelto sin escalar — RLS ya
+  soporta la lectura (`administration_subscriptions_select`, `USING
+  is_administration_member(administration_id)`), schema ya tiene todos
+  los campos necesarios, sin RPC/vista dedicada (SELECT directo scoped es
+  el mecanismo correcto). **Sin HUMAN GATE de Supabase/schema/RLS.**
 - **Qué se agregó**:
-  - `AccountRepository.bootstrapAccount` (dominio +
-    `supabase-account.repository.ts`): invoca el RPC `bootstrap_account`
-    existente (sin lógica de negocio nueva, sin reproducir fechas de
-    trial/gracia en frontend).
-  - `useBootstrapAccount` (TanStack Query mutation): invalida
-    `administrationQueryKeys.account` y `.accessibleAdministrations` en
-    `onSuccess`, **esperando** ambas invalidaciones (`Promise.all`, ver fix
-    loop abajo) antes de que el caller navegue.
-  - `RequiresAccount` (guard de ruta, envuelve `AuthenticatedLayout` y todo
-    su subárbol): `loading` → boot screen; `error` → `Alert` + retry
-    (fail-closed, nunca cae en "tiene cuenta" ni en "necesita bootstrap");
-    `data === null` → redirect a `/bootstrap`; resuelto → `Outlet`.
-  - `RedirectIfAccountExists` (guard de `/bootstrap`, mismo tratamiento
-    fail-closed): `data !== null` → redirect a `/`; `data === null` →
-    `Outlet`.
-  - `BootstrapAccountPage` (página standalone, sin `AppShell`, sin el
-    hero fotográfico/glass reservado a `LoginPage` por `DESIGN.md §10`):
-    formulario RHF+Zod, botón e inputs deshabilitados durante
-    `isPending` (previene doble submit), error mostrado vía
-    `Alert tone="danger"` con copy genérico (nunca el error crudo del
-    RPC), éxito navega a `/` con `replace`.
-  - Router (`router.tsx`): nueva ruta `bootstrap` (dentro de
-    `ProtectedRoute`, fuera de `AuthenticatedLayout`, gateada por
-    `RedirectIfAccountExists`); `AuthenticatedLayout` y todas sus rutas
-    hijas existentes ahora envueltas en `RequiresAccount`, sin cambiar su
-    forma interna.
-  - i18n: claves nuevas `bootstrap.*` y `guardError.*` en
-    `administration.json` (es/es-CO), `actions.retry` en `common.json`
-    (es/es-CO).
-- **Tests**: 9 archivos de test nuevos (guards, hook, repository, página,
-  y un test de integración del flujo completo — ver fix loop). Sin tests
-  existentes modificados salvo `App.test.tsx` (ver fix loop).
-- **Fix loop**: 1 ciclo de 2 máximo. `habitex-reviewer` (contexto
-  independiente) encontró 2 findings HIGH:
-  1. **Race navigate/cache**: `onSuccess` invalidaba la cache de forma
-     fire-and-forget (`void invalidateQueries(...)`), permitiendo que
-     `navigate('/')` corriera antes de que la cache de `account`
-     refrescara — el usuario podía rebotar de vuelta a `/bootstrap`
-     justo después de un signup exitoso. **Corregido**: `onSuccess` ahora
-     retorna `Promise.all([...])`, así TanStack Query espera ambas
-     invalidaciones antes de que el `onSuccess` a nivel de `mutate()`
-     (la navegación) se ejecute. Regression test nuevo:
-     `bootstrap-account-flow.test.tsx`, monta el subárbol de rutas real
-     (`RedirectIfAccountExists` → `BootstrapAccountPage`,
-     `RequiresAccount` → ruta protegida) y verifica que la navegación no
-     ocurre hasta que el refetch post-invalidación resuelve. Verificado
-     como test de regresión real (no tautológico) por trazado manual
-     contra el código anterior.
-  2. **`pnpm test` fallaba de forma determinística en la suite completa**:
-     `App.test.tsx` (preexistente) usaba el timeout default de 1000ms en
-     un `findByRole`, y el volumen de tests nuevos de esta sesión
-     empujaba ese assertion por encima del timeout bajo contención de
-     workers (reproducido 2/2 veces). **Corregido**: timeout explícito de
-     5000ms en ese `findByRole`; sin cambios al assertion en sí.
-  - Ambos fixes re-verificados independientemente (`habitex-reviewer`,
-    contexto fresco): **RESOLVED**, sin nuevos findings BLOCKER/HIGH.
-- **Deuda no bloqueante registrada** (no requiere acción antes de
-  mergear):
-  - LOW/informativo: `administrationQueryKeys.account` y
-    `.accessibleAdministrations` son keys "desnudas" (no scoped por
-    identidad en el nombre de la key en sí) — preexistente, no
-    introducido por este cambio. Mitigado en la práctica porque
-    `AuthSessionListener` limpia toda key no-`auth` en cada cambio de
-    identidad (confirmado leyendo el código). Candidato a nota explícita
-    en `ARCHITECTURE.md §6` si esta excepción debe quedar documentada
-    formalmente.
-  - Preexistente, no introducido ahora: `useBootstrapAccount.test.tsx`
-    usa un `createClient()` local en vez del helper compartido
-    `createTestQueryClient()` que sí usan los tests más nuevos de esta
-    feature — inconsistencia de convención de test, no funcional.
+  - `Subscription`/`SubscriptionStatus`/`SubscriptionRepository` en el
+    dominio de `administration`, `supabase-subscription.repository.ts`
+    (SELECT scoped por `administration_id`, `.maybeSingle()`, columnas
+    explícitas sin `*`), `useSubscription` (TanStack Query, key scoped
+    `['administration', id, 'subscription']`), wiring en `composition.ts`.
+  - `SubscriptionStatusBanner`: resuelve la administración activa vía
+    `useActiveAdministration()` (reutilizado, no reimplementado);
+    **fail-silent** (renderiza `null`, sin spinner ni error propio) en
+    todo estado no accionable (sin administración resuelta, loading,
+    error, `subscription === null`, `status === 'ACTIVE'`) — a propósito
+    distinto de los guards fail-closed de INC-001 (`RequiresAccount` etc.),
+    porque esto no es un gate de seguridad, es un widget informativo.
+    Montado en `AuthenticatedLayout` (aditivo, sin tocar su árbol de
+    rutas/nav existente).
+  - Tone-mapping (primera regla que matchea, sin hardcodear duración de
+    trial/gracia — solo diffs de timestamps del backend): `ACTIVE` → nada;
+    `TRIALING` antes de `trial_ends_at` → `info`; `TRIALING` en gracia
+    (después de `trial_ends_at`, antes de `management_access_until`) →
+    `warning`; `PAST_DUE` → `warning` incondicional; `EXPIRED` o
+    `management_access_until` ya pasado → `danger`; `CANCELED` → `danger`.
+  - CTA "Ver planes" deliberadamente deshabilitado (`aria-disabled`, sin
+    navegación) — checkout real es POST-002, fuera de alcance.
+  - Reutiliza `Alert`/`Button` sin crear primitives nuevos
+    (`DESIGN.md:136`, "No crear un banner de error propio").
+  - i18n: claves nuevas `subscriptionBanner.*` en `administration.json`
+    (es/es-CO), con pluralización `_one`/`_other` para los mensajes de
+    días restantes.
+- **Tests**: 6 archivos nuevos (repository, hook, banner) + ampliación de
+  `AuthenticatedLayout.test.tsx`.
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente) no
+  encontró BLOCKER/HIGH/MEDIUM.
+- **Deuda no bloqueante registrada**:
+  - LOW: para una suscripción `CANCELED` cuyo `management_access_until`
+    ya pasó, el orden de reglas especificado (catch-all de "expirado"
+    antes que `CANCELED`) hace que se muestre el copy de "expirado" en
+    vez de "cancelada" — el tono (`danger`) es correcto en ambos casos,
+    es solo un matiz de texto. Si el copy distinto importa a producto,
+    es un reorder de una línea en `resolveBannerState`.
 - **Validación** (ejecutada de forma independiente por la sesión
-  orquestadora, no solo reportada por los implementers — dos rondas
-  completas, antes y después del fix loop):
-  `pnpm typecheck && pnpm lint && pnpm test -- --run && pnpm build` — 
-  todos PASS. 59 archivos / 359 tests (0 fallos), 0 errores de lint (4
-  warnings preexistentes no relacionados —
-  `react-hooks/incompatible-library` en `ParkingForm`,
-  `AddFullPropertyForm`, `AddRoomRentalPropertyForm`,
-  `AddRentalDraftForm`, ninguno tocado por este cambio). Suite completa
-  corrida dos veces tras el fix para confirmar que el flake de
-  `App.test.tsx` quedó resuelto, no solo mejorado — sin fallos en ninguna
-  corrida.
-- **Human gates**: ninguno disparado durante el frontend — no se tocó
-  schema/RLS/Auth/dependencias/arquitectura. El único human gate de
-  INC-001 (la contradicción producto/backend del trial) ya se resolvió y
-  checkpointeó por separado (ver abajo).
-- **Seguridad verificada** (vía MCP read-only, no asumida): `bootstrap_account`
-  es `SECURITY DEFINER`; no existe policy de INSERT directa sobre
-  `accounts`/`people`/`administrations` para `authenticated` — el RPC es
-  la única vía de creación, el guard de frontend es solo UX, RLS sigue
-  siendo la autoridad real. Sin uso de `service_role`. Sin `localStorage`
-  como mecanismo de autorización en ningún archivo nuevo.
+  orquestadora): `pnpm typecheck && pnpm lint && pnpm test -- --run &&
+  pnpm build` — todos PASS. 62 archivos / 381 tests (0 fallos), 0 errores
+  de lint (mismos 4 warnings preexistentes no relacionados). Suite
+  completa corrida dos veces por el reviewer para descartar flakiness del
+  patrón nuevo `vi.useFakeTimers` (sin precedente previo en esta suite) —
+  sin fallos en ninguna corrida.
+- **Human gates**: ninguno disparado — no se tocó schema/RLS/Auth
+  (solo lectura ya soportada)/dependencias/arquitectura.
+- **Seguridad verificada** (vía MCP read-only): única policy sobre
+  `administration_subscriptions` es `administration_subscriptions_select`
+  (SELECT, scoped), sin policy de escritura expuesta a `authenticated`.
+
+### Incremento anterior: INC-001 — Account & Administration Bootstrap
+
+Completo (backend + frontend), pusheado — ver checkpoints `89d7e22` y
+`59778fc` en "Registro de checkpoints" para el resumen; detalle completo
+del backend gate (contradicción producto/backend del trial, fix
+aplicado) en "Infraestructura: Supabase migrations baseline" más abajo.
 
 ## Infraestructura: Supabase migrations baseline
 
@@ -286,49 +258,46 @@ real y storage no bloqueantes). Ninguna de estas bloquea la aprobación del
 plan en sí — bloquean incrementos específicos (algunas como RESEARCH GATE
 explícito) cuando se lleguen a ejecutar.
 
-Decisión pendiente adicional: push/merge del nuevo checkpoint de INC-001
-frontend (`89d7e22`, backend, ya está en `origin`) — siempre gate humano,
-nunca automático en este workflow.
+Decisión pendiente adicional: push/merge del nuevo checkpoint de INC-003
+— siempre gate humano, nunca automático en este workflow.
 
 ## Último checkpoint
 
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
   actualización de `PROGRESS.md`, en el mismo commit)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: INC-001 frontend — guards de ruta
-  (`RequiresAccount`, `RedirectIfAccountExists`), `BootstrapAccountPage`,
-  `useBootstrapAccount`, `bootstrapAccount` en el repository/dominio de
-  `administration`, wiring en `router.tsx`, i18n, tests (incluye el fix
-  loop: `App.test.tsx` timeout + `bootstrap-account-flow.test.tsx`), y
-  esta actualización de `PROGRESS.md`.
+- **Contenido del checkpoint**: INC-003 — `SubscriptionStatusBanner`,
+  `useSubscription`, `supabase-subscription.repository`, dominio/tipos de
+  `Subscription`, wiring en `composition.ts`, banner montado en
+  `AuthenticatedLayout`, i18n, tests, y esta actualización de
+  `PROGRESS.md`.
 - **Fecha**: 2026-09-23
-- **No incluido**: ningún cambio de Supabase/migrations nuevo (el backend
-  gate ya está en `89d7e22`, checkpoint previo separado).
+- **No incluido**: ningún cambio de Supabase/migrations nuevo (INC-003 no
+  requirió backend gate — RLS ya soportaba la lectura).
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado de INC-001 frontend (implementación +
-fix loop), ejecutado de forma independiente por la sesión orquestadora —
-no solo reportado por los implementers/reviewer:
+Medido sobre el resultado integrado de INC-003, ejecutado de forma
+independiente por la sesión orquestadora (y re-verificado por el
+reviewer):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no tocados por este cambio) |
-| `pnpm test -- --run` | PASS — 359/359, 59 archivos (corrido 2 veces tras el fix loop para confirmar que el flake de `App.test.tsx` quedó resuelto, no solo mejorado) |
+| `pnpm test -- --run` | PASS — 381/381, 62 archivos (corrido 2 veces por el reviewer para descartar flakiness del patrón nuevo `vi.useFakeTimers`) |
 | `pnpm build` | PASS |
 
 ## Siguiente acción recomendada
 
-**Revisión humana del checkpoint de INC-001 frontend antes de push/merge.**
-El checkpoint de backend (`89d7e22`) ya está en `origin`; solo el checkpoint
-de frontend sigue sin pushear.
+**Revisión humana del checkpoint de INC-003 antes de push/merge.** INC-001
+(backend + frontend) ya está en `origin`.
 
-Con INC-001 completo (backend + frontend), los siguientes incrementos del
-`HABITEX_COMPLETION_PLAN.md` quedan **sin dependencias técnicas
-pendientes** (antes bloqueados por INC-001):
+Con INC-001 y INC-003 completos, los siguientes incrementos del
+`HABITEX_COMPLETION_PLAN.md` quedan sin dependencias técnicas pendientes:
 
-- **INC-003** — Trial/Subscription status visibility (depende de INC-001).
+- **INC-004** — Capacity & expiration gating (depende de INC-003, recién
+  satisfecho; reutiliza el hook de lectura de `useSubscription`).
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
 - **INC-006** — Rental Terms (depende de INC-001).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
@@ -360,4 +329,5 @@ git, no aquí._
 | 2026-09-22 | `4c8a884` | `chore/agentic-foundation` | Registro de INC-002 en `PROGRESS.md`. Con este commit, INC-002 y toda la fundación previa quedaron **pusheados** a `origin/chore/agentic-foundation` tras aprobación humana. |
 | 2026-09-22 | `a173cdb` | `chore/agentic-foundation` | Adopción del baseline de Supabase migrations: CLI como devDependency, `supabase/config.toml`, 51 migrations históricas reconstruidas byte-exactas, `ARCHITECTURE.md`/`CLAUDE.md` actualizados. Sin cambios bajo `src/`. **Pusheado**. |
 | 2026-09-23 | `89d7e22` | `chore/agentic-foundation` | INC-001 backend gate: migration `fix_trial_grace_period` (14d trial / 44d management access, Option B para la fila legacy existente) autorada, aplicada contra el proyecto Supabase real y verificada remotamente. **Pusheado**. |
-| 2026-09-23 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-001 frontend: guards de ruta (`RequiresAccount`, `RedirectIfAccountExists`), `BootstrapAccountPage`, `useBootstrapAccount`, `bootstrapAccount` en el repository, wiring en `router.tsx`, i18n. 1 fix cycle (2 HIGH: race navigate/cache, flake de `App.test.tsx`) resuelto y re-verificado. **Local, pendiente de push**. |
+| 2026-09-23 | `59778fc` | `chore/agentic-foundation` | INC-001 frontend: guards de ruta (`RequiresAccount`, `RedirectIfAccountExists`), `BootstrapAccountPage`, `useBootstrapAccount`, `bootstrapAccount` en el repository, wiring en `router.tsx`, i18n. 1 fix cycle (2 HIGH: race navigate/cache, flake de `App.test.tsx`) resuelto y re-verificado; corrección posterior del estado de push de `89d7e22` en `PROGRESS.md` (amend, sin cambio de mensaje). **Pusheado**. |
+| 2026-09-23 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-003 — Trial/Subscription status visibility: `SubscriptionStatusBanner` (fail-silent, no-gating), `useSubscription`, `supabase-subscription.repository`, montado en `AuthenticatedLayout`. Sin backend gate (RLS ya soportaba la lectura). 0 fix cycles — 1 LOW no bloqueante registrado (copy de CANCELED+gracia-vencida). **Local, pendiente de push**. |

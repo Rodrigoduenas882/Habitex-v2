@@ -77,3 +77,37 @@ export interface AccountRepository {
 export interface AdministrationRepository {
   listAccessibleAdministrations(): Promise<AccessibleAdministration[]>
 }
+
+/** subscription_status, confirmed against the deployed schema. */
+export type SubscriptionStatus = 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED'
+
+/**
+ * An administration_subscriptions row, as exposed by RLS
+ * (administration_subscriptions_select: any member of the administration can
+ * read it). Timestamps are handed through exactly as the backend returns
+ * them - no interval length (trial/grace duration) is ever assumed or
+ * computed client-side; callers only ever diff two already-provided dates.
+ */
+export interface Subscription {
+  id: string
+  administrationId: string
+  status: SubscriptionStatus
+  planCode: string
+  trialStartedAt: string | null
+  trialEndsAt: string | null
+  currentPeriodStartsAt: string | null
+  currentPeriodEndsAt: string | null
+  managementAccessUntil: string | null
+  activeRelationshipLimit: number | null
+}
+
+/**
+ * Resolves the subscription of a given administration, scoped by RLS
+ * (administration_subscriptions_select: is_administration_member) on top of
+ * the explicit administrationId filter. Returns null, not an error, when no
+ * subscription row exists yet for that administration - that is a
+ * legitimate state, not a failure.
+ */
+export interface SubscriptionRepository {
+  getSubscription(administrationId: string): Promise<Subscription | null>
+}

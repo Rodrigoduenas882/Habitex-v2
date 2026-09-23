@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation } from 'react-router-dom'
+import { SubscriptionStatusBanner } from '@/features/administration/presentation/SubscriptionStatusBanner'
 import { useLogout } from '@/features/auth/application/useLogout'
 import { useAuthSession } from '@/features/auth/application/useAuthSession'
 import { HabitexBootScreen } from '@/shared/components/HabitexBootScreen'
@@ -80,6 +81,7 @@ export function AuthenticatedLayout() {
         logout.mutate()
       }}
     >
+      <SubscriptionStatusBanner />
       <Outlet />
     </AppShell>
   )

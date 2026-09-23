@@ -27,5 +27,25 @@
   "guardError": {
     "title": "No pudimos confirmar tu cuenta",
     "description": "Ocurrió un problema al verificar tu cuenta. Intenta de nuevo."
+  },
+  "subscriptionBanner": {
+    "trial": {
+      "message_one": "Tu prueba gratuita termina en {{count}} día.",
+      "message_other": "Tu prueba gratuita termina en {{count}} días."
+    },
+    "grace": {
+      "message_one": "Tu prueba gratuita terminó. Tienes {{count}} día más para elegir un plan antes de perder acceso.",
+      "message_other": "Tu prueba gratuita terminó. Tienes {{count}} días más para elegir un plan antes de perder acceso."
+    },
+    "pastDue": {
+      "message": "Hay un problema con el pago de tu suscripción. Revísalo para evitar perder acceso."
+    },
+    "expired": {
+      "message": "Tu acceso de administración venció. Elige un plan para seguir usando Habitex."
+    },
+    "canceled": {
+      "message": "Tu suscripción fue cancelada. Elige un plan para seguir usando Habitex."
+    },
+    "viewPlansCta": "Ver planes"
   }
 }
