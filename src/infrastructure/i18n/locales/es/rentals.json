@@ -70,6 +70,28 @@
       "unknown": "No pudimos activar esta relación. Intenta de nuevo."
     }
   },
+  "lifecycle": {
+    "back": "Volver",
+    "cancel": {
+      "cta": "Cancelar",
+      "confirmCta": "Confirmar cancelación"
+    },
+    "startEnding": {
+      "cta": "Iniciar cierre"
+    },
+    "end": {
+      "cta": "Terminar arriendo",
+      "confirmCta": "Confirmar terminación"
+    },
+    "errors": {
+      "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",
+      "not_draft": "Este arriendo ya no está en borrador. Actualiza la página para ver su estado actual.",
+      "not_active": "Este arriendo ya no está activo. Actualiza la página para ver su estado actual.",
+      "not_endable": "Este arriendo ya no se puede terminar desde aquí. Actualiza la página para ver su estado actual.",
+      "end_before_start": "La fecha de terminación no puede ser anterior a la fecha de inicio del arriendo.",
+      "unknown": "No pudimos completar esta acción. Intenta de nuevo."
+    }
+  },
   "addRental": {
     "cta": "Registrar arriendo",
     "title": "¿Qué vas a arrendar?",

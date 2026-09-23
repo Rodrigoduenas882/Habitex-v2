@@ -327,4 +327,300 @@ describe('RentalListCard', () => {
 
     expect(screen.getByText('Terms page for rental-9')).toBeInTheDocument()
   })
+
+  describe('DRAFT cancel (cancelDraft prop)', () => {
+    function cancelDraftProps(overrides: Partial<Parameters<typeof RentalListCard>[0]['cancelDraft']> = {}) {
+      return {
+        disabled: false,
+        blockReason: null,
+        isPending: false,
+        errorCode: null,
+        onConfirm: vi.fn(),
+        ...overrides,
+      }
+    }
+
+    it('shows no Cancelar button for a DRAFT rental when the cancelDraft prop is omitted', () => {
+      render(<RentalListCard rental={{ ...BASE, status: 'DRAFT' }} />)
+
+      expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument()
+    })
+
+    it('shows no Cancelar button for a non-DRAFT rental even when cancelDraft is provided', () => {
+      render(
+        <RentalListCard rental={{ ...BASE, status: 'ACTIVE' }} cancelDraft={cancelDraftProps()} />,
+      )
+
+      expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument()
+    })
+
+    it('first click on Cancelar enters confirming state without calling onConfirm', async () => {
+      const onConfirm = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <RentalListCard
+          rental={{ ...BASE, status: 'DRAFT' }}
+          cancelDraft={cancelDraftProps({ onConfirm })}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'Confirmar cancelación' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument()
+    })
+
+    it('moves keyboard focus to "Confirmar cancelación" when confirming state activates', async () => {
+      const user = userEvent.setup()
+      render(
+        <RentalListCard rental={{ ...BASE, status: 'DRAFT' }} cancelDraft={cancelDraftProps()} />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+      expect(screen.getByRole('button', { name: 'Confirmar cancelación' })).toHaveFocus()
+    })
+
+    it('clicking "Confirmar cancelación" calls onConfirm exactly once', async () => {
+      const onConfirm = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <RentalListCard
+          rental={{ ...BASE, status: 'DRAFT' }}
+          cancelDraft={cancelDraftProps({ onConfirm })}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+      await user.click(screen.getByRole('button', { name: 'Confirmar cancelación' }))
+
+      expect(onConfirm).toHaveBeenCalledTimes(1)
+    })
+
+    it('clicking "Volver" exits confirming state without calling onConfirm', async () => {
+      const onConfirm = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <RentalListCard
+          rental={{ ...BASE, status: 'DRAFT' }}
+          cancelDraft={cancelDraftProps({ onConfirm })}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+      await user.click(screen.getByRole('button', { name: 'Volver' }))
+
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Confirmar cancelación' })).not.toBeInTheDocument()
+    })
+
+    it('disables Cancelar and shows the management-access reason when blocked for that reason', () => {
+      render(
+        <RentalListCard
+          rental={{ ...BASE, status: 'DRAFT' }}
+          cancelDraft={cancelDraftProps({ disabled: true, blockReason: 'managementAccess' })}
+        />,
+      )
+
+      expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled()
+      expect(
+        screen.getByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+      ).toBeInTheDocument()
+    })
+
+    it('while confirming, disables both Confirmar cancelación and Volver and shows a loading confirm button when pending', async () => {
+      const user = userEvent.setup()
+      const { rerender } = render(
+        <RentalListCard rental={{ ...BASE, status: 'DRAFT' }} cancelDraft={cancelDraftProps()} />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+      rerender(
+        <RentalListCard
+          rental={{ ...BASE, status: 'DRAFT' }}
+          cancelDraft={cancelDraftProps({ isPending: true })}
+        />,
+      )
+
+      expect(screen.getByRole('button', { name: 'Confirmar cancelación' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Volver' })).toBeDisabled()
+    })
+
+    it('shows the mapped error and stays in confirming state on rejection', async () => {
+      const user = userEvent.setup()
+      const { rerender } = render(
+        <RentalListCard rental={{ ...BASE, status: 'DRAFT' }} cancelDraft={cancelDraftProps()} />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+      rerender(
+        <RentalListCard
+          rental={{ ...BASE, status: 'DRAFT' }}
+          cancelDraft={cancelDraftProps({ errorCode: 'not_draft' })}
+        />,
+      )
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Este arriendo ya no está en borrador. Actualiza la página para ver su estado actual.',
+      )
+      expect(screen.getByRole('button', { name: 'Confirmar cancelación' })).toBeInTheDocument()
+    })
+  })
+
+  describe('ACTIVE start-ending (startEnding prop)', () => {
+    it('exposes "Iniciar cierre" but not "Terminar arriendo" for an ACTIVE rental', () => {
+      render(
+        <RentalListCard
+          rental={{ ...BASE, status: 'ACTIVE' }}
+          startEnding={{ isPending: false, errorCode: null, onStartEnding: vi.fn() }}
+        />,
+      )
+
+      expect(screen.getByRole('button', { name: 'Iniciar cierre' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Terminar arriendo' })).not.toBeInTheDocument()
+    })
+
+    it('calls onStartEnding directly on a single click, without any confirmation step', async () => {
+      const onStartEnding = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <RentalListCard
+          rental={{ ...BASE, status: 'ACTIVE' }}
+          startEnding={{ isPending: false, errorCode: null, onStartEnding }}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Iniciar cierre' }))
+
+      expect(onStartEnding).toHaveBeenCalledTimes(1)
+    })
+
+    it('remains fully functional (not disabled) even when management access is expired', () => {
+      render(
+        <RentalListCard
+          rental={{ ...BASE, status: 'ACTIVE' }}
+          startEnding={{ isPending: false, errorCode: null, onStartEnding: vi.fn() }}
+        />,
+      )
+
+      expect(screen.getByRole('button', { name: 'Iniciar cierre' })).toBeEnabled()
+    })
+
+    it('shows the mapped error message for a failed start-ending attempt', () => {
+      render(
+        <RentalListCard
+          rental={{ ...BASE, status: 'ACTIVE' }}
+          startEnding={{ isPending: false, errorCode: 'not_active', onStartEnding: vi.fn() }}
+        />,
+      )
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Este arriendo ya no está activo. Actualiza la página para ver su estado actual.',
+      )
+    })
+  })
+
+  describe('ENDING end (endRental prop)', () => {
+    function endRentalProps(overrides: Partial<Parameters<typeof RentalListCard>[0]['endRental']> = {}) {
+      return { isPending: false, errorCode: null, onConfirm: vi.fn(), ...overrides }
+    }
+
+    it('exposes "Terminar arriendo" but not "Iniciar cierre" for an ENDING rental', () => {
+      render(<RentalListCard rental={{ ...BASE, status: 'ENDING' }} endRental={endRentalProps()} />)
+
+      expect(screen.getByRole('button', { name: 'Terminar arriendo' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Iniciar cierre' })).not.toBeInTheDocument()
+    })
+
+    it('first click on "Terminar arriendo" enters confirming state without calling onConfirm', async () => {
+      const onConfirm = vi.fn()
+      const user = userEvent.setup()
+      render(<RentalListCard rental={{ ...BASE, status: 'ENDING' }} endRental={endRentalProps({ onConfirm })} />)
+
+      await user.click(screen.getByRole('button', { name: 'Terminar arriendo' }))
+
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'Confirmar terminación' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument()
+    })
+
+    it('moves keyboard focus to "Confirmar terminación" when confirming state activates', async () => {
+      const user = userEvent.setup()
+      render(<RentalListCard rental={{ ...BASE, status: 'ENDING' }} endRental={endRentalProps()} />)
+
+      await user.click(screen.getByRole('button', { name: 'Terminar arriendo' }))
+
+      expect(screen.getByRole('button', { name: 'Confirmar terminación' })).toHaveFocus()
+    })
+
+    it('clicking "Confirmar terminación" calls onConfirm exactly once', async () => {
+      const onConfirm = vi.fn()
+      const user = userEvent.setup()
+      render(<RentalListCard rental={{ ...BASE, status: 'ENDING' }} endRental={endRentalProps({ onConfirm })} />)
+
+      await user.click(screen.getByRole('button', { name: 'Terminar arriendo' }))
+      await user.click(screen.getByRole('button', { name: 'Confirmar terminación' }))
+
+      expect(onConfirm).toHaveBeenCalledTimes(1)
+    })
+
+    it('clicking "Volver" exits confirming state without calling onConfirm', async () => {
+      const onConfirm = vi.fn()
+      const user = userEvent.setup()
+      render(<RentalListCard rental={{ ...BASE, status: 'ENDING' }} endRental={endRentalProps({ onConfirm })} />)
+
+      await user.click(screen.getByRole('button', { name: 'Terminar arriendo' }))
+      await user.click(screen.getByRole('button', { name: 'Volver' }))
+
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'Terminar arriendo' })).toBeInTheDocument()
+    })
+
+    it('is never disabled by expired management access (not gated)', () => {
+      render(<RentalListCard rental={{ ...BASE, status: 'ENDING' }} endRental={endRentalProps()} />)
+
+      expect(screen.getByRole('button', { name: 'Terminar arriendo' })).toBeEnabled()
+    })
+
+    it('shows the mapped error and stays in confirming state on rejection (stale client state)', async () => {
+      const user = userEvent.setup()
+      const { rerender } = render(
+        <RentalListCard rental={{ ...BASE, status: 'ENDING' }} endRental={endRentalProps()} />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Terminar arriendo' }))
+      rerender(
+        <RentalListCard
+          rental={{ ...BASE, status: 'ENDING' }}
+          endRental={endRentalProps({ errorCode: 'not_endable' })}
+        />,
+      )
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Este arriendo ya no se puede terminar desde aquí. Actualiza la página para ver su estado actual.',
+      )
+      expect(screen.getByRole('button', { name: 'Confirmar terminación' })).toBeInTheDocument()
+    })
+  })
+
+  describe('ENDED/CANCELLED expose no lifecycle action', () => {
+    it('shows no lifecycle action for an ENDED rental', () => {
+      render(<RentalListCard rental={{ ...BASE, status: 'ENDED' }} />)
+
+      expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Iniciar cierre' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Terminar arriendo' })).not.toBeInTheDocument()
+    })
+
+    it('shows no lifecycle action for a CANCELLED rental', () => {
+      render(<RentalListCard rental={{ ...BASE, status: 'CANCELLED' }} />)
+
+      expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Iniciar cierre' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Terminar arriendo' })).not.toBeInTheDocument()
+    })
+  })
 })

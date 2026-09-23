@@ -1,10 +1,16 @@
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Alert } from '@/shared/ui/Alert'
 import { Badge, type BadgeTone } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
-import type { RentalActivationErrorCode, RentalRelationship, RentalStatus } from '../domain/rental.types'
+import type {
+  RentalActivationErrorCode,
+  RentalLifecycleErrorCode,
+  RentalRelationship,
+  RentalStatus,
+} from '../domain/rental.types'
 import styles from './RentalListCard.module.css'
 
 /** Why the Activate button is currently disabled - null when it isn't. */
@@ -18,6 +24,32 @@ export interface RentalListCardActivation {
   onActivate: () => void
 }
 
+/** Why the Cancelar action is currently disabled - null when it isn't. The
+ * only reachable reason on the frontend is expired management access
+ * (cancel_draft_rental is the one lifecycle RPC gated by
+ * can_manage_administration(), same as activate). */
+export type RentalCancelBlockReason = 'managementAccess' | null
+
+export interface RentalListCardCancelDraft {
+  disabled: boolean
+  blockReason: RentalCancelBlockReason
+  isPending: boolean
+  errorCode: RentalLifecycleErrorCode | null
+  onConfirm: () => void
+}
+
+export interface RentalListCardStartEnding {
+  isPending: boolean
+  errorCode: RentalLifecycleErrorCode | null
+  onStartEnding: () => void
+}
+
+export interface RentalListCardEndRental {
+  isPending: boolean
+  errorCode: RentalLifecycleErrorCode | null
+  onConfirm: () => void
+}
+
 export interface RentalListCardProps {
   rental: RentalRelationship
   /**
@@ -26,6 +58,12 @@ export interface RentalListCardProps {
    * plumbing elsewhere).
    */
   activation?: RentalListCardActivation
+  /** Only ever rendered for status === 'DRAFT' (cancel_draft_rental). */
+  cancelDraft?: RentalListCardCancelDraft
+  /** Only ever rendered for status === 'ACTIVE' (start_ending_rental). */
+  startEnding?: RentalListCardStartEnding
+  /** Only ever rendered for status === 'ENDING' (end_rental). */
+  endRental?: RentalListCardEndRental
 }
 
 /**
@@ -61,6 +99,103 @@ function formatDate(value: string): string {
   )
 }
 
+interface LifecycleConfirmActionProps {
+  triggerLabel: string
+  confirmLabel: string
+  backLabel: string
+  disabled: boolean
+  blockReasonText: string | null
+  isPending: boolean
+  errorMessage: string | null
+  onConfirm: () => void
+}
+
+/**
+ * Shared two-step inline confirmation for the two irreversible-negative
+ * lifecycle actions (Cancelar -> DRAFT/CANCELLED, Terminar arriendo ->
+ * ENDING/ENDED). No new Modal/Dialog primitive - built from Button/Alert
+ * only, per this increment's product decision.
+ *
+ * The first click only flips local `confirming` state - it never calls
+ * onConfirm. Once confirming, the single trigger button is replaced by two
+ * distinct elements (never the same element relabeled in place) so a
+ * screen reader/keyboard user unambiguously encounters new interactive
+ * elements. Focus moves to the confirm button on that transition (ref +
+ * effect on the confirming boolean - same principle as Tabs' own
+ * focus-after-state-change, adapted here because the target element does
+ * not exist yet on the click that triggers it, unlike Tabs where the next
+ * tab is already rendered).
+ */
+function LifecycleConfirmAction({
+  triggerLabel,
+  confirmLabel,
+  backLabel,
+  disabled,
+  blockReasonText,
+  isPending,
+  errorMessage,
+  onConfirm,
+}: LifecycleConfirmActionProps) {
+  const [confirming, setConfirming] = useState(false)
+  const confirmButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (confirming) {
+      confirmButtonRef.current?.focus()
+    }
+  }, [confirming])
+
+  if (!confirming) {
+    return (
+      <div className={styles['lifecycleRow']}>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          disabled={disabled}
+          aria-disabled={disabled ? 'true' : undefined}
+          onClick={() => {
+            setConfirming(true)
+          }}
+        >
+          {triggerLabel}
+        </Button>
+        {disabled && blockReasonText ? <p className="text-caption text-muted">{blockReasonText}</p> : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles['lifecycleRow']}>
+      <div className={styles['confirmActions']}>
+        <Button
+          ref={confirmButtonRef}
+          type="button"
+          variant="destructive"
+          size="sm"
+          loading={isPending}
+          disabled={isPending}
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={isPending}
+          onClick={() => {
+            setConfirming(false)
+          }}
+        >
+          {backLabel}
+        </Button>
+      </div>
+      {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+    </div>
+  )
+}
+
 /**
  * Same visual family as PropertyListCard/ParkingListCard (Card, spacing
  * tokens, tone="badge" for the status). No tenant/subject/rent amount yet -
@@ -69,7 +204,7 @@ function formatDate(value: string): string {
  * status-derived phrase instead of a fabricated name. status is shown
  * exactly as the backend reports it, never derived from dates.
  */
-export function RentalListCard({ rental, activation }: RentalListCardProps) {
+export function RentalListCard({ rental, activation, cancelDraft, startEnding, endRental }: RentalListCardProps) {
   const { t } = useTranslation(['rentals', 'administration'])
   const navigate = useNavigate()
 
@@ -127,6 +262,51 @@ export function RentalListCard({ rental, activation }: RentalListCardProps) {
             <Alert tone="danger">{t(`activate.errors.${activation.errorCode}`)}</Alert>
           ) : null}
         </div>
+      ) : null}
+      {rental.status === 'DRAFT' && cancelDraft ? (
+        <LifecycleConfirmAction
+          triggerLabel={t('lifecycle.cancel.cta')}
+          confirmLabel={t('lifecycle.cancel.confirmCta')}
+          backLabel={t('lifecycle.back')}
+          disabled={cancelDraft.disabled}
+          blockReasonText={
+            !cancelDraft.isPending && cancelDraft.blockReason
+              ? t(BLOCK_REASON_KEY[cancelDraft.blockReason])
+              : null
+          }
+          isPending={cancelDraft.isPending}
+          errorMessage={cancelDraft.errorCode ? t(`lifecycle.errors.${cancelDraft.errorCode}`) : null}
+          onConfirm={cancelDraft.onConfirm}
+        />
+      ) : null}
+      {rental.status === 'ACTIVE' && startEnding ? (
+        <div className={styles['lifecycleRow']}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={startEnding.isPending}
+            disabled={startEnding.isPending}
+            onClick={startEnding.onStartEnding}
+          >
+            {t('lifecycle.startEnding.cta')}
+          </Button>
+          {startEnding.errorCode ? (
+            <Alert tone="danger">{t(`lifecycle.errors.${startEnding.errorCode}`)}</Alert>
+          ) : null}
+        </div>
+      ) : null}
+      {rental.status === 'ENDING' && endRental ? (
+        <LifecycleConfirmAction
+          triggerLabel={t('lifecycle.end.cta')}
+          confirmLabel={t('lifecycle.end.confirmCta')}
+          backLabel={t('lifecycle.back')}
+          disabled={false}
+          blockReasonText={null}
+          isPending={endRental.isPending}
+          errorMessage={endRental.errorCode ? t(`lifecycle.errors.${endRental.errorCode}`) : null}
+          onConfirm={endRental.onConfirm}
+        />
       ) : null}
     </Card>
   )

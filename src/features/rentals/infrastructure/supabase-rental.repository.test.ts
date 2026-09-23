@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   RentalActivationError,
+  RentalLifecycleError,
   RentalRepositoryError,
   type CreateRentalDraftInput,
   type RentalScheduleInput,
@@ -434,5 +435,160 @@ describe('supabaseRentalRepository.updateSchedule', () => {
     await supabaseRentalRepository.updateSchedule('rel-1', SCHEDULE_INPUT)
 
     expect(rpc).not.toHaveBeenCalled()
+  })
+})
+
+const CANCELLED_ROW = { ...ACTIVATED_ROW, status: 'CANCELLED' }
+const ENDING_ROW = { ...ACTIVATED_ROW, status: 'ENDING' }
+const ENDED_ROW = { ...ACTIVATED_ROW, status: 'ENDED' }
+
+describe('supabaseRentalRepository.cancelDraft', () => {
+  it('calls cancel_draft_rental with p_relationship_id and maps the returned row to the domain shape', async () => {
+    rpc.mockResolvedValueOnce({ data: CANCELLED_ROW, error: null })
+
+    const result = await supabaseRentalRepository.cancelDraft('rel-1')
+
+    expect(rpc).toHaveBeenCalledWith('cancel_draft_rental', { p_relationship_id: 'rel-1' })
+    expect(result.status).toBe('CANCELLED')
+  })
+
+  it('handles the RPC returning a one-element array instead of a single object', async () => {
+    rpc.mockResolvedValueOnce({ data: [CANCELLED_ROW], error: null })
+
+    const result = await supabaseRentalRepository.cancelDraft('rel-1')
+
+    expect(result.status).toBe('CANCELLED')
+  })
+
+  it('maps MANAGEMENT_ACCESS_REQUIRED to a RentalLifecycleError with code management_access_required', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'MANAGEMENT_ACCESS_REQUIRED' } })
+
+    const error = await supabaseRentalRepository.cancelDraft('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalLifecycleError)
+    expect((error as RentalLifecycleError).code).toBe('management_access_required')
+  })
+
+  it('maps ONLY_DRAFT_CAN_BE_CANCELLED to a RentalLifecycleError with code not_draft', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'ONLY_DRAFT_CAN_BE_CANCELLED' } })
+
+    const error = await supabaseRentalRepository.cancelDraft('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalLifecycleError)
+    expect((error as RentalLifecycleError).code).toBe('not_draft')
+  })
+
+  it('maps an unrecognized exception (e.g. RENTAL_NOT_FOUND, deliberately unmapped) to code unknown', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'RENTAL_NOT_FOUND' } })
+
+    const error = await supabaseRentalRepository.cancelDraft('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalLifecycleError)
+    expect((error as RentalLifecycleError).code).toBe('unknown')
+  })
+
+  it('throws RentalRepositoryError if the RPC returns no row at all', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null })
+
+    await expect(supabaseRentalRepository.cancelDraft('rel-1')).rejects.toBeInstanceOf(RentalRepositoryError)
+  })
+
+  it('never calls .from() (cancel_draft_rental is the only write path, no direct update)', async () => {
+    rpc.mockResolvedValueOnce({ data: CANCELLED_ROW, error: null })
+    from.mockClear()
+
+    await supabaseRentalRepository.cancelDraft('rel-1')
+
+    expect(from).not.toHaveBeenCalled()
+  })
+})
+
+describe('supabaseRentalRepository.startEnding', () => {
+  it('calls start_ending_rental with p_relationship_id and maps the returned row to the domain shape', async () => {
+    rpc.mockResolvedValueOnce({ data: ENDING_ROW, error: null })
+
+    const result = await supabaseRentalRepository.startEnding('rel-1')
+
+    expect(rpc).toHaveBeenCalledWith('start_ending_rental', { p_relationship_id: 'rel-1' })
+    expect(result.status).toBe('ENDING')
+  })
+
+  it('maps RENTAL_NOT_ACTIVE to a RentalLifecycleError with code not_active', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'RENTAL_NOT_ACTIVE' } })
+
+    const error = await supabaseRentalRepository.startEnding('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalLifecycleError)
+    expect((error as RentalLifecycleError).code).toBe('not_active')
+  })
+
+  it('maps an unrecognized exception (e.g. ADMINISTRATION_ROLE_REQUIRED, deliberately unmapped) to code unknown', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'ADMINISTRATION_ROLE_REQUIRED' } })
+
+    const error = await supabaseRentalRepository.startEnding('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalLifecycleError)
+    expect((error as RentalLifecycleError).code).toBe('unknown')
+  })
+
+  it('throws RentalRepositoryError if the RPC returns no row at all', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null })
+
+    await expect(supabaseRentalRepository.startEnding('rel-1')).rejects.toBeInstanceOf(RentalRepositoryError)
+  })
+
+  it('never calls .from() (start_ending_rental is the only write path, no direct update)', async () => {
+    rpc.mockResolvedValueOnce({ data: ENDING_ROW, error: null })
+    from.mockClear()
+
+    await supabaseRentalRepository.startEnding('rel-1')
+
+    expect(from).not.toHaveBeenCalled()
+  })
+})
+
+describe('supabaseRentalRepository.end', () => {
+  it('calls end_rental with only p_relationship_id - never a p_actual_end_date key - and maps the returned row', async () => {
+    rpc.mockResolvedValueOnce({ data: ENDED_ROW, error: null })
+
+    const result = await supabaseRentalRepository.end('rel-1')
+
+    expect(rpc).toHaveBeenCalledWith('end_rental', { p_relationship_id: 'rel-1' })
+    const [, args] = rpc.mock.calls[rpc.mock.calls.length - 1] as [string, Record<string, unknown>]
+    expect(Object.keys(args)).toEqual(['p_relationship_id'])
+    expect(result.status).toBe('ENDED')
+  })
+
+  it('maps RENTAL_NOT_ENDABLE to a RentalLifecycleError with code not_endable', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'RENTAL_NOT_ENDABLE' } })
+
+    const error = await supabaseRentalRepository.end('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalLifecycleError)
+    expect((error as RentalLifecycleError).code).toBe('not_endable')
+  })
+
+  it('maps END_BEFORE_START to a RentalLifecycleError with code end_before_start', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'END_BEFORE_START' } })
+
+    const error = await supabaseRentalRepository.end('rel-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(RentalLifecycleError)
+    expect((error as RentalLifecycleError).code).toBe('end_before_start')
+  })
+
+  it('throws RentalRepositoryError if the RPC returns no row at all', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null })
+
+    await expect(supabaseRentalRepository.end('rel-1')).rejects.toBeInstanceOf(RentalRepositoryError)
+  })
+
+  it('never calls .from() (end_rental is the only write path, no direct update)', async () => {
+    rpc.mockResolvedValueOnce({ data: ENDED_ROW, error: null })
+    from.mockClear()
+
+    await supabaseRentalRepository.end('rel-1')
+
+    expect(from).not.toHaveBeenCalled()
   })
 })

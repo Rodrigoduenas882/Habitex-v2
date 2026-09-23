@@ -1,6 +1,7 @@
 import { supabaseClient } from '@/infrastructure/supabase/client'
 import {
   RentalActivationError,
+  RentalLifecycleError,
   RentalRepositoryError,
   type CreateRentalDraftInput,
   type CreateRentalDraftResult,
@@ -87,6 +88,39 @@ function toRentalActivationError(error: { message: string }): RentalActivationEr
   }
 
   return new RentalActivationError('unknown', error)
+}
+
+/**
+ * Translates cancel_draft_rental/start_ending_rental/end_rental's bare
+ * exception string into our own RentalLifecycleError so nothing above this
+ * repository ever depends on the raw Postgres error message. Unmatched
+ * cases (RENTAL_NOT_FOUND, ADMINISTRATION_ROLE_REQUIRED - see
+ * RentalLifecycleErrorCode's own doc comment for why they're unreachable)
+ * fall back to 'unknown' by design, same principle as
+ * toRentalActivationError.
+ */
+function toRentalLifecycleError(error: { message: string }): RentalLifecycleError {
+  if (error.message === 'MANAGEMENT_ACCESS_REQUIRED') {
+    return new RentalLifecycleError('management_access_required', error)
+  }
+
+  if (error.message === 'ONLY_DRAFT_CAN_BE_CANCELLED') {
+    return new RentalLifecycleError('not_draft', error)
+  }
+
+  if (error.message === 'RENTAL_NOT_ACTIVE') {
+    return new RentalLifecycleError('not_active', error)
+  }
+
+  if (error.message === 'RENTAL_NOT_ENDABLE') {
+    return new RentalLifecycleError('not_endable', error)
+  }
+
+  if (error.message === 'END_BEFORE_START') {
+    return new RentalLifecycleError('end_before_start', error)
+  }
+
+  return new RentalLifecycleError('unknown', error)
 }
 
 function toRpcArgs(input: CreateRentalDraftInput) {
@@ -195,5 +229,68 @@ export const supabaseRentalRepository: RentalRepository = {
     }
 
     return toRentalRelationship(data)
+  },
+
+  async cancelDraft(relationshipId: string): Promise<RentalRelationship> {
+    // DRAFT-only / can_manage_administration() happen inside the RPC
+    // (SECURITY DEFINER), atomically - no direct update, no service role,
+    // no bypass.
+    const response = await supabaseClient.rpc('cancel_draft_rental', {
+      p_relationship_id: relationshipId,
+    })
+
+    if (response.error) {
+      throw toRentalLifecycleError(response.error)
+    }
+
+    const row = firstRow(response.data as RentalRow | RentalRow[] | null)
+    if (!row) {
+      throw new RentalRepositoryError('cancel_draft_rental returned no row')
+    }
+
+    return toRentalRelationship(row)
+  },
+
+  async startEnding(relationshipId: string): Promise<RentalRelationship> {
+    // ACTIVE-only / has_administration_management_role() happen inside the
+    // RPC (SECURITY DEFINER) - deliberately no subscription check, unlike
+    // activate/cancelDraft (see RentalRepository.startEnding's own doc
+    // comment).
+    const response = await supabaseClient.rpc('start_ending_rental', {
+      p_relationship_id: relationshipId,
+    })
+
+    if (response.error) {
+      throw toRentalLifecycleError(response.error)
+    }
+
+    const row = firstRow(response.data as RentalRow | RentalRow[] | null)
+    if (!row) {
+      throw new RentalRepositoryError('start_ending_rental returned no row')
+    }
+
+    return toRentalRelationship(row)
+  },
+
+  async end(relationshipId: string): Promise<RentalRelationship> {
+    // ACTIVE/ENDING-only / has_administration_management_role() happen
+    // inside the RPC (SECURITY DEFINER) - deliberately no subscription
+    // check. p_actual_end_date is never sent, so the RPC's own DEFAULT
+    // CURRENT_DATE applies - no backdated termination, no date argument
+    // from this frontend.
+    const response = await supabaseClient.rpc('end_rental', {
+      p_relationship_id: relationshipId,
+    })
+
+    if (response.error) {
+      throw toRentalLifecycleError(response.error)
+    }
+
+    const row = firstRow(response.data as RentalRow | RentalRow[] | null)
+    if (!row) {
+      throw new RentalRepositoryError('end_rental returned no row')
+    }
+
+    return toRentalRelationship(row)
   },
 }

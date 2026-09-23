@@ -100,6 +100,60 @@ export class RentalActivationError extends Error {
 }
 
 /**
+ * Known, user-facing failure categories for the three lifecycle RPCs
+ * (cancel_draft_rental, start_ending_rental, end_rental) - a distinct family
+ * from RentalActivationErrorCode because these RPCs raise a different
+ * exception vocabulary (see toRentalLifecycleError's own doc comment for the
+ * full RPC-string -> code mapping):
+ *
+ * - 'management_access_required' <- MANAGEMENT_ACCESS_REQUIRED
+ *   (cancel_draft_rental only - the only one of the three RPCs gated by
+ *   can_manage_administration(), i.e. role + subscription/
+ *   management_access_until; start_ending_rental/end_rental check only
+ *   has_administration_management_role(), no subscription check, so this
+ *   code is unreachable through those two).
+ * - 'not_draft' <- ONLY_DRAFT_CAN_BE_CANCELLED (cancel_draft_rental) -
+ *   reachable via stale client state (two tabs, two people managing the
+ *   same administration) where the rental left DRAFT elsewhere while this
+ *   view still shows it as cancellable.
+ * - 'not_active' <- RENTAL_NOT_ACTIVE (start_ending_rental) - same stale
+ *   client state reasoning, for a rental that left ACTIVE elsewhere.
+ * - 'not_endable' <- RENTAL_NOT_ENDABLE (end_rental) - same stale client
+ *   state reasoning, for a rental that already left ACTIVE/ENDING
+ *   elsewhere (e.g. another tab already ended it).
+ * - 'end_before_start' <- END_BEFORE_START (end_rental) - reachable because
+ *   real_start_date can be a future date; ending "today" via end_rental's
+ *   own DEFAULT CURRENT_DATE would then be before it.
+ *
+ * RENTAL_NOT_FOUND (all three RPCs) and ADMINISTRATION_ROLE_REQUIRED
+ * (start_ending_rental/end_rental) remain deliberately unmapped and fall
+ * back to 'unknown' - RENTAL_NOT_FOUND is unreachable because every
+ * relationshipId this frontend passes comes from a row it already read via
+ * listByAdministration, and ADMINISTRATION_ROLE_REQUIRED is unreachable
+ * because OWNER is the only administration role that exists in this MVP
+ * (see has_administration_management_role()'s own gate) - per-code UX for
+ * either would be speculative.
+ */
+export type RentalLifecycleErrorCode =
+  | 'management_access_required'
+  | 'not_draft'
+  | 'not_active'
+  | 'not_endable'
+  | 'end_before_start'
+  | 'unknown'
+
+export class RentalLifecycleError extends Error {
+  readonly code: RentalLifecycleErrorCode
+
+  constructor(code: RentalLifecycleErrorCode, cause?: unknown) {
+    super(`Rental lifecycle error: ${code}`)
+    this.name = 'RentalLifecycleError'
+    this.code = code
+    this.cause = cause
+  }
+}
+
+/**
  * Input for updateSchedule - the 4 rental_relationships columns
  * activate_rental_relationship requires to be non-null before DRAFT ->
  * ACTIVE can succeed (real_start_date, tracking_start_date, payment_day,
@@ -183,10 +237,29 @@ export interface CreateRentalDraftResult {
  * (see RentalScheduleInput's own doc comment) - it does not touch
  * rental_term_versions (see RentalTermsRepository for that, a separate
  * table/RLS/aggregate).
+ *
+ * cancelDraft calls cancel_draft_rental - the only way to transition
+ * DRAFT -> CANCELLED. Gated by can_manage_administration() (role +
+ * subscription/management_access_until), same authorization family as
+ * createDraft/activate.
+ *
+ * startEnding calls start_ending_rental - the only way to transition
+ * ACTIVE -> ENDING. Gated by has_administration_management_role() only - no
+ * subscription check, deliberately: an authorized owner/manager can wind
+ * down an existing rental even after subscription access has lapsed.
+ *
+ * end calls end_rental - the only way to transition ACTIVE or ENDING ->
+ * ENDED. Same authorization as startEnding (role only, no subscription
+ * check). Always called with only p_relationship_id - p_actual_end_date is
+ * never sent from here, so the RPC's own DEFAULT CURRENT_DATE applies; no
+ * backdated termination from this frontend.
  */
 export interface RentalRepository {
   listByAdministration(administrationId: string): Promise<RentalRelationship[]>
   createDraft(input: CreateRentalDraftInput): Promise<CreateRentalDraftResult>
   activate(relationshipId: string): Promise<RentalRelationship>
   updateSchedule(relationshipId: string, input: RentalScheduleInput): Promise<RentalRelationship>
+  cancelDraft(relationshipId: string): Promise<RentalRelationship>
+  startEnding(relationshipId: string): Promise<RentalRelationship>
+  end(relationshipId: string): Promise<RentalRelationship>
 }

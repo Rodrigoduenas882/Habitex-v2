@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import RentalsPage from './RentalsPage'
-import { RentalActivationError } from '../domain/rental.types'
+import { RentalActivationError, RentalLifecycleError } from '../domain/rental.types'
 
 const { listAccessibleAdministrations } = vi.hoisted(() => ({
   listAccessibleAdministrations: vi.fn(),
@@ -14,6 +14,9 @@ const { listAccessibleAdministrations } = vi.hoisted(() => ({
 const { listByAdministration } = vi.hoisted(() => ({ listByAdministration: vi.fn() }))
 const { getSubscription } = vi.hoisted(() => ({ getSubscription: vi.fn() }))
 const { activate } = vi.hoisted(() => ({ activate: vi.fn() }))
+const { cancelDraft } = vi.hoisted(() => ({ cancelDraft: vi.fn() }))
+const { startEnding } = vi.hoisted(() => ({ startEnding: vi.fn() }))
+const { end } = vi.hoisted(() => ({ end: vi.fn() }))
 const { listRelationshipIdsWithTerms } = vi.hoisted(() => ({ listRelationshipIdsWithTerms: vi.fn() }))
 
 vi.mock('@/features/administration/infrastructure/supabase-administration.repository', () => ({
@@ -25,7 +28,15 @@ vi.mock('@/features/administration/infrastructure/supabase-subscription.reposito
 }))
 
 vi.mock('../infrastructure/supabase-rental.repository', () => ({
-  supabaseRentalRepository: { listByAdministration, createDraft: vi.fn(), activate, updateSchedule: vi.fn() },
+  supabaseRentalRepository: {
+    listByAdministration,
+    createDraft: vi.fn(),
+    activate,
+    cancelDraft,
+    startEnding,
+    end,
+    updateSchedule: vi.fn(),
+  },
 }))
 
 vi.mock('../infrastructure/supabase-rental-terms.repository', () => ({
@@ -231,9 +242,12 @@ describe('RentalsPage', () => {
     renderPage()
 
     expect(await screen.findByRole('button', { name: 'Activar' })).toBeDisabled()
+    // Both Activar and Cancelar are blocked by the same expired subscription
+    // reason on this DRAFT row - findAllByText, not findByText, since the
+    // sentence now legitimately appears twice.
     expect(
-      await screen.findByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
-    ).toBeInTheDocument()
+      await screen.findAllByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).toHaveLength(2)
   })
 
   it('disables Activate and shows the capacity reason when the active count already meets the limit', async () => {
@@ -304,5 +318,116 @@ describe('RentalsPage', () => {
 
     expect(await screen.findByText('Arriendo en curso')).toBeInTheDocument()
     expect(listByAdministration).toHaveBeenCalledTimes(2)
+  })
+
+  it('walks a rental through its full lifecycle: DRAFT (ready) -> ACTIVE -> ENDING -> ENDED, each transition invalidating and refetching the rentals list', async () => {
+    resolveOneAdministration()
+    listRelationshipIdsWithTerms.mockResolvedValue(new Set([RENTAL_DRAFT_READY.id]))
+
+    const activeRental = { ...RENTAL_DRAFT_READY, status: 'ACTIVE' as const }
+    const endingRental = { ...RENTAL_DRAFT_READY, status: 'ENDING' as const }
+    const endedRental = { ...RENTAL_DRAFT_READY, status: 'ENDED' as const, actualEndDate: '2026-09-23' }
+
+    listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT_READY])
+    listByAdministration.mockResolvedValueOnce([activeRental])
+    listByAdministration.mockResolvedValueOnce([endingRental])
+    listByAdministration.mockResolvedValueOnce([endedRental])
+
+    activate.mockResolvedValueOnce(activeRental)
+    startEnding.mockResolvedValueOnce(endingRental)
+    end.mockResolvedValueOnce(endedRental)
+
+    const user = userEvent.setup()
+    renderPage()
+
+    // DRAFT -> ACTIVE
+    await user.click(await screen.findByRole('button', { name: 'Activar' }))
+    expect(await screen.findByText('Arriendo en curso')).toBeInTheDocument()
+    expect(activate).toHaveBeenCalledWith(RENTAL_DRAFT_READY.id)
+
+    // ACTIVE -> ENDING (single click, no confirmation)
+    await user.click(await screen.findByRole('button', { name: 'Iniciar cierre' }))
+    expect(await screen.findByText('Arriendo finalizando')).toBeInTheDocument()
+    expect(startEnding).toHaveBeenCalledWith(RENTAL_DRAFT_READY.id)
+
+    // ENDING -> ENDED (two-step confirm)
+    await user.click(await screen.findByRole('button', { name: 'Terminar arriendo' }))
+    await user.click(await screen.findByRole('button', { name: 'Confirmar terminación' }))
+    expect(await screen.findByText('Arriendo finalizado')).toBeInTheDocument()
+    expect(end).toHaveBeenCalledWith(RENTAL_DRAFT_READY.id)
+
+    expect(listByAdministration).toHaveBeenCalledTimes(4)
+  })
+
+  it('cancels a DRAFT rental through the two-step confirm, invalidates the rentals list, and the refetch reflects CANCELLED status', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])
+    listByAdministration.mockResolvedValueOnce([{ ...RENTAL_DRAFT, status: 'CANCELLED' as const }])
+    listRelationshipIdsWithTerms.mockResolvedValue(new Set())
+    cancelDraft.mockResolvedValueOnce({ ...RENTAL_DRAFT, status: 'CANCELLED' as const })
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Cancelar' }))
+    expect(cancelDraft).not.toHaveBeenCalled()
+
+    await user.click(await screen.findByRole('button', { name: 'Confirmar cancelación' }))
+
+    expect(cancelDraft).toHaveBeenCalledWith(RENTAL_DRAFT.id)
+    expect(await screen.findByText('Arriendo cancelado')).toBeInTheDocument()
+    expect(listByAdministration).toHaveBeenCalledTimes(2)
+  })
+
+  it('disables Cancelar and shows the management-access reason for a DRAFT rental when the subscription denies access', async () => {
+    resolveOneAdministration()
+    getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, status: 'EXPIRED' })
+    listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: 'Cancelar' })).toBeDisabled()
+    expect(
+      await screen.findAllByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).not.toHaveLength(0)
+    expect(cancelDraft).not.toHaveBeenCalled()
+  })
+
+  it('does not block "Iniciar cierre" (ACTIVE) or "Terminar arriendo" (ENDING) when the subscription denies access', async () => {
+    resolveOneAdministration()
+    getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, status: 'EXPIRED' })
+    listByAdministration.mockResolvedValueOnce([
+      RENTAL_1,
+      { ...RENTAL_1, id: 'rental-ending-1', status: 'ENDING' as const },
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    const startEndingButton = await screen.findByRole('button', { name: 'Iniciar cierre' })
+    const endButton = screen.getByRole('button', { name: 'Terminar arriendo' })
+    expect(startEndingButton).toBeEnabled()
+    expect(endButton).toBeEnabled()
+
+    startEnding.mockReturnValueOnce(new Promise(() => {}))
+    await user.click(startEndingButton)
+    expect(startEnding).toHaveBeenCalledWith(RENTAL_1.id)
+
+    end.mockReturnValueOnce(new Promise(() => {}))
+    await user.click(endButton)
+    await user.click(screen.getByRole('button', { name: 'Confirmar terminación' }))
+    expect(end).toHaveBeenCalledWith('rental-ending-1')
+  })
+
+  it('shows a mapped error message scoped to the failed rental when the RPC rejects a "Terminar arriendo" confirm this page thought was valid (stale client state)', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([{ ...RENTAL_1, status: 'ENDING' as const }])
+    end.mockRejectedValueOnce(new RentalLifecycleError('not_endable'))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Terminar arriendo' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar terminación' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Este arriendo ya no se puede terminar desde aquí. Actualiza la página para ver su estado actual.',
+    )
   })
 })

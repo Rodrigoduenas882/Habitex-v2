@@ -13,9 +13,17 @@ import { Skeleton } from '@/shared/ui/Skeleton'
 import styles from './RentalsPage.module.css'
 import { RentalListCard, type RentalActivationBlockReason } from './RentalListCard'
 import { useActivateRental } from '../application/useActivateRental'
+import { useCancelDraftRental } from '../application/useCancelDraftRental'
+import { useEndRental } from '../application/useEndRental'
 import { useRentals } from '../application/useRentals'
 import { useRentalTermsExistence } from '../application/useRentalTermsExistence'
-import { activeRelationshipCount, type RentalActivationError, type RentalRelationship } from '../domain/rental.types'
+import { useStartEndingRental } from '../application/useStartEndingRental'
+import {
+  activeRelationshipCount,
+  type RentalActivationError,
+  type RentalLifecycleError,
+  type RentalRelationship,
+} from '../domain/rental.types'
 
 function RentalsGridSkeleton() {
   return (
@@ -59,6 +67,17 @@ function hasCompleteSchedule(rental: RentalRelationship): boolean {
  * rejection it actually returns is still caught and mapped via
  * activationError/activationErrorRelationshipId exactly as before, whether
  * or not this page's own gate predicted it.
+ *
+ * Lifecycle completion (INC-009) adds three more per-status actions, same
+ * pending/error-tracking pattern as activation: DRAFT rows also get
+ * "Cancelar" (cancel_draft_rental, gated by managementGate like
+ * create/activate), ACTIVE rows get "Iniciar cierre" (start_ending_rental),
+ * ENDING rows get "Terminar arriendo" (end_rental). startEnding/end are
+ * deliberately NOT gated by managementGate - the backend itself only
+ * requires the management role for those two RPCs, no subscription check,
+ * so an owner/manager can still wind down or end an existing rental after
+ * subscription access has lapsed (see RentalRepository.startEnding/end's
+ * own doc comments). ENDED/CANCELLED rows still get no lifecycle action.
  */
 export default function RentalsPage() {
   const { t } = useTranslation('rentals')
@@ -72,6 +91,9 @@ export default function RentalsPage() {
   const managementGate = useManagementGate(administrationId)
   const hasCapacity = hasRelationshipCapacity(managementGate.subscription ?? null, activeRelationshipCount(rentals))
   const activateRental = useActivateRental()
+  const cancelDraftRental = useCancelDraftRental()
+  const startEndingRental = useStartEndingRental()
+  const endRental = useEndRental()
 
   const draftRentalIds = rentals.filter((rental) => rental.status === 'DRAFT').map((rental) => rental.id)
   const termsExistenceQuery = useRentalTermsExistence(administrationId, draftRentalIds)
@@ -85,6 +107,22 @@ export default function RentalsPage() {
     : !hasCapacity
       ? 'capacity'
       : null
+
+  const cancelingRelationshipId = cancelDraftRental.isPending ? cancelDraftRental.variables.relationshipId : null
+  const cancelError = cancelDraftRental.isError ? (cancelDraftRental.error as RentalLifecycleError) : null
+  const cancelErrorRelationshipId = cancelError ? (cancelDraftRental.variables?.relationshipId ?? null) : null
+
+  const startingEndingRelationshipId = startEndingRental.isPending
+    ? startEndingRental.variables.relationshipId
+    : null
+  const startEndingError = startEndingRental.isError ? (startEndingRental.error as RentalLifecycleError) : null
+  const startEndingErrorRelationshipId = startEndingError
+    ? (startEndingRental.variables?.relationshipId ?? null)
+    : null
+
+  const endingRelationshipId = endRental.isPending ? endRental.variables.relationshipId : null
+  const endError = endRental.isError ? (endRental.error as RentalLifecycleError) : null
+  const endErrorRelationshipId = endError ? (endRental.variables?.relationshipId ?? null) : null
 
   const addRentalCta = (
     <Button
@@ -145,6 +183,45 @@ export default function RentalsPage() {
       ) : (
         <div className={styles['grid']}>
           {rentals.map((rental) => {
+            if (rental.status === 'ACTIVE') {
+              return (
+                <RentalListCard
+                  key={rental.id}
+                  rental={rental}
+                  startEnding={{
+                    isPending: startingEndingRelationshipId === rental.id,
+                    errorCode:
+                      startEndingErrorRelationshipId === rental.id ? (startEndingError?.code ?? null) : null,
+                    onStartEnding: () => {
+                      startEndingRental.mutate({
+                        administrationId: resolvedAdministrationId,
+                        relationshipId: rental.id,
+                      })
+                    },
+                  }}
+                />
+              )
+            }
+
+            if (rental.status === 'ENDING') {
+              return (
+                <RentalListCard
+                  key={rental.id}
+                  rental={rental}
+                  endRental={{
+                    isPending: endingRelationshipId === rental.id,
+                    errorCode: endErrorRelationshipId === rental.id ? (endError?.code ?? null) : null,
+                    onConfirm: () => {
+                      endRental.mutate({
+                        administrationId: resolvedAdministrationId,
+                        relationshipId: rental.id,
+                      })
+                    },
+                  }}
+                />
+              )
+            }
+
             if (rental.status !== 'DRAFT') {
               return <RentalListCard key={rental.id} rental={rental} />
             }
@@ -176,6 +253,18 @@ export default function RentalsPage() {
                   errorCode: activationErrorRelationshipId === rental.id ? (activationError?.code ?? null) : null,
                   onActivate: () => {
                     activateRental.mutate({
+                      administrationId: resolvedAdministrationId,
+                      relationshipId: rental.id,
+                    })
+                  },
+                }}
+                cancelDraft={{
+                  disabled: managementGate.blocked || cancelingRelationshipId === rental.id,
+                  blockReason: managementGate.blocked ? 'managementAccess' : null,
+                  isPending: cancelingRelationshipId === rental.id,
+                  errorCode: cancelErrorRelationshipId === rental.id ? (cancelError?.code ?? null) : null,
+                  onConfirm: () => {
+                    cancelDraftRental.mutate({
                       administrationId: resolvedAdministrationId,
                       relationshipId: rental.id,
                     })
