@@ -47,22 +47,17 @@ pusheado a `origin/chore/agentic-foundation` (`57b448c`). Ver detalle en
 `origin/chore/agentic-foundation` (`1e79c3b`). Ver detalle en
 "Incremento anterior: INC-009" más abajo.
 
-**INC-010 — Generic file upload/download primitive**: **en progreso** —
-el RESEARCH GATE encontró un `SUPABASE/SCHEMA/RLS GATE` real (`storage.
-objects` tenía RLS habilitado pero **cero policies**, dejando Supabase
-Storage completamente inaccesible — contradecía la afirmación del plan
-"Backend work required?: no"). Migration autorada, revisada
-independientemente (`habitex-reviewer`, 0 BLOCKER/HIGH; 2 MEDIUM
-corregidos antes de aplicar) y **APLICADA** contra el proyecto real tras
-aprobación humana explícita. Backend gate = RESOLVED. **La
-implementación frontend del primitive en sí (repo/hook de subida/
-descarga) todavía no se ha hecho** — ver "Último incremento ejecutado"
-más abajo.
+**INC-010 — Generic file upload/download primitive**: **completo**
+(backend gate resuelto vía migration aplicada + primitive de frontend
+implementado — `FileRepository` en `features/documents/`, sin producto/UI),
+implementado, validado e independientemente revisado (0 BLOCKER/HIGH; 1
+LOW no bloqueante registrado). Checkpoint local pendiente de push. Ver
+detalle en "Último incremento ejecutado" más abajo.
 
 ## Estado
 
-`Backend gate de INC-010 resuelto y aplicado — implementación frontend
-de INC-010 pendiente. INC-001/003/004/006/008/009 pusheados`.
+`INC-010 completo (backend gate + primitive de frontend), checkpoint
+local pendiente de push. INC-001/003/004/006/008/009 pusheados`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -121,8 +116,8 @@ de INC-010 pendiente. INC-001/003/004/006/008/009 pusheados`.
   en vivo — re-verificó las 3 funciones de autorización y confirmó la
   asimetría exactamente como se investigó: 0 BLOCKER/HIGH, 1 LOW no
   bloqueante registrado), checkpointed y pusheado tras aprobación humana.
-- INC-010: **en progreso, backend gate resuelto**. RESEARCH GATE encontró
-  que `storage.objects` tenía RLS habilitada pero **cero policies** —
+- INC-010: **completo**. Backend gate: RESEARCH GATE encontró que
+  `storage.objects` tenía RLS habilitada pero **cero policies** —
   Supabase Storage estaba completamente inaccesible desde el frontend
   para ambos buckets existentes (`receipts`/`documents`), contradiciendo
   la afirmación del plan de que el backend ya estaba listo. Migration
@@ -135,13 +130,26 @@ de INC-010 pendiente. INC-001/003/004/006/008/009 pusheados`.
   redundante e inducía a error, `authenticated`/`anon` ya tenían grants
   por defecto de Supabase; nomenclatura de policies alineada a la
   convención del proyecto), verificada pre-apply (dry-run, conteo
-  local/remoto, alineación de las 52 migrations previas) y **APLICADA**
+  local/remoto, alineación de las 52 migrations previas), **APLICADA**
   contra el proyecto real (`eurzpkgikzdvbblgtjwp`) vía `supabase db push
   --yes` ejecutado directamente por el usuario, verificada
   post-ejecución vía MCP read-only (policies exactas, sin advisories
-  nuevos). **Backend gate de INC-010 = RESOLVED.** La implementación
-  frontend del primitive (repo/hook de subida/descarga, consumido luego
-  por INC-011/INC-013) todavía no se ha hecho.
+  nuevos), **commiteada y pusheada** (`14eb8b9`). Primitive de frontend:
+  nuevo `features/documents/` (`domain/`+`infrastructure/`+
+  `composition.ts`, sin `presentation/` — sin producto/UI, por diseño),
+  `FileRepository` (`upload`/`download`/`remove`) que encapsula la
+  secuencia Storage+metadata completa detrás de una sola llamada, paths
+  únicos vía `crypto.randomUUID()` que nunca leen `originalName`,
+  `upsert: false` siempre, `download()` vía `.download()` autenticado (no
+  signed URL), limpieza best-effort si falla el insert de metadata tras
+  un upload exitoso, delete ordenado (metadata primero, luego storage,
+  con el fallo de storage post-delete-exitoso propagado, no silenciado).
+  Implementado, validado de forma independiente, revisado por
+  `habitex-reviewer` (contexto independiente, re-verificó en vivo vía
+  Supabase MCP read-only que las policies de `storage.objects`/
+  `public.files` son exactamente las esperadas: 0 BLOCKER/HIGH, 1 LOW no
+  bloqueante registrado), checkpointed localmente (ver "Último
+  checkpoint").
 
 ## Subtareas
 
@@ -166,22 +174,133 @@ de INC-010 pendiente. INC-001/003/004/006/008/009 pusheados`.
 | INC-006 — Rental Terms (`RentalTermsRepository`, `RentalRepository.updateSchedule`, `useSaveRentalTerms`, `useRentalTermVersion`, `/rentals/:id/terms`, acción "Completar términos" en la lista) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 2 LOW + 1 MEDIUM registrados, no bloqueantes), checkpoint `1b1dc3a` pusheado |
 | INC-008 — Rental Activation, alcance restante (mapeo de errores `terms_incomplete`/`already_active`/`subject_in_use`, readiness real de términos, gate proactivo en la lista, fix del LOW de INC-006 en `RentalTermsPage`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `57b448c` pusheado |
 | INC-009 — Rental lifecycle completion (`RentalRepository.cancelDraft/startEnding/end`, `RentalLifecycleError`, 3 hooks nuevos, confirmación inline de dos pasos en `RentalListCard`, autorización asimétrica respetada exactamente) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `1e79c3b` pusheado |
-| INC-010 — backend gate (RESEARCH GATE encontró `storage.objects` sin policies; migration autorada, revisada, aplicada y verificada) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only; implementación frontend del primitive **pendiente** |
+| INC-010 — backend gate (RESEARCH GATE encontró `storage.objects` sin policies; migration autorada, revisada, aplicada y verificada) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only, commiteada y pusheada (`14eb8b9`) |
+| INC-010 — primitive de frontend (`features/documents/`: `FileRepository` upload/download/remove, paths únicos, sin producto/UI) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint local pendiente de push |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006 (`1b1dc3a`),
-INC-008 (`57b448c`) e INC-009 (`1e79c3b`) ya están en
-`origin/chore/agentic-foundation` — HEAD y origin sincronizados. La
-migration de INC-010 ya está aplicada en producción (no requiere
-push/commit para tener efecto — ya vive en Supabase); el archivo de la
-migration en sí sigue sin commitear en el repo (ver "Último checkpoint").
-Falta implementar el primitive de frontend de INC-010.
+INC-008 (`57b448c`), INC-009 (`1e79c3b`) e INC-010 backend gate (`14eb8b9`)
+ya están en `origin/chore/agentic-foundation` — HEAD y origin
+sincronizados. El nuevo checkpoint del primitive de frontend de INC-010
+(ver "Último checkpoint") sigue pendiente de revisión humana antes de
+push.
 
 ## Último incremento ejecutado
 
-**INC-009 — Rental lifecycle completion**
+**INC-010 — Generic file upload/download primitive**
+(`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-010) — la
+primitiva compartida de subida/descarga contra `files`/`storage.objects`
+que consumirán INC-011 (contratos) e INC-013 (pagos). Backend gate
+(migration de RLS) ya resuelto y documentado en "Infraestructura:
+INC-010 — backend gate de Storage" más abajo; esta sección cubre el
+primitive de frontend en sí, que completa el incremento.
+
+- **Investigación previa a implementar** (sin RESEARCH GATE nuevo — el
+  único gate real de este incremento fue el de backend, ya resuelto):
+  confirmado que `public.files` **no tiene foreign key** hacia
+  `storage.objects` — son dos tablas independientes, la app es la única
+  responsable de mantenerlas consistentes. `public.files` ya tiene su
+  propia RLS (`files_select`: miembro de administración O participante
+  de la relación vía `can_view_relationship`; `files_insert`:
+  `can_manage_administration` + `can_view_relationship` si está ligado a
+  un rental; `files_delete`: `can_manage_administration`; sin policy de
+  `UPDATE`) y sus propias constraints de seguridad
+  (`files_storage_path_safe_ck` bloquea `../` y `/` inicial;
+  `UNIQUE(storage_bucket, storage_path)`). La columna `original_name`
+  existe precisamente para separar el nombre legible del path/identidad
+  — confirma que el schema ya anticipaba no confiar en el filename como
+  material de path. Sin RPC para `files` — insert/select/delete directo,
+  mismo patrón que el resto de la app.
+- **Qué se agregó**:
+  - Nuevo `features/documents/` (`domain/`+`infrastructure/`+
+    `composition.ts` — **sin `presentation/`**, sin pantalla/producto,
+    por diseño explícito de este incremento).
+  - `FileRepository` (`upload`/`download`/`remove`) — la primitiva
+    encapsula la secuencia real de dos recursos (Storage + metadata)
+    detrás de **una sola llamada**, para que ningún consumidor futuro
+    (INC-011/INC-013) tenga que orquestar el orden él mismo.
+  - `buildStoragePath(administrationId, blob, originalName?)`: función
+    pura, `{administrationId}/{crypto.randomUUID()}{extensión?}` —
+    `originalName` nunca se lee dentro de la función (verificado con
+    tests usando inputs adversariales: `../../etc/passwd`, `a/b/c`,
+    `../secret` — ninguno aparece en el path resultante, y el path
+    siempre tiene exactamente un `/`). Extensión derivada de una tabla
+    de mapeo MIME→extensión explícita y corta (`application/pdf`→`.pdf`,
+    `image/jpeg`→`.jpg`, `image/png`→`.png`, `image/webp`→`.webp`; MIME
+    no reconocido → sin extensión, nunca requerido para funcionar).
+  - `upload`: siempre `upsert: false` explícito (asertado exactamente en
+    tests, no solo "se llamó upload"); `mime_type`/`size_bytes` derivados
+    de `blob.type`/`blob.size` reales, nunca de un valor separado que
+    pudiera no coincidir; `sha256`/`uploaded_by_person_id` deliberadamente
+    sin poblar (fuera de alcance). Falla parcial documentada y probada:
+    si Storage falla, el insert de metadata nunca se intenta; si Storage
+    tiene éxito pero el insert de metadata falla, se intenta una
+    limpieza best-effort (`storage.remove`) cuyo propio fallo nunca
+    enmascara el error original de metadata (el `.cause` original se
+    preserva).
+  - `download`: `.download()` autenticado (RLS re-chequeada en cada
+    llamada contra la sesión actual), **no** `createSignedUrl` — un link
+    firmado es una credencial portadora usable por cualquiera que lo
+    tenga durante su ventana de validez, superficie de exposición mayor
+    que una descarga autenticada directa; sin necesidad de compartir
+    acceso fuera de una sesión autenticada en este incremento.
+  - `remove`: borra la fila de `public.files` **antes** que el objeto de
+    Storage (orden verificado con tracking explícito de secuencia en
+    tests, no solo dos asserts independientes). Si el delete de metadata
+    falla, el borrado de Storage nunca se intenta. Si el delete de
+    metadata tiene éxito pero el borrado de Storage falla después, el
+    error **se propaga** (no se silencia) — decisión documentada citando
+    `ARCHITECTURE.md §7` ("un error remoto nunca se interpreta como
+    éxito local"), distinta a propósito del comportamiento best-effort
+    de `upload` (ahí la limpieza es secundaria a una operación que ya
+    falló; aquí el borrado de Storage es la acción primaria que el
+    usuario pidió).
+  - `FileStorageBucket` restringido por tipo a `'receipts' | 'documents'`
+    (nunca `string` suelto) — sin ningún `as any`/cast inseguro en toda
+    la feature que pudiera burlar esa restricción.
+  - Sin hooks de `application/` — decisión explícita: no existe todavía
+    ningún consumidor real que ejercite `useUploadFile`/`useRemoveFile`
+    con variables/UX reales; construirlos ahora sería boilerplate no
+    probado contra ningún caso de uso genuino. El primer consumidor real
+    (INC-011/INC-013) los agregará cuando sepa exactamente qué necesita.
+  - Sin dependencia nueva — `crypto.randomUUID()` usado como global ya
+    existente.
+- **Tests**: 17 nuevos (`storage-path.test.ts` — 6; `supabase-file.repository.test.ts` — 8, más los ya contados en `storage-path.test.ts`), cubriendo exactamente lo listado arriba: shape/prefix/no-colisión del path, ausencia de `originalName` en el resultado con inputs adversariales, mapeo de extensión, `upsert:false` exacto, las 3 sub-casos de falla parcial de `upload`, orden y falla parcial de `remove`, y errores de Supabase siempre propagados vía `FileRepositoryError`. Cada archivo de test deja explícito que son tests unitarios del adapter (forma/orden/propagación de llamadas), no prueba de que la RLS desplegada funcione — eso lo re-verificó el reviewer en vivo.
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente,
+  re-verificó en vivo vía Supabase MCP read-only que las policies de
+  `storage.objects`/`public.files` son exactamente las esperadas, y que
+  no hay foreign key entre ellas) no encontró BLOCKER/HIGH/MEDIUM.
+- **Deuda no bloqueante registrada** (1 LOW del reviewer, sin fix loop
+  por debajo del umbral BLOCKER/HIGH):
+  - LOW: `mime_type` se deriva de `blob.type` sin validar que sea
+    no-vacío — un `Blob`/`File` con `.type === ''` (tipo no reconocido
+    por el navegador) insertaría `mime_type: ''` (la columna es
+    `NOT NULL` pero sin `CHECK` de no-vacío). No explotable, sin
+    regresión de nada existente. Un futuro consumidor con UI de subida
+    debería validar/exigir un MIME type no vacío antes de llamar a
+    `upload()`, o el repository podría agregar esa guarda.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
+  lint && pnpm test -- --run && pnpm build` — todos PASS. 78 archivos /
+  553 tests (0 fallos), 0 errores de lint (mismos 4 warnings
+  preexistentes, no relacionados). El build no referencia todavía la
+  nueva feature en ningún chunk — esperado, sin consumidor aún.
+- **Human gates**: ninguno disparado por el primitive de frontend en sí
+  — sin cambios de schema/RLS/grants/migrations/dependencias en este
+  paso (el único gate de este incremento fue el de backend, ya resuelto
+  y documentado por separado). Confirmado por `git status`/`git diff
+  --stat` (solo `src/features/documents/` nuevo) y por el reviewer vía
+  MCP (`package.json`/`pnpm-lock.yaml` sin cambios).
+- **Seguridad verificada** (vía MCP read-only, por el reviewer):
+  re-confirmó en vivo que las policies de `storage.objects` y
+  `public.files` son exactamente las descritas, sin UPDATE en ninguna de
+  las dos, y sin foreign key entre ellas — consistente con el diseño del
+  primitive (secuenciación explícita en la app, nunca asumida como
+  garantizada por la base de datos).
+
+### Incremento anterior: INC-009 — Rental lifecycle completion
 (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-009) — completa
 la máquina de estados del rental más allá de la activación:
 `cancel_draft_rental`/`start_ending_rental`/`end_rental`, las tres ya
@@ -361,16 +480,10 @@ Usuario aprobó explícitamente autorar una migration para resolverlo:
   nuevo de esta migration).
 - **Estado explícito**: **INC-010 Supabase/backend gate = RESOLVED.**
   Storage ahora es alcanzable, scoped por administración, con el mismo
-  patrón de autorización que el resto de la app. **La implementación
-  frontend del primitive (repo/hook de subida/descarga en `shared/` o
-  `features/documents/`, sin pantalla propia, consumido luego por
-  INC-011/INC-013) todavía no se ha hecho** — es el siguiente paso de
-  este mismo incremento.
-- **Archivo de la migration**: sigue sin commitear en el repo al momento
-  de esta actualización (ver "Último checkpoint") — ya está aplicada en
-  producción independientemente de si el archivo local está commiteado o
-  no; commitearlo es solo para que el historial versionado del repo
-  quede sincronizado con lo ya aplicado (`ARCHITECTURE.md §0.1`).
+  patrón de autorización que el resto de la app. La implementación
+  frontend del primitive (ver sección de arriba, "Último incremento
+  ejecutado") ya se hizo — con esto, **INC-010 queda completo**.
+- **Archivo de la migration**: commiteado y pusheado (`14eb8b9`).
 
 ### Incremento anterior: INC-008 — Rental Activation (alcance restante)
 (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-008 reescrita) —
@@ -929,57 +1042,47 @@ explícito) cuando se lleguen a ejecutar.
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
   actualización de `PROGRESS.md`, en el mismo commit)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: el archivo de la migration
-  `supabase/migrations/20260924141732_storage_objects_administration_access.sql`
-  (ya aplicada en producción — ver "Infraestructura: INC-010 — backend
-  gate de Storage" más arriba) + esta actualización de `PROGRESS.md`.
-  Documentación/infra únicamente — sin cambios de código en `src/`.
+- **Contenido del checkpoint**: el primitive de frontend de INC-010 —
+  nuevo `features/documents/` (`domain/file.types.ts`,
+  `domain/storage-path.ts`, `infrastructure/supabase-file.repository.ts`,
+  `composition.ts`, tests), sin `presentation/`, más esta actualización
+  de `PROGRESS.md`. El backend gate (migration de Storage) ya estaba
+  commiteado y pusheado por separado (`14eb8b9`).
 - **Fecha**: 2026-09-24
-- **Estado**: la migration ya está **APLICADA en producción**
-  (independiente de este commit); el commit en sí solo sincroniza el
-  archivo versionado del repo con lo ya aplicado — pendiente de crear,
-  push/merge nunca son automáticos en este workflow.
-- **No incluido**: ningún cambio de código frontend — la implementación
-  del primitive de INC-010 (repo/hook de subida/descarga) sigue
-  pendiente, es el siguiente paso.
+- **Estado**: commiteado localmente, **pendiente de push** — push/merge
+  nunca son automáticos en este workflow.
+- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
+  (ya resueltos y pusheados en `14eb8b9`); ninguna UI/producto (fuera de
+  alcance por diseño de este incremento); ningún hook de `application/`
+  (decisión explícita, sin consumidor real todavía).
 
-Checkpoint previo ya pusheado: INC-009 (`1e79c3b`) — ver "Registro de
-checkpoints".
+Checkpoint previo ya pusheado: backend gate de INC-010 (`14eb8b9`) — ver
+"Registro de checkpoints".
 
 ## Último resultado de validación
 
-No aplica código frontend nuevo en este checkpoint (solo la migration ya
-aplicada + documentación). Última validación de código real: INC-009,
-ejecutada de forma independiente por la sesión orquestadora y
-re-verificada por el reviewer:
+Medido sobre el resultado integrado del primitive de frontend de
+INC-010, ejecutado de forma independiente por la sesión orquestadora y
+re-verificado por el reviewer (incluyendo re-verificación en vivo vía
+Supabase MCP read-only de las policies de `storage.objects`/
+`public.files`, sin cambios respecto a lo ya aplicado):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 536/536, 76 archivos |
-| `pnpm build` | PASS |
-
-Para la migration de Storage: `supabase db push --dry-run` (confirmó
-exactamente 1 migration pendiente, sin seeds/roles) y verificación
-post-apply vía MCP read-only (`pg_policies`, `get_advisors`) — ver
-detalle arriba. No aplica `pnpm typecheck/lint/test/build` a una
-migration SQL.
+| `pnpm test -- --run` | PASS — 553/553, 78 archivos |
+| `pnpm build` | PASS — sin nuevo chunk referenciando la feature todavía (esperado, sin consumidor aún) |
 
 ## Siguiente acción recomendada
 
-**INC-010 — implementar el primitive de frontend.** El backend gate ya
-está resuelto y aplicado (`storage.objects` ahora tiene RLS scoped por
-administración, mismo patrón que `public.files`). Queda: repo/hook
-compartido de subida/descarga (`shared/lib/` o nuevo
-`features/documents/`, sin pantalla propia — construir un archivo con
-path `{administrationId}/...`, nunca `upsert: true` contra
-`receipts`/`documents`), consumible luego por INC-011 (contratos) e
-INC-013 (pagos).
+Con INC-010 completo (backend gate + primitive), `FileRepository` está
+listo para ser consumido. Candidatos sin dependencias técnicas
+pendientes:
 
-Otros candidatos sin dependencias técnicas pendientes, por si se
-prefiere otro orden:
-
+- **INC-011** — Contract management (sin firma avanzada). Depende de
+  INC-008 (rental activo) e INC-010 (subida de archivos) — ambos ya
+  completos.
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
 - **INC-017** — Corregir doc drift (sin dependencias).
@@ -1014,4 +1117,5 @@ git, no aquí._
 | 2026-09-23 | `1b1dc3a` | `chore/agentic-foundation` | INC-006 — Rental Terms: `RentalRepository.updateSchedule`, `RentalTermsRepository` (`create`/`getCurrent`, sin RPC), `useSaveRentalTerms` (secuencia no-atómica documentada, error distinguible en falla parcial), `useRentalTermVersion`, ruta `/rentals/:id/terms` (editable vs. read-only), acción "Completar términos" en `RentalListCard`. Sin backend gate (dos escrituras directas RLS-gated, sin RPC necesario). 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 2 LOW + 1 MEDIUM registrados, no bloqueantes. **Pusheado**. |
 | 2026-09-23 | `57b448c` | `chore/agentic-foundation` | INC-008 — Rental Activation, alcance restante: `RentalActivationErrorCode` extendido (`terms_incomplete`/`already_active`/`subject_in_use`), `RentalTermsRepository.listRelationshipIdsWithTerms` (nuevo método, sin RPC), `useRentalTermsExistence`, gate proactivo real en `RentalsPage`/`RentalListCard` (sin reemplazar al RPC como autoridad — verificado con test de estado de cliente obsoleto), fix del LOW de INC-006 en `RentalTermsPage` (read-only respeta `relationship.status`). Loop DRAFT→términos→`ACTIVE` verificado de punta a punta. Sin backend gate. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado. **Pusheado**. |
 | 2026-09-23 | `1e79c3b` | `chore/agentic-foundation` | INC-009 — Rental lifecycle completion: `RentalRepository.cancelDraft/startEnding/end`, `RentalLifecycleError`/`RentalLifecycleErrorCode` (`not_draft`/`not_active`/`not_endable`/`end_before_start`/`management_access_required`), 3 hooks nuevos, confirmación inline de dos pasos (sin Modal nuevo) en `RentalListCard` para Cancelar/Terminar arriendo, "Iniciar cierre" de un clic para `ACTIVE`. Autorización asimétrica del backend respetada exactamente: `cancelDraft` gateado por `useManagementGate` (`can_manage_administration`), `startEnding`/`end` deliberadamente NO gateados (`has_administration_management_role` únicamente — verificado en vivo por el reviewer). `end_rental` llamado sin `p_actual_end_date` (default del backend). Sin backend gate/cambios. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado (CSS duplicado). **Pusheado**. |
-| 2026-09-24 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-010 backend gate: RESEARCH GATE encontró `storage.objects` con RLS habilitada y cero policies (Storage completamente inalcanzable). Migration `20260924141732_storage_objects_administration_access.sql` autorada (3 policies `objects_select/insert/delete`, scoped por bucket + administración vía el primer segmento del path), revisada independientemente (`habitex-reviewer`: 0 BLOCKER/HIGH, 2 MEDIUM corregidos — `GRANT` redundante eliminado, nomenclatura alineada), verificada pre-apply (dry-run, conteo local/remoto) y **APLICADA** contra el proyecto real vía `supabase db push --yes` ejecutado por el usuario, verificada post-apply vía MCP read-only. INC-010 backend gate = RESOLVED; implementación frontend del primitive pendiente. |
+| 2026-09-24 | `14eb8b9` | `chore/agentic-foundation` | INC-010 backend gate: RESEARCH GATE encontró `storage.objects` con RLS habilitada y cero policies (Storage completamente inalcanzable). Migration `20260924141732_storage_objects_administration_access.sql` autorada (3 policies `objects_select/insert/delete`, scoped por bucket + administración vía el primer segmento del path), revisada independientemente (`habitex-reviewer`: 0 BLOCKER/HIGH, 2 MEDIUM corregidos — `GRANT` redundante eliminado, nomenclatura alineada), verificada pre-apply (dry-run, conteo local/remoto) y **APLICADA** contra el proyecto real vía `supabase db push --yes` ejecutado por el usuario, verificada post-apply vía MCP read-only. INC-010 backend gate = RESOLVED. **Pusheado**. |
+| 2026-09-24 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-010 primitive de frontend: nuevo `features/documents/` (`FileRepository` upload/download/remove, sin `presentation/`). Paths únicos vía `crypto.randomUUID()` que nunca leen `originalName`, `upsert: false` siempre, `download()` autenticado (no signed URL), limpieza best-effort si falla el insert de metadata tras upload exitoso, delete ordenado (metadata antes que storage, fallo de storage post-delete propagado). Sin hooks de `application/` (sin consumidor real todavía). 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado (mime_type vacío no validado). **INC-010 completo — local, pendiente de push**. |
