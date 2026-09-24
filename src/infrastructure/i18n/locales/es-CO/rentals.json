@@ -55,7 +55,8 @@
     "startDate": "Desde {{date}}",
     "endDate": "Hasta {{date}}",
     "paymentDay": "Pago el día {{day}}",
-    "completeTerms": "Completar términos"
+    "completeTerms": "Completar términos",
+    "contracts": "Contratos"
   },
   "activate": {
     "cta": "Activar",

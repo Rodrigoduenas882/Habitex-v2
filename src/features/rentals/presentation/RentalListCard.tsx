@@ -243,6 +243,24 @@ export function RentalListCard({ rental, activation, cancelDraft, startEnding, e
           {t('list.completeTerms')}
         </Button>
       ) : null}
+      {rental.status === 'ACTIVE' || rental.status === 'ENDING' || rental.status === 'ENDED' ? (
+        // Plain navigation action, same as "Completar términos" - no
+        // activation/lifecycle plumbing needed from RentalsPage for this
+        // one. Not shown for DRAFT (contract creation is never offered
+        // before ACTIVE - see RentalContractsPage's own doc comment) or
+        // CANCELLED (nothing to show there).
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className={styles['termsAction']}
+          onClick={() => {
+            void navigate(`/rentals/${rental.id}/contracts`)
+          }}
+        >
+          {t('list.contracts')}
+        </Button>
+      ) : null}
       {rental.status === 'DRAFT' && activation ? (
         <div className={styles['activateRow']}>
           <Button

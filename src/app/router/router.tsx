@@ -20,6 +20,7 @@ const RoomSetupPage = lazy(() => import('@/features/properties/presentation/Room
 const RentalsPage = lazy(() => import('@/features/rentals/presentation/RentalsPage'))
 const AddRentalPage = lazy(() => import('@/features/rentals/presentation/AddRentalPage'))
 const RentalTermsPage = lazy(() => import('@/features/rentals/presentation/RentalTermsPage'))
+const RentalContractsPage = lazy(() => import('@/features/contracts/presentation/RentalContractsPage'))
 const LoginPage = lazy(() => import('@/features/auth/presentation/LoginPage'))
 const UiPreviewPage = lazy(() => import('../pages/ui-preview/UiPreviewPage'))
 const NotFoundPage = lazy(() => import('@/shared/components/NotFoundPage'))
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
                   { path: 'rentals', element: withSuspense(<RentalsPage />) },
                   { path: 'rentals/new', element: withSuspense(<AddRentalPage />) },
                   { path: 'rentals/:id/terms', element: withSuspense(<RentalTermsPage />) },
+                  { path: 'rentals/:id/contracts', element: withSuspense(<RentalContractsPage />) },
                 ],
               },
             ],

@@ -6,39 +6,57 @@ import { FileRepositoryError, type FileMetadata, type UploadFileInput } from '..
 // they do not, and cannot, prove the deployed storage.objects/files RLS
 // policies actually enforce anything. That is verified separately, live,
 // via the read-only Supabase MCP.
-const { from, eqFilter, deleteFn, insert, single, storageFrom, storageUpload, storageDownload, storageRemove } =
-  vi.hoisted(() => {
-    const single = vi.fn()
-    const insertSelect = vi.fn(() => ({ single }))
-    const insert = vi.fn(() => ({ select: insertSelect }))
-    const deleteFn = vi.fn<() => unknown>()
-    const eqFilter = vi.fn(() => deleteFn())
-    const from = vi.fn((_table: string) => ({
-      insert,
-      delete: () => ({ eq: eqFilter }),
-    }))
+const {
+  from,
+  eqFilter,
+  deleteFn,
+  insert,
+  single,
+  maybeSingle,
+  selectEq,
+  storageFrom,
+  storageUpload,
+  storageDownload,
+  storageRemove,
+} = vi.hoisted(() => {
+  const single = vi.fn()
+  const insertSelect = vi.fn(() => ({ single }))
+  const insert = vi.fn(() => ({ select: insertSelect }))
+  const deleteFn = vi.fn<() => unknown>()
+  const eqFilter = vi.fn(() => deleteFn())
+  const maybeSingle = vi.fn()
+  const selectEq = vi.fn((_column: string, _value: string) => ({ maybeSingle }))
+  const select = vi.fn((_columns: string) => ({ eq: selectEq }))
+  const from = vi.fn((_table: string) => ({
+    select,
+    insert,
+    delete: () => ({ eq: eqFilter }),
+  }))
 
-    const storageUpload = vi.fn()
-    const storageDownload = vi.fn()
-    const storageRemove = vi.fn()
-    const storageFrom = vi.fn((_bucket: string) => ({
-      upload: storageUpload,
-      download: storageDownload,
-      remove: storageRemove,
-    }))
+  const storageUpload = vi.fn()
+  const storageDownload = vi.fn()
+  const storageRemove = vi.fn()
+  const storageFrom = vi.fn((_bucket: string) => ({
+    upload: storageUpload,
+    download: storageDownload,
+    remove: storageRemove,
+  }))
 
-    return {
-      from,
-      eqFilter,
-      deleteFn,
-      insert,
-      single,
-      storageFrom,
-      storageUpload,
-      storageDownload,
-      storageRemove,
-    }
-  })
+  return {
+    from,
+    eqFilter,
+    deleteFn,
+    insert,
+    single,
+    maybeSingle,
+    selectEq,
+    select,
+    storageFrom,
+    storageUpload,
+    storageDownload,
+    storageRemove,
+  }
+})
 
 vi.mock('@/infrastructure/supabase/client', () => ({
   supabaseClient: { from, storage: { from: storageFrom } },
@@ -84,6 +102,32 @@ const FILE_METADATA: FileMetadata = {
   uploadedByPersonId: null,
   createdAt: '2026-01-01T00:00:00Z',
 }
+
+describe('supabaseFileRepository.getById', () => {
+  it('queries files by id and maps the row to FileMetadata', async () => {
+    maybeSingle.mockResolvedValueOnce({ data: FILE_ROW, error: null })
+
+    const result = await supabaseFileRepository.getById('file-1')
+
+    expect(from).toHaveBeenCalledWith('files')
+    expect(selectEq).toHaveBeenCalledWith('id', 'file-1')
+    expect(result).toEqual(FILE_METADATA)
+  })
+
+  it('returns null when no matching row exists (or is visible under RLS)', async () => {
+    maybeSingle.mockResolvedValueOnce({ data: null, error: null })
+
+    const result = await supabaseFileRepository.getById('missing-file')
+
+    expect(result).toBeNull()
+  })
+
+  it('wraps a Supabase failure in FileRepositoryError', async () => {
+    maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    await expect(supabaseFileRepository.getById('file-1')).rejects.toBeInstanceOf(FileRepositoryError)
+  })
+})
 
 describe('supabaseFileRepository.upload', () => {
   it('calls Storage upload with upsert: false and the exact contentType, then inserts the matching files row', async () => {

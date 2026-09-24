@@ -79,6 +79,16 @@ export class FileRepositoryError extends Error {
  */
 export interface FileRepository {
   /**
+   * Reads a single public.files row by id, or null if it doesn't exist/isn't
+   * visible to the caller (RLS-filtered, same as any other read here - this
+   * is a convenience lookup, not a new security surface). Added for callers
+   * that only know a file id (e.g. a foreign key like contracts.document_
+   * file_id/signed_file_id) and need the full FileMetadata - bucket/path in
+   * particular - to call download() with it.
+   */
+  getById(id: string): Promise<FileMetadata | null>
+
+  /**
    * Uploads `input.blob` to `input.bucket` at a freshly generated path (see
    * buildStoragePath), then inserts the corresponding public.files row.
    *

@@ -47,17 +47,25 @@ pusheado a `origin/chore/agentic-foundation` (`57b448c`). Ver detalle en
 `origin/chore/agentic-foundation` (`1e79c3b`). Ver detalle en
 "Incremento anterior: INC-009" más abajo.
 
-**INC-010 — Generic file upload/download primitive**: **completo**
-(backend gate resuelto vía migration aplicada + primitive de frontend
-implementado — `FileRepository` en `features/documents/`, sin producto/UI),
-implementado, validado e independientemente revisado (0 BLOCKER/HIGH; 1
-LOW no bloqueante registrado). Checkpoint local pendiente de push. Ver
-detalle en "Último incremento ejecutado" más abajo.
+**INC-010 — Generic file upload/download primitive**: **completo**,
+pusheado a `origin/chore/agentic-foundation` (`14eb8b9` backend gate,
+`e29eed4` primitive de frontend). Ver detalle en "Incremento anterior:
+INC-010" más abajo.
+
+**INC-011 — Contract management (sin firma avanzada)**: **completo**
+(frontend-only, sin cambios de backend — las 3 RPCs ya desplegadas
+(`register_habitex_generated_contract`/`register_external_signed_contract`/
+`attach_signed_contract_copy`) cubren toda la creación/firma; "marcar
+compartido" y "terminar" son UPDATE directo, RLS-gated, guardado por
+status del lado del cliente ya que la RLS no lo restringe), implementado,
+validado e independientemente revisado (0 BLOCKER/HIGH; 1 MEDIUM no
+bloqueante registrado). Checkpoint local pendiente de push. Ver detalle
+en "Último incremento ejecutado" más abajo.
 
 ## Estado
 
-`INC-010 completo (backend gate + primitive de frontend), checkpoint
-local pendiente de push. INC-001/003/004/006/008/009 pusheados`.
+`INC-011 completo, checkpoint local pendiente de push.
+INC-001/003/004/006/008/009/010 pusheados`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -116,40 +124,57 @@ local pendiente de push. INC-001/003/004/006/008/009 pusheados`.
   en vivo — re-verificó las 3 funciones de autorización y confirmó la
   asimetría exactamente como se investigó: 0 BLOCKER/HIGH, 1 LOW no
   bloqueante registrado), checkpointed y pusheado tras aprobación humana.
-- INC-010: **completo**. Backend gate: RESEARCH GATE encontró que
-  `storage.objects` tenía RLS habilitada pero **cero policies** —
-  Supabase Storage estaba completamente inaccesible desde el frontend
-  para ambos buckets existentes (`receipts`/`documents`), contradiciendo
-  la afirmación del plan de que el backend ya estaba listo. Migration
-  `20260924141732_storage_objects_administration_access.sql` autorada
-  (3 policies: `objects_select`/`objects_insert`/`objects_delete`,
-  scoped por `bucket_id`+administration vía el primer segmento del path
-  del objeto, mismas funciones de autorización que `public.files`),
-  revisada independientemente (`habitex-reviewer`: 0 BLOCKER/HIGH; 2
-  MEDIUM corregidos antes de aplicar — el `GRANT` original era
-  redundante e inducía a error, `authenticated`/`anon` ya tenían grants
-  por defecto de Supabase; nomenclatura de policies alineada a la
-  convención del proyecto), verificada pre-apply (dry-run, conteo
-  local/remoto, alineación de las 52 migrations previas), **APLICADA**
-  contra el proyecto real (`eurzpkgikzdvbblgtjwp`) vía `supabase db push
-  --yes` ejecutado directamente por el usuario, verificada
-  post-ejecución vía MCP read-only (policies exactas, sin advisories
-  nuevos), **commiteada y pusheada** (`14eb8b9`). Primitive de frontend:
-  nuevo `features/documents/` (`domain/`+`infrastructure/`+
-  `composition.ts`, sin `presentation/` — sin producto/UI, por diseño),
-  `FileRepository` (`upload`/`download`/`remove`) que encapsula la
-  secuencia Storage+metadata completa detrás de una sola llamada, paths
-  únicos vía `crypto.randomUUID()` que nunca leen `originalName`,
-  `upsert: false` siempre, `download()` vía `.download()` autenticado (no
-  signed URL), limpieza best-effort si falla el insert de metadata tras
-  un upload exitoso, delete ordenado (metadata primero, luego storage,
-  con el fallo de storage post-delete-exitoso propagado, no silenciado).
-  Implementado, validado de forma independiente, revisado por
-  `habitex-reviewer` (contexto independiente, re-verificó en vivo vía
-  Supabase MCP read-only que las policies de `storage.objects`/
-  `public.files` son exactamente las esperadas: 0 BLOCKER/HIGH, 1 LOW no
-  bloqueante registrado), checkpointed localmente (ver "Último
-  checkpoint").
+- INC-010: **completo y pusheado** (`14eb8b9` backend gate, `e29eed4`
+  primitive de frontend). Nuevo `features/documents/` (`FileRepository`
+  `upload`/`download`/`remove`, sin producto/UI), consumido directamente
+  por INC-011.
+- INC-011: **completo**. Nuevo `features/contracts/` — aggregate propio
+  (dominio/infraestructura/aplicación/presentación/composition, no
+  plegado en `features/rentals/`). `ContractRepository` envuelve
+  exactamente las 3 RPCs ya desplegadas para creación/firma (nunca un
+  INSERT directo) más dos UPDATE directos guardados por status
+  (`markShared`: solo desde `GENERATED`; `terminate`: solo desde
+  `SIGNED`) para las dos transiciones sin RPC — la RLS de `contracts` no
+  restringe qué transición de status es válida más allá de "no
+  `TERMINATED`", así que ese guardado es responsabilidad exclusiva del
+  frontend, documentado como tal. SHA-256 real calculado con
+  `crypto.subtle.digest` (sin dependencia nueva) para
+  `register_habitex_generated_contract`, que lo exige. `terms_snapshot`
+  construido desde `RentalTermVersion` (INC-006) + los campos de horario
+  propios de `RentalRelationship`, forma explícita y documentada, nunca
+  una serialización ciega. Subida/registro nunca es una sola mutation
+  atómica — el archivo ya subido se reutiliza en un reintento tras un
+  fallo de registro, nunca se vuelve a subir (verificado con test
+  explícito). Reutiliza `FileRepository` de INC-010 sin duplicar
+  (`purpose: CONTRACT_GENERATED`/`CONTRACT_SIGNED`); extendió
+  `FileRepository` con un `getById` aditivo (necesario porque los
+  contratos solo guardan ids de archivo, no metadata completa). Sin
+  vista de detalle general — ruta angosta y de propósito único
+  `/rentals/:id/contracts` (mismo principio que `/rentals/:id/terms` de
+  INC-006), acción "Contratos" en la lista solo para `ACTIVE`/`ENDING`/
+  `ENDED` (no `DRAFT`/`CANCELLED`). Creación de contrato ofrecida solo
+  para `ACTIVE`/`ENDING` — **decisión de producto/UX explícita, no
+  autorización real** (el RPC no exige ningún status de rental).
+  `ENDED` conserva lectura/descarga histórica sin sección de creación.
+  Acciones por status exactas: `GENERATED` → marcar compartido + adjuntar
+  copia firmada; `SHARED` → adjuntar copia firmada; `SIGNED` → terminar;
+  `TERMINATED`/`DRAFT` → ninguna. `useManagementGate` aplicado de forma
+  uniforme a las 5 acciones mutantes (sin la asimetría de INC-009 — el
+  RPC/RLS de contracts usa `can_manage_administration()` en todos los
+  casos); acceso vencido nunca oculta la lista/descarga de solo lectura.
+  Sin UI de eliminación de contrato/archivo en ningún lugar (no existe
+  policy `DELETE` sobre `contracts`, y los archivos referenciados están
+  protegidos por FK `RESTRICT`). Sin firma digital avanzada, sin
+  `acceptances`/`secure_actions`/`communication_events`, sin motor de
+  generación de documentos — "Habitex-generado" significa que el owner
+  sube un documento real vía el mismo flujo de subida que el flujo
+  externo, no que la app genera contenido automáticamente. Implementado,
+  validado de forma independiente, revisado por `habitex-reviewer`
+  (contexto independiente, re-verificó en vivo vía Supabase MCP
+  read-only las policies/RPCs de `contracts`, confirmó que los guardados
+  de status y la ausencia de INSERT directo son reales, no solo
+  documentados: 0 BLOCKER/HIGH, 1 MEDIUM no bloqueante registrado),
+  checkpointed localmente (ver "Último checkpoint").
 
 ## Subtareas
 
@@ -175,21 +200,170 @@ local pendiente de push. INC-001/003/004/006/008/009 pusheados`.
 | INC-008 — Rental Activation, alcance restante (mapeo de errores `terms_incomplete`/`already_active`/`subject_in_use`, readiness real de términos, gate proactivo en la lista, fix del LOW de INC-006 en `RentalTermsPage`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `57b448c` pusheado |
 | INC-009 — Rental lifecycle completion (`RentalRepository.cancelDraft/startEnding/end`, `RentalLifecycleError`, 3 hooks nuevos, confirmación inline de dos pasos en `RentalListCard`, autorización asimétrica respetada exactamente) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `1e79c3b` pusheado |
 | INC-010 — backend gate (RESEARCH GATE encontró `storage.objects` sin policies; migration autorada, revisada, aplicada y verificada) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only, commiteada y pusheada (`14eb8b9`) |
-| INC-010 — primitive de frontend (`features/documents/`: `FileRepository` upload/download/remove, paths únicos, sin producto/UI) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint local pendiente de push |
+| INC-010 — primitive de frontend (`features/documents/`: `FileRepository` upload/download/remove, paths únicos, sin producto/UI) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `e29eed4` pusheado |
+| INC-011 — Contract management (`features/contracts/`: `ContractRepository` sobre las 3 RPCs + 2 UPDATE guardados, SHA-256 real, `terms_snapshot`, subida-luego-registro sin re-subida en reintento, ruta `/rentals/:id/contracts`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM no bloqueante registrado), checkpoint local pendiente de push |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006 (`1b1dc3a`),
-INC-008 (`57b448c`), INC-009 (`1e79c3b`) e INC-010 backend gate (`14eb8b9`)
+INC-008 (`57b448c`), INC-009 (`1e79c3b`) e INC-010 (`14eb8b9`, `e29eed4`)
 ya están en `origin/chore/agentic-foundation` — HEAD y origin
-sincronizados. El nuevo checkpoint del primitive de frontend de INC-010
-(ver "Último checkpoint") sigue pendiente de revisión humana antes de
-push.
+sincronizados. El nuevo checkpoint de INC-011 (ver "Último checkpoint")
+sigue pendiente de revisión humana antes de push.
 
 ## Último incremento ejecutado
 
-**INC-010 — Generic file upload/download primitive**
+**INC-011 — Contract management (sin firma avanzada)**
+(`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-011) — registrar
+un contrato Habitex-generado o externo, adjuntar copia firmada
+manualmente, seguir su ciclo de vida, sin ningún mecanismo de firma
+digital.
+
+- **RESEARCH GATE**: resuelto sin escalar — el modelo de datos completo
+  (`public.contracts`, sus 2 CHECK constraints de consistencia
+  origin/status, sus 2 FK `RESTRICT` hacia `files`, su RLS de 3 policies
+  sin `DELETE`) y las 3 RPCs de escritura re-verificadas en vivo,
+  cuerpo completo, no solo el advisor. Confirmado: `DRAFT` nunca es
+  producido por ninguna RPC (no se construyó nada para ese status);
+  ninguna RPC exige que el rental esté `ACTIVE` (la restricción a
+  `ACTIVE`/`ENDING` en la UI es decisión de producto, no del backend);
+  `register_habitex_generated_contract` exige `p_document_hash` real
+  (hallazgo que corrige el "Current evidence" del plan, que no lo
+  mencionaba); no existe RPC para "compartir" ni "terminar" — ambas son
+  UPDATE directo permitido por RLS, sin restricción de qué transición de
+  status es válida más allá de "no `TERMINATED`" — el guardado
+  correcto (`markShared` solo desde `GENERATED`, `terminate` solo desde
+  `SIGNED`) es responsabilidad exclusiva del frontend, no del backend.
+  Race de `version_number` conocida y aceptada (ninguna RPC bloquea la
+  fila del rental antes de calcular `max+1` — colisión posible bajo
+  registro concurrente, falla limpia vía `UNIQUE` constraint, sin
+  migration para esto en este incremento). `acceptances`/
+  `secure_actions`/`communication_events` confirmados sin ninguna
+  integración con `contracts` hoy — infraestructura reservada para una
+  firma avanzada futura (POST-003), no tocada. **Sin HUMAN GATE de
+  Supabase/schema/RLS — YES, backend sin cambios.**
+- **Qué se agregó**:
+  - Nuevo `features/contracts/` — aggregate propio con las 4 capas que
+    su responsabilidad justifica (domain/infrastructure/application/
+    presentation + composition), **no plegado en `features/rentals/`**
+    (decisión de producto explícita).
+  - `ContractRepository`: `listByRelationship` (SELECT directo),
+    `registerHabitexGenerated`/`registerExternalSigned` (las 2 RPC de
+    registro), `attachSignedCopy` (RPC), `markShared`/`terminate` (UPDATE
+    directo, cada uno con `.eq('status', '<status_origen_esperado>')`
+    como guardia explícita — verificado por el reviewer que un match de
+    cero filas por una race se detecta y se reporta como error distinto,
+    nunca como éxito silencioso). **Nunca un INSERT directo** —
+    verificado por grep y por tests que confirman `.from('contracts').insert` no se usa en ningún lugar.
+  - `computeSha256Hex(blob)`: hash real vía `crypto.subtle.digest`
+    (Web Crypto, sin dependencia nueva), nunca del filename/path/
+    metadata — solo de los bytes del documento.
+  - `buildTermsSnapshot(relationship, termVersion)`: forma explícita y
+    documentada (`rentAmount`/`administrationMode`/`utilitiesMode`/
+    `effectiveFrom` de `RentalTermVersion` + `realStartDate`/
+    `trackingStartDate`/`paymentDay`/`paymentTiming`/`expectedEndDate`
+    de `RentalRelationship`) — nunca una serialización ciega de estado
+    de UI/query, nunca un campo legal inventado.
+  - **Subida-luego-registro nunca es una mutation atómica**: el upload
+    (reutiliza `fileRepository` de INC-010 sin duplicar, `purpose:
+    CONTRACT_GENERATED`/`CONTRACT_SIGNED` según el flujo) y la llamada a
+    la RPC de registro son mutations separadas; el archivo ya subido se
+    conserva en estado local de presentación y se reutiliza si el
+    registro falla y el usuario reintenta — nunca se vuelve a subir un
+    duplicado (verificado con un test explícito: upload llamado 1 vez,
+    registro llamado 2 veces en un fallo-luego-reintento, reutilizando
+    el mismo `documentFileId`).
+  - **Extensión aditiva a INC-010**: `FileRepository` gana `getById` —
+    necesario porque `contracts` solo guarda ids de archivo (FKs), no
+    metadata completa, y no existía ningún camino de lectura por id
+    individual. Revisado independientemente y confirmado necesario, no
+    duplicado, no una violación de alcance.
+  - Sin vista de detalle general — ruta angosta de propósito único
+    `/rentals/:id/contracts` (mismo principio que `/rentals/:id/terms`
+    de INC-006), acción "Contratos" nueva en `RentalListCard` solo para
+    `ACTIVE`/`ENDING`/`ENDED` (no `DRAFT`/`CANCELLED`).
+  - **Creación de contrato ofrecida solo para `ACTIVE`/`ENDING`** —
+    decisión de producto/UX explícita, documentada como tal en el código
+    (nunca representada como autorización real, ya que el RPC no exige
+    ningún status de rental). `ENDED` conserva lectura/descarga
+    histórica de contratos existentes, sin sección de creación.
+    `DRAFT`/`CANCELLED` no muestran ni siquiera el punto de entrada.
+  - Acciones por status de contrato, exactas: `GENERATED` → "Marcar
+    como compartido" + "Adjuntar copia firmada"; `SHARED` → "Adjuntar
+    copia firmada" solamente; `SIGNED` → "Terminar contrato" solamente;
+    `TERMINATED`/`DRAFT` → ninguna acción.
+  - `useManagementGate` aplicado **de forma uniforme** a las 5 acciones
+    mutantes (registro Habitex, registro externo, adjuntar firmada,
+    marcar compartido, terminar) — sin la asimetría de INC-009, porque
+    el RPC/RLS real de `contracts` usa `can_manage_administration()` en
+    todos los casos, sin excepción. Acceso de gestión vencido nunca
+    oculta la lista/descarga de solo lectura (coincide exactamente con
+    lo que `contracts_select` permite independientemente de la
+    suscripción).
+  - **Sin UI de eliminación** de contrato o de sus archivos, en ningún
+    lugar — no existe policy `DELETE` sobre `contracts`, y los archivos
+    referenciados están protegidos por FK `ON DELETE RESTRICT`.
+  - **Sin firma digital avanzada**: "firmado" en este incremento
+    significa que un OWNER/MANAGER sube una copia ya firmada — nunca
+    firma criptográfica, OTP, biométrica, proveedor externo, ni
+    ningún uso de `acceptances`/`secure_actions`/`communication_events`.
+  - **Sin motor de generación de documentos**: el flujo "Habitex-
+    generado" usa un documento real que el owner sube vía el mismo
+    input de archivo que el flujo externo — la distinción origin
+    HABITEX/EXTERNAL es sobre el ciclo de vida (empieza sin firmar vs.
+    se registra ya firmado), nunca sobre generación automática de
+    contenido. Confirmado que esto no era un gap de producto sino una
+    lectura incorrecta inicial de la investigación — el flujo se
+    implementó completo y funcional, no como stub.
+  - i18n: nuevo namespace `contracts` (es/es-CO, registrado en
+    `i18n.ts`/`i18next.d.ts`) + una clave nueva en `rentals.json`
+    (`list.contracts`, "Contratos").
+- **Tests**: 609/609 en la suite completa, incluyendo cobertura
+  explícita de exactamente lo pedido — RPC vs. UPDATE guardado vs.
+  nunca-INSERT; race de versión detectada por código Postgres `23505`
+  (no por texto de mensaje); acciones exactas por status (presencia Y
+  ausencia); subida-sin-re-subida en reintento; gate de gestión uniforme
+  en las 5 acciones; acceso vencido no oculta lectura histórica; sin UI
+  de eliminación; sin código/copy de firma avanzada.
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente,
+  re-verificó en vivo vía Supabase MCP read-only las policies/RPCs
+  reales de `contracts`, confirmó que los guardados de status son
+  reales en el código, no solo documentados) no encontró BLOCKER/HIGH.
+- **Deuda no bloqueante registrada** (1 MEDIUM del reviewer, sin fix
+  loop por debajo del umbral BLOCKER/HIGH):
+  - MEDIUM: "Terminar contrato" (`SIGNED`→`TERMINATED`) no tiene
+    confirmación de dos pasos, a diferencia de `LifecycleConfirmAction`
+    (ya construido y probado en INC-009 para Cancelar/Terminar arriendo
+    — acciones de la misma clase de severidad, "irreversible-negativa").
+    Dado que no existe policy `DELETE`, y `contracts_update` bloquea
+    cualquier UPDATE posterior una vez `TERMINATED`, terminar un
+    contrato es un callejón sin salida en la práctica — el reviewer
+    considera esto un gap real de consistencia UX, no un nitpick de
+    estilo, precisamente porque el patrón ya existe en este código base
+    para el mismo tipo de acción y simplemente no se reutilizó.
+    Corrección sugerida: reutilizar `LifecycleConfirmAction` (cambio
+    solo de presentación, sin tocar el repository/RPC).
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
+  lint && pnpm test -- --run && pnpm build` — todos PASS. 82 archivos /
+  609 tests (0 fallos), 0 errores de lint (mismos 4 warnings
+  preexistentes, no relacionados). Build emite el chunk
+  `RentalContractsPage` correctamente.
+- **Human gates**: ninguno disparado — sin cambios de
+  schema/RLS/grants/migrations/dependencias/arquitectura (confirmado por
+  `git status`/`git diff --stat`, y por el reviewer vía MCP en vivo:
+  las 3 policies + 3 RPCs de `contracts` sin cambios respecto a lo
+  investigado, `supabase/migrations/` sin diff).
+- **Seguridad verificada** (vía MCP read-only, por el reviewer):
+  re-confirmó en vivo las 3 policies de `contracts` (sin `DELETE`), los
+  2 CHECK de consistencia origin/status, las 2 FK `RESTRICT` hacia
+  `files`, y que `shared_at`/`terminated_at` no tienen default/trigger
+  (por lo que deben setearse explícitamente desde el cliente — aceptado
+  como trade-off de severidad baja, no un hallazgo bloqueante, dado que
+  RLS sigue siendo la autoridad real sobre la transición en sí).
+
+### Incremento anterior: INC-010 — Generic file upload/download primitive
 (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-010) — la
 primitiva compartida de subida/descarga contra `files`/`storage.objects`
 que consumirán INC-011 (contratos) e INC-013 (pagos). Backend gate
@@ -1042,53 +1216,60 @@ explícito) cuando se lleguen a ejecutar.
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
   actualización de `PROGRESS.md`, en el mismo commit)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: el primitive de frontend de INC-010 —
-  nuevo `features/documents/` (`domain/file.types.ts`,
-  `domain/storage-path.ts`, `infrastructure/supabase-file.repository.ts`,
-  `composition.ts`, tests), sin `presentation/`, más esta actualización
-  de `PROGRESS.md`. El backend gate (migration de Storage) ya estaba
-  commiteado y pusheado por separado (`14eb8b9`).
+- **Contenido del checkpoint**: nuevo `features/contracts/` completo
+  (domain/infrastructure/application/presentation/composition, ~19
+  archivos nuevos), extensión aditiva `FileRepository.getById` en
+  `features/documents/`, nueva ruta `/rentals/:id/contracts`, acción
+  "Contratos" en `RentalListCard`, nuevo namespace i18n `contracts`
+  (es/es-CO), más esta actualización de `PROGRESS.md`.
 - **Fecha**: 2026-09-24
 - **Estado**: commiteado localmente, **pendiente de push** — push/merge
   nunca son automáticos en este workflow.
 - **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
-  (ya resueltos y pusheados en `14eb8b9`); ninguna UI/producto (fuera de
-  alcance por diseño de este incremento); ningún hook de `application/`
-  (decisión explícita, sin consumidor real todavía).
+  (INC-011 confirmó que no se necesitaba ninguno — las 3 RPCs y las 2
+  transiciones vía UPDATE directo ya estaban completamente soportadas);
+  ninguna UI de eliminación de contrato/archivo; ninguna firma digital
+  avanzada.
 
-Checkpoint previo ya pusheado: backend gate de INC-010 (`14eb8b9`) — ver
-"Registro de checkpoints".
+Checkpoint previo ya pusheado: INC-010 completo (`14eb8b9` backend gate,
+`e29eed4` primitive de frontend) — ver "Registro de checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado del primitive de frontend de
-INC-010, ejecutado de forma independiente por la sesión orquestadora y
-re-verificado por el reviewer (incluyendo re-verificación en vivo vía
-Supabase MCP read-only de las policies de `storage.objects`/
-`public.files`, sin cambios respecto a lo ya aplicado):
+Medido sobre el resultado integrado de INC-011, ejecutado de forma
+independiente por la sesión orquestadora y re-verificado por el
+reviewer (incluyendo re-verificación en vivo vía Supabase MCP read-only
+de las policies/RPCs de `contracts`, sin cambios respecto a lo
+investigado):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 553/553, 78 archivos |
-| `pnpm build` | PASS — sin nuevo chunk referenciando la feature todavía (esperado, sin consumidor aún) |
+| `pnpm test -- --run` | PASS — 609/609, 82 archivos |
+| `pnpm build` | PASS — emite el chunk `RentalContractsPage` correctamente |
 
 ## Siguiente acción recomendada
 
-Con INC-010 completo (backend gate + primitive), `FileRepository` está
-listo para ser consumido. Candidatos sin dependencias técnicas
-pendientes:
+Con INC-011 completo, el ciclo de contratos (registrar Habitex-generado
+o externo, compartir, adjuntar copia firmada, terminar) es usable de
+punta a punta. Deuda no bloqueante registrada: confirmación de dos pasos
+para "Terminar contrato" (MEDIUM, ver arriba) — candidato natural para un
+retoque pequeño, solo de presentación, si se retoma este feature antes
+de seguir con otro incremento.
 
-- **INC-011** — Contract management (sin firma avanzada). Depende de
-  INC-008 (rental activo) e INC-010 (subida de archivos) — ambos ya
-  completos.
+Candidatos sin dependencias técnicas pendientes:
+
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
 - **INC-017** — Corregir doc drift (sin dependencias).
 - **INC-018** — Habilitar `leaked_password_protection` (sin dependencias
   técnicas, pero es config de Supabase Auth — dispara HUMAN GATE
   automático por tocar Auth).
+- **INC-012** — Charges (depende de INC-006/INC-008, ambos completos).
+- **INC-013** — Payments: report & confirm (depende de INC-008; INC-010
+  ya provee el primitive de archivos que necesita para el comprobante
+  opcional).
 
 La priorización final sigue siendo del usuario, no del orchestrator (ver
 `SKILL.md` §"SELECT INCREMENT").
@@ -1118,4 +1299,5 @@ git, no aquí._
 | 2026-09-23 | `57b448c` | `chore/agentic-foundation` | INC-008 — Rental Activation, alcance restante: `RentalActivationErrorCode` extendido (`terms_incomplete`/`already_active`/`subject_in_use`), `RentalTermsRepository.listRelationshipIdsWithTerms` (nuevo método, sin RPC), `useRentalTermsExistence`, gate proactivo real en `RentalsPage`/`RentalListCard` (sin reemplazar al RPC como autoridad — verificado con test de estado de cliente obsoleto), fix del LOW de INC-006 en `RentalTermsPage` (read-only respeta `relationship.status`). Loop DRAFT→términos→`ACTIVE` verificado de punta a punta. Sin backend gate. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado. **Pusheado**. |
 | 2026-09-23 | `1e79c3b` | `chore/agentic-foundation` | INC-009 — Rental lifecycle completion: `RentalRepository.cancelDraft/startEnding/end`, `RentalLifecycleError`/`RentalLifecycleErrorCode` (`not_draft`/`not_active`/`not_endable`/`end_before_start`/`management_access_required`), 3 hooks nuevos, confirmación inline de dos pasos (sin Modal nuevo) en `RentalListCard` para Cancelar/Terminar arriendo, "Iniciar cierre" de un clic para `ACTIVE`. Autorización asimétrica del backend respetada exactamente: `cancelDraft` gateado por `useManagementGate` (`can_manage_administration`), `startEnding`/`end` deliberadamente NO gateados (`has_administration_management_role` únicamente — verificado en vivo por el reviewer). `end_rental` llamado sin `p_actual_end_date` (default del backend). Sin backend gate/cambios. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado (CSS duplicado). **Pusheado**. |
 | 2026-09-24 | `14eb8b9` | `chore/agentic-foundation` | INC-010 backend gate: RESEARCH GATE encontró `storage.objects` con RLS habilitada y cero policies (Storage completamente inalcanzable). Migration `20260924141732_storage_objects_administration_access.sql` autorada (3 policies `objects_select/insert/delete`, scoped por bucket + administración vía el primer segmento del path), revisada independientemente (`habitex-reviewer`: 0 BLOCKER/HIGH, 2 MEDIUM corregidos — `GRANT` redundante eliminado, nomenclatura alineada), verificada pre-apply (dry-run, conteo local/remoto) y **APLICADA** contra el proyecto real vía `supabase db push --yes` ejecutado por el usuario, verificada post-apply vía MCP read-only. INC-010 backend gate = RESOLVED. **Pusheado**. |
-| 2026-09-24 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-010 primitive de frontend: nuevo `features/documents/` (`FileRepository` upload/download/remove, sin `presentation/`). Paths únicos vía `crypto.randomUUID()` que nunca leen `originalName`, `upsert: false` siempre, `download()` autenticado (no signed URL), limpieza best-effort si falla el insert de metadata tras upload exitoso, delete ordenado (metadata antes que storage, fallo de storage post-delete propagado). Sin hooks de `application/` (sin consumidor real todavía). 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado (mime_type vacío no validado). **INC-010 completo — local, pendiente de push**. |
+| 2026-09-24 | `e29eed4` | `chore/agentic-foundation` | INC-010 primitive de frontend: nuevo `features/documents/` (`FileRepository` upload/download/remove, sin `presentation/`). Paths únicos vía `crypto.randomUUID()` que nunca leen `originalName`, `upsert: false` siempre, `download()` autenticado (no signed URL), limpieza best-effort si falla el insert de metadata tras upload exitoso, delete ordenado (metadata antes que storage, fallo de storage post-delete propagado). Sin hooks de `application/` (sin consumidor real todavía). 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado (mime_type vacío no validado). **INC-010 completo — Pusheado**. |
+| 2026-09-24 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-011 — Contract management: nuevo `features/contracts/` (`ContractRepository` sobre las 3 RPCs desplegadas + 2 UPDATE directos guardados por status, `computeSha256Hex` real vía Web Crypto, `buildTermsSnapshot` desde `RentalTermVersion`+`RentalRelationship`, subida-luego-registro sin re-subida en reintento). Extensión aditiva `FileRepository.getById`. Ruta `/rentals/:id/contracts`, acción "Contratos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, creación de contrato solo para `ACTIVE`/`ENDING` (decisión de producto/UX, no autorización). Sin backend gate — las 3 RPCs y las 2 transiciones vía UPDATE ya estaban completamente soportadas. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM no bloqueante registrado (sin confirmación de dos pasos en "Terminar contrato"). **INC-011 completo — local, pendiente de push**. |

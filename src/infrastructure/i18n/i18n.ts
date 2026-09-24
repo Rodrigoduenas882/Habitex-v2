@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next'
 import administrationEsCO from './locales/es-CO/administration.json'
 import authEsCO from './locales/es-CO/auth.json'
 import commonEsCO from './locales/es-CO/common.json'
+import contractsEsCO from './locales/es-CO/contracts.json'
 import dashboardEsCO from './locales/es-CO/dashboard.json'
 import parkingEsCO from './locales/es-CO/parking.json'
 import propertiesEsCO from './locales/es-CO/properties.json'
@@ -11,6 +12,7 @@ import uiPreviewEsCO from './locales/es-CO/uiPreview.json'
 import administrationEs from './locales/es/administration.json'
 import authEs from './locales/es/auth.json'
 import commonEs from './locales/es/common.json'
+import contractsEs from './locales/es/contracts.json'
 import dashboardEs from './locales/es/dashboard.json'
 import parkingEs from './locales/es/parking.json'
 import propertiesEs from './locales/es/properties.json'
@@ -35,6 +37,7 @@ export const resources = {
     parking: parkingEsCO,
     rentals: rentalsEsCO,
     administration: administrationEsCO,
+    contracts: contractsEsCO,
   },
   es: {
     common: commonEs,
@@ -45,6 +48,7 @@ export const resources = {
     parking: parkingEs,
     rentals: rentalsEs,
     administration: administrationEs,
+    contracts: contractsEs,
   },
 } as const
 
@@ -53,7 +57,7 @@ void i18next.use(initReactI18next).init({
   lng: 'es-CO',
   fallbackLng: 'es',
   defaultNS,
-  ns: ['common', 'auth', 'uiPreview', 'dashboard', 'properties', 'parking', 'rentals', 'administration'],
+  ns: ['common', 'auth', 'uiPreview', 'dashboard', 'properties', 'parking', 'rentals', 'administration', 'contracts'],
   interpolation: {
     // React already escapes interpolated values.
     escapeValue: false,

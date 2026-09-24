@@ -45,6 +45,16 @@ function toFileMetadata(row: FileRow): FileMetadata {
 }
 
 export const supabaseFileRepository: FileRepository = {
+  async getById(id: string): Promise<FileMetadata | null> {
+    const { data, error } = await supabaseClient.from('files').select(FILE_COLUMNS).eq('id', id).maybeSingle()
+
+    if (error) {
+      throw new FileRepositoryError('Failed to load the file metadata record', error)
+    }
+
+    return data ? toFileMetadata(data) : null
+  },
+
   async upload(input: UploadFileInput): Promise<FileMetadata> {
     const path = buildStoragePath(input.administrationId, input.blob, input.originalName)
 
