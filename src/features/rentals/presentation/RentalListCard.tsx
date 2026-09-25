@@ -261,6 +261,22 @@ export function RentalListCard({ rental, activation, cancelDraft, startEnding, e
           {t('list.contracts')}
         </Button>
       ) : null}
+      {rental.status === 'ACTIVE' || rental.status === 'ENDING' || rental.status === 'ENDED' ? (
+        // Same visibility rule and plain-navigation pattern as "Contratos"
+        // above - see RentalChargesPage's own doc comment for why DRAFT
+        // (never chargeable) and CANCELLED (nothing to show) are excluded.
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className={styles['termsAction']}
+          onClick={() => {
+            void navigate(`/rentals/${rental.id}/charges`)
+          }}
+        >
+          {t('list.charges')}
+        </Button>
+      ) : null}
       {rental.status === 'DRAFT' && activation ? (
         <div className={styles['activateRow']}>
           <Button

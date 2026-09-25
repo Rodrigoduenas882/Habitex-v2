@@ -21,6 +21,7 @@ const RentalsPage = lazy(() => import('@/features/rentals/presentation/RentalsPa
 const AddRentalPage = lazy(() => import('@/features/rentals/presentation/AddRentalPage'))
 const RentalTermsPage = lazy(() => import('@/features/rentals/presentation/RentalTermsPage'))
 const RentalContractsPage = lazy(() => import('@/features/contracts/presentation/RentalContractsPage'))
+const RentalChargesPage = lazy(() => import('@/features/charges/presentation/RentalChargesPage'))
 const LoginPage = lazy(() => import('@/features/auth/presentation/LoginPage'))
 const UiPreviewPage = lazy(() => import('../pages/ui-preview/UiPreviewPage'))
 const NotFoundPage = lazy(() => import('@/shared/components/NotFoundPage'))
@@ -60,6 +61,7 @@ export const router = createBrowserRouter([
                   { path: 'rentals/new', element: withSuspense(<AddRentalPage />) },
                   { path: 'rentals/:id/terms', element: withSuspense(<RentalTermsPage />) },
                   { path: 'rentals/:id/contracts', element: withSuspense(<RentalContractsPage />) },
+                  { path: 'rentals/:id/charges', element: withSuspense(<RentalChargesPage />) },
                 ],
               },
             ],

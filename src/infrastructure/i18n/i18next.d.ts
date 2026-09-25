@@ -1,6 +1,7 @@
 import 'i18next'
 import type administration from './locales/es-CO/administration.json'
 import type auth from './locales/es-CO/auth.json'
+import type charges from './locales/es-CO/charges.json'
 import type common from './locales/es-CO/common.json'
 import type contracts from './locales/es-CO/contracts.json'
 import type dashboard from './locales/es-CO/dashboard.json'
@@ -22,6 +23,7 @@ declare module 'i18next' {
       rentals: typeof rentals
       administration: typeof administration
       contracts: typeof contracts
+      charges: typeof charges
     }
   }
 }

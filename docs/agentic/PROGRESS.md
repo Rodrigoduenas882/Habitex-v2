@@ -58,14 +58,23 @@ INC-010" más abajo.
 `attach_signed_contract_copy`) cubren toda la creación/firma; "marcar
 compartido" y "terminar" son UPDATE directo, RLS-gated, guardado por
 status del lado del cliente ya que la RLS no lo restringe), implementado,
-validado e independientemente revisado (0 BLOCKER/HIGH; 1 MEDIUM no
-bloqueante registrado). Checkpoint local pendiente de push. Ver detalle
-en "Último incremento ejecutado" más abajo.
+validado e independientemente revisado (0 BLOCKER/HIGH; 1 MEDIUM resuelto
+en un review-fix del 2026-09-25, ver detalle en "Incremento anterior:
+INC-011" más abajo). Checkpoints `f1d6ae1` + `6cb0f71` pusheados a
+`origin/chore/agentic-foundation`.
+
+**INC-012 — Charges**: **completo** (frontend-only, sin cambios de
+backend — `generate_rent_charges` ya desplegado, idempotente, y
+`public.charge_balances` ya provee `paid_amount`/`balance`/
+`financial_status` derivados server-side), implementado, validado e
+independientemente revisado (0 BLOCKER/HIGH; 2 LOW no bloqueantes
+registrados). Checkpoint local pendiente de push. Ver detalle en "Último
+incremento ejecutado" más abajo.
 
 ## Estado
 
-`INC-011 completo, checkpoint local pendiente de push.
-INC-001/003/004/006/008/009/010 pusheados`.
+`INC-012 completo, checkpoint local pendiente de push.
+INC-001/003/004/006/008/009/010/011 pusheados`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -128,7 +137,8 @@ INC-001/003/004/006/008/009/010 pusheados`.
   primitive de frontend). Nuevo `features/documents/` (`FileRepository`
   `upload`/`download`/`remove`, sin producto/UI), consumido directamente
   por INC-011.
-- INC-011: **completo**. Nuevo `features/contracts/` — aggregate propio
+- INC-011: **completo y pusheado** (`f1d6ae1`, más un review-fix
+  `6cb0f71`). Nuevo `features/contracts/` — aggregate propio
   (dominio/infraestructura/aplicación/presentación/composition, no
   plegado en `features/rentals/`). `ContractRepository` envuelve
   exactamente las 3 RPCs ya desplegadas para creación/firma (nunca un
@@ -157,7 +167,8 @@ INC-001/003/004/006/008/009/010 pusheados`.
   autorización real** (el RPC no exige ningún status de rental).
   `ENDED` conserva lectura/descarga histórica sin sección de creación.
   Acciones por status exactas: `GENERATED` → marcar compartido + adjuntar
-  copia firmada; `SHARED` → adjuntar copia firmada; `SIGNED` → terminar;
+  copia firmada; `SHARED` → adjuntar copia firmada; `SIGNED` → terminar
+  (con confirmación inline de dos pasos, agregada por el review-fix);
   `TERMINATED`/`DRAFT` → ninguna. `useManagementGate` aplicado de forma
   uniforme a las 5 acciones mutantes (sin la asimetría de INC-009 — el
   RPC/RLS de contracts usa `can_manage_administration()` en todos los
@@ -173,8 +184,63 @@ INC-001/003/004/006/008/009/010 pusheados`.
   (contexto independiente, re-verificó en vivo vía Supabase MCP
   read-only las policies/RPCs de `contracts`, confirmó que los guardados
   de status y la ausencia de INSERT directo son reales, no solo
-  documentados: 0 BLOCKER/HIGH, 1 MEDIUM no bloqueante registrado),
-  checkpointed localmente (ver "Último checkpoint").
+  documentados: 0 BLOCKER/HIGH, 1 MEDIUM); el MEDIUM (sin confirmación de
+  dos pasos en "Terminar contrato") se resolvió en un review-fix
+  separado (`6cb0f71`, revisado independientemente de nuevo: 0
+  BLOCKER/HIGH/MEDIUM/LOW nuevos). Ambos commits pusheados tras
+  aprobación humana.
+- INC-012: **completo**. Nuevo `features/charges/` — aggregate propio
+  (dominio/infraestructura/aplicación/presentación/composition, no
+  plegado en `features/rentals/`). `ChargeRepository` tiene exactamente
+  dos métodos: `listByRelationship` (dos `SELECT` directos separados
+  contra `public.charges` y la vista `public.charge_balances` — sin FK
+  registrada entre ambas para embedding de PostgREST, mezcladas por id
+  en el adapter; `paidAmount`/`balance`/`financialStatus` vienen
+  siempre de la vista, nunca calculados en el frontend) y
+  `generateRentCharges` (envuelve el RPC ya desplegado
+  `generate_rent_charges`, llamado solo con `p_relationship_id` para que
+  aplique el default `CURRENT_DATE` del backend — sin lógica de
+  periodos/mes/monto/versión de términos en TypeScript, el RPC es dueño
+  de todo eso). El RPC es idempotente (índice único +
+  `ON CONFLICT DO NOTHING`) — un resultado de 0 filas nuevas se trata
+  como éxito, nunca como error, con copy distinta ("N cargo(s)
+  generado(s)" vs. "no había cargos nuevos por generar"). Mapeo de error
+  tipado deliberadamente acotado a los 3 códigos realmente alcanzables
+  (`management_access_required`/`not_chargeable`/
+  `billing_configuration_incomplete`), el resto cae a `unknown`. Sin
+  vista de detalle general — ruta angosta `/rentals/:id/charges` (mismo
+  principio que `/rentals/:id/terms` y `/rentals/:id/contracts`), acción
+  "Cargos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED` (no
+  `DRAFT`/`CANCELLED`) — regla de UX de producto, no de autorización (el
+  RPC tiene su propia verificación de status, `RENTAL_NOT_CHARGEABLE`,
+  que coincide pero no es lo que la UI aplica). `ENDED` puede seguir
+  generando cargos (el RPC lo permite explícitamente — no se asumió que
+  "terminado" implica "nunca más generar"). "Generar cargos de renta"
+  gateado por `useManagementGate` (reutilizado, sin lógica nueva); acceso
+  vencido deshabilita la generación pero nunca oculta el historial de
+  cargos de solo lectura (`charges_select` RLS no exige gestión, solo
+  membresía/participación). Sin creación de cargos manuales
+  (`ADMINISTRATION`/`UTILITY`/`OTHER`/RENT manual) aunque la RLS de
+  `charges` lo permitiría vía INSERT directo — decisión humana explícita
+  de excluirlo de este incremento. Sin llamada a
+  `generate_fixed_utility_charges`. **Sin ninguna UI de editar/
+  eliminar/cancelar/anular cargo** — decisión deliberada dado que la
+  policy `charges_update_manager` no protege `amount` contra un balance
+  ya asignado, así que este incremento nunca expone esa superficie. Sin
+  UI de pagos/reporte/confirmación/allocation/recibos (INC-013/014/015)
+  — mostrar `financial_status`/`paid_amount`/`balance` derivados de
+  `charge_balances` es lectura, no implementación de Payments. Dinero:
+  `number` plano (mismo patrón ya establecido para `rent_amount`), COP
+  única moneda, `.tabular-nums` por `DESIGN.md` §4, sin BigDecimal ni
+  capa de minor-units. Implementado (1 ronda), validado de forma
+  independiente, revisado por `habitex-reviewer` (contexto independiente,
+  re-verificó en vivo vía Supabase MCP read-only el cuerpo completo del
+  RPC, la vista `charge_balances` con `security_invoker=true` vía
+  `pg_class.reloptions`, y el grant a `authenticated` vía
+  `has_table_privilege` — no vía `information_schema.role_table_grants`,
+  que ya dio un falso negativo en INC-010: 0 BLOCKER/HIGH, 2 LOW no
+  bloqueantes registrados), checkpointed localmente (ver "Último
+  checkpoint").
 
 ## Subtareas
 
@@ -201,20 +267,170 @@ INC-001/003/004/006/008/009/010 pusheados`.
 | INC-009 — Rental lifecycle completion (`RentalRepository.cancelDraft/startEnding/end`, `RentalLifecycleError`, 3 hooks nuevos, confirmación inline de dos pasos en `RentalListCard`, autorización asimétrica respetada exactamente) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `1e79c3b` pusheado |
 | INC-010 — backend gate (RESEARCH GATE encontró `storage.objects` sin policies; migration autorada, revisada, aplicada y verificada) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only, commiteada y pusheada (`14eb8b9`) |
 | INC-010 — primitive de frontend (`features/documents/`: `FileRepository` upload/download/remove, paths únicos, sin producto/UI) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `e29eed4` pusheado |
-| INC-011 — Contract management (`features/contracts/`: `ContractRepository` sobre las 3 RPCs + 2 UPDATE guardados, SHA-256 real, `terms_snapshot`, subida-luego-registro sin re-subida en reintento, ruta `/rentals/:id/contracts`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM **resuelto** en review-fix del 2026-09-25, ver detalle abajo), checkpoints locales (`f1d6ae1` + fix) pendientes de push |
+| INC-011 — Contract management (`features/contracts/`: `ContractRepository` sobre las 3 RPCs + 2 UPDATE guardados, SHA-256 real, `terms_snapshot`, subida-luego-registro sin re-subida en reintento, ruta `/rentals/:id/contracts`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM **resuelto** en review-fix del 2026-09-25), checkpoints `f1d6ae1` + `6cb0f71` pusheados |
+| INC-012 — Charges (`features/charges/`: `ChargeRepository` con `listByRelationship`/`generateRentCharges`, `charge_balances` como fuente de verdad de balance/estado financiero, ruta `/rentals/:id/charges`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados), checkpoint local pendiente de push |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006 (`1b1dc3a`),
-INC-008 (`57b448c`), INC-009 (`1e79c3b`) e INC-010 (`14eb8b9`, `e29eed4`)
-ya están en `origin/chore/agentic-foundation` — HEAD y origin
-sincronizados. El nuevo checkpoint de INC-011 (ver "Último checkpoint")
-sigue pendiente de revisión humana antes de push.
+INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`, `e29eed4`)
+e INC-011 (`f1d6ae1`, `6cb0f71`) ya están en
+`origin/chore/agentic-foundation` — HEAD y origin sincronizados. El
+nuevo checkpoint de INC-012 (ver "Último checkpoint") sigue pendiente de
+revisión humana antes de push.
 
 ## Último incremento ejecutado
 
-**INC-011 — Contract management (sin firma avanzada)**
+**INC-012 — Charges** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección
+INC-012) — generar cargos de renta reales sobre una relación activa a
+partir de sus términos vigentes, y listarlos junto con su estado
+financiero derivado (pendiente/vencido/parcial/pagado).
+
+- **RESEARCH GATE**: resuelto sin escalar — modelo de datos completo de
+  `public.charges` re-verificado en vivo (sin columna `status`, sin
+  policy `DELETE`, `RLS`: `charges_select`/`can_view_relationship`,
+  `charges_insert_manager`/`charges_update_manager`/
+  `can_manage_administration`), más el cuerpo completo (no solo la firma)
+  de `generate_rent_charges` leído vía `pg_get_functiondef`: bloquea la
+  fila del rental, exige `can_manage_administration`
+  (`MANAGEMENT_ACCESS_REQUIRED`), exige status
+  `ACTIVE`/`ENDING`/`ENDED` (`RENTAL_NOT_CHARGEABLE`), exige
+  `tracking_start_date`/`payment_day` (`RENTAL_BILLING_CONFIGURATION_INCOMPLETE`),
+  itera mes a mes seleccionando la `rental_term_versions` vigente en cada
+  periodo, e inserta con `ON CONFLICT DO NOTHING` respaldado por el
+  índice único `charges_recurring_source_uq` — **idempotente**, una
+  llamada repetida es siempre segura y puede legítimamente devolver 0
+  filas nuevas. Hallazgo clave: **`public.charge_balances`** ya existe
+  como vista (`security_invoker=true`, confirmado vía
+  `pg_class.reloptions`, no vía `information_schema.views` que devolvió
+  `view_definition: null` para el rol read-only del MCP — mismo tipo de
+  falso negativo ya documentado en INC-010) con `SELECT` otorgado a
+  `authenticated` (confirmado vía `has_table_privilege`, no vía
+  `information_schema.role_table_grants`) — computa `paid_amount`/
+  `balance`/`financial_status` (`PENDING`/`OVERDUE`/`PARTIAL`/`PAID`)
+  server-side a partir de `payment_allocations`/`payments.status =
+  'CONFIRMED'`, y ya es útil hoy (antes de que exista INC-013 en el
+  frontend) porque con cero pagos reales sigue devolviendo
+  `PENDING`/`OVERDUE` correctos. Sin FK registrada entre `charges` y
+  `charge_balances` para PostgREST embedding — confirmado, dos `SELECT`
+  separados es la única forma correcta de leerlas juntas. **Sin HUMAN
+  GATE de Supabase/schema/RLS — YES, backend sin cambios.**
+- **Decisiones humanas explícitas** (ver mensaje "HUMAN DECISIONS —
+  INC-012"): sin creación de cargos manuales en este incremento (aunque
+  la RLS lo permitiría vía INSERT directo — alcance de producto futuro);
+  usar `charge_balances` ahora mismo para el estado financiero, aunque
+  `PARTIAL`/`PAID` no sean alcanzables todavía sin INC-013 en el
+  frontend.
+- **Qué se agregó**:
+  - Nuevo `features/charges/` — aggregate propio con las 4 capas que su
+    responsabilidad justifica (domain/infrastructure/application/
+    presentation + composition), **no plegado en `features/rentals/`**.
+  - `ChargeRepository`, exactamente dos métodos:
+    - `listByRelationship`: dos `SELECT` directos separados
+      (`public.charges` + `public.charge_balances`, ambos scoped por
+      `rental_relationship_id`), mezclados por id en el adapter —
+      `paidAmount`/`balance`/`financialStatus` **siempre** vienen de la
+      vista, nunca calculados en TypeScript (verificado por el reviewer
+      con grep: ningún cálculo de balance en el frontend).
+    - `generateRentCharges`: envuelve `generate_rent_charges`, llamado
+      **solo con `p_relationship_id`** (nunca `p_through_date`, así
+      aplica el default `CURRENT_DATE` del backend — mismo patrón que
+      `end_rental` omitiendo `p_actual_end_date` en INC-009). Confirmado
+      por grep: cero lógica de periodos/mes/monto/versión de términos en
+      todo `src/features/charges/` — el RPC es dueño de todo eso. Un
+      resultado de 0 filas nuevas se mapea a `{ createdCount: 0 }`, un
+      éxito, nunca un error.
+  - Mapeo de error tipado deliberadamente acotado — solo los 3 códigos
+    realmente alcanzables (`management_access_required`/
+    `not_chargeable`/`billing_configuration_incomplete`); todo lo demás
+    (incluido `RENTAL_RELATIONSHIP_NOT_FOUND`, inalcanzable en el flujo
+    real ya que el id siempre viene de una lista ya cargada) cae a
+    `unknown`.
+  - Sin vista de detalle general — ruta angosta `/rentals/:id/charges`
+    (mismo principio que `/rentals/:id/terms` y `/rentals/:id/contracts`),
+    acción "Cargos" nueva en `RentalListCard` solo para
+    `ACTIVE`/`ENDING`/`ENDED` (no `DRAFT`/`CANCELLED`) — **regla de UX de
+    producto, no de autorización real** (el RPC tiene su propia
+    verificación `RENTAL_NOT_CHARGEABLE`, que coincide pero no es lo que
+    la UI aplica).
+  - **`ENDED` puede seguir generando cargos** — el RPC lo permite
+    explícitamente (cargos finales de un arriendo terminado); el
+    frontend no asume que "terminado" implica "nunca más generar".
+  - "Generar cargos de renta" gateado por `useManagementGate`
+    (reutilizado sin lógica nueva); acceso de gestión vencido deshabilita
+    la generación con una razón visible pero **nunca oculta** el
+    historial de cargos de solo lectura (`charges_select` no exige
+    gestión, solo membresía/participación — mismo principio ya
+    establecido en `features/contracts/`/`features/documents/`). Botón
+    deshabilitado mientras la mutación está pendiente (sin doble envío).
+    Éxito invalida/refetch la query de cargos de la relación.
+  - **Sin creación de cargos manuales** de ningún tipo
+    (`ADMINISTRATION`/`UTILITY`/`OTHER`/RENT manual) — decisión humana
+    explícita, aunque `charges_insert_manager` lo permitiría. **Sin
+    llamada a `generate_fixed_utility_charges`** en ningún lugar.
+  - **Sin ninguna UI de editar/eliminar/cancelar/anular cargo** —
+    decisión deliberada: la policy `charges_update_manager` no protege
+    `amount` contra un balance ya asignado (ningún CHECK lo impide), así
+    que este incremento nunca expone esa superficie de mutación,
+    tratando los cargos como estrictamente de solo lectura.
+  - **Sin UI de pagos/reporte/confirmación/allocation/recibos**
+    (INC-013/014/015) — mostrar `financial_status`/`paid_amount`/
+    `balance` derivados de `charge_balances` es lectura, no
+    implementación de Payments.
+  - Dinero: `number` plano (mismo patrón ya establecido para
+    `rent_amount` en `rental_term_versions`), COP como única moneda
+    (`CHECK currency = 'COP'` en el schema), `.tabular-nums` por
+    `DESIGN.md` §4, `Intl.NumberFormat('es-CO')`, sin BigDecimal ni capa
+    de minor-units.
+  - i18n: nuevo namespace `charges` (es/es-CO, registrado en
+    `i18n.ts`/`i18next.d.ts`) + una clave nueva en `rentals.json`
+    (`list.charges`, "Cargos").
+- **Tests**: 655/655 en la suite completa (36 nuevos), incluyendo
+  cobertura explícita de exactamente lo pedido — mezcla de las dos
+  consultas con los campos financieros viniendo de la vista; RPC llamado
+  solo con `p_relationship_id`; los 3 mapeos de error tipados + fallback
+  `unknown`; `createdCount: 0` tratado como éxito en repository/hook/UI;
+  "Cargos" presente en `ACTIVE`/`ENDING`/`ENDED` y ausente en
+  `DRAFT`/`CANCELLED`; acceso vencido deshabilita generación sin ocultar
+  el historial; pending previene doble envío; invalidación tras éxito;
+  render de los 4 `financialStatus`; loading/error/empty/populated; sin
+  UI de creación manual; sin acción de editar/eliminar/anular.
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente,
+  re-verificó en vivo vía Supabase MCP read-only el cuerpo completo del
+  RPC, la vista `charge_balances` con `security_invoker=true`, y su
+  grant a `authenticated`) no encontró BLOCKER/HIGH.
+- **Deuda no bloqueante registrada** (2 LOW del reviewer, sin fix loop
+  por debajo del umbral BLOCKER/HIGH):
+  - LOW: `generate.success.created` en `charges.json` usa un string
+    manual `"{{count}} cargo(s) generado(s)."` en vez de las claves de
+    plural de i18next (`_one`/`_other`). Sin impacto funcional.
+  - LOW: el botón "Cargos" de `RentalListCard` reutiliza
+    `styles['termsAction']` (nombrada por la acción "Completar
+    términos") para una tercera acción sin relación semántica — deuda ya
+    existente desde que "Contratos" hizo lo mismo en INC-011, este
+    incremento no la introduce, solo la extiende. Rename sugerido
+    (`styles['secondaryAction']`) si se retoma este archivo.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
+  lint && pnpm test -- --run && pnpm build` — todos PASS. 85 archivos /
+  655 tests (0 fallos), 0 errores de lint (mismos 4 warnings
+  preexistentes, no relacionados). Build emite el chunk
+  `RentalChargesPage` correctamente.
+- **Human gates**: ninguno disparado — sin cambios de
+  schema/RLS/grants/migrations/dependencias/arquitectura (confirmado por
+  `git status`/`git diff --stat`, y por el reviewer vía MCP en vivo: sin
+  archivo nuevo bajo `supabase/migrations/`, RPC/vista/policies de
+  `charges`/`charge_balances` sin cambios respecto a lo investigado).
+- **Seguridad verificada** (vía MCP read-only, por el reviewer):
+  re-confirmó en vivo `charges_select`/`charges_insert_manager`/
+  `charges_update_manager`, `charge_balances` con
+  `security_invoker=true` y su grant real a `authenticated`, el cuerpo
+  completo de `generate_rent_charges` (orden exacto de las 4
+  excepciones), y que no existe FK para embedding entre `charges` y
+  `charge_balances`.
+
+### Incremento anterior: INC-011 — Contract management (sin firma avanzada)
 (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección INC-011) — registrar
 un contrato Habitex-generado o externo, adjuntar copia firmada
 manualmente, seguir su ciclo de vida, sin ningún mecanismo de firma
@@ -1245,67 +1461,62 @@ explícito) cuando se lleguen a ejecutar.
 ## Último checkpoint
 
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit — el review-fix del
-  MEDIUM de INC-011)_
+  actualización de `PROGRESS.md`, en el mismo commit — INC-012)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: fix de revisión enfocado, no un nuevo
-  incremento — nuevo componente local `TerminateContractAction` en
-  `RentalContractsPage.tsx` (confirmación inline de dos pasos para
-  "Terminar contrato", mismo patrón que `LifecycleConfirmAction` de
-  INC-009), clase CSS `.confirmActions` en
-  `RentalContractsPage.module.css`, 6 tests nuevos en
-  `RentalContractsPage.test.tsx`. Ningún otro archivo tocado.
+- **Contenido del checkpoint**: nuevo `features/charges/` completo
+  (domain/infrastructure/application/presentation/composition, 11
+  archivos nuevos), nuevo namespace i18n `charges` (es/es-CO), acción
+  "Cargos" nueva en `RentalListCard`, nueva ruta `/rentals/:id/charges`,
+  más esta actualización de `PROGRESS.md`.
 - **Fecha**: 2026-09-25
 - **Estado**: commiteado localmente, **pendiente de push** — push/merge
   nunca son automáticos en este workflow.
-- **No incluido**: ningún cambio a `ContractRepository`/Supabase/RLS/
-  migrations/dependencias; ninguna nueva funcionalidad de producto;
-  ningún Modal/Dialog global nuevo.
+- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
+  (INC-012 confirmó que no se necesitaba ninguno — `generate_rent_charges`
+  y `charge_balances` ya estaban completamente soportados); ninguna
+  creación/edición/eliminación de cargos; ninguna UI de pagos.
 
-Checkpoint anterior (mismo incremento, tampoco pusheado todavía):
-`f1d6ae1` — INC-011 Contract management completo (nuevo
-`features/contracts/` completo — domain/infrastructure/application/
-presentation/composition, ~19 archivos nuevos —, extensión aditiva
-`FileRepository.getById`, nueva ruta `/rentals/:id/contracts`, acción
-"Contratos" en `RentalListCard`, nuevo namespace i18n `contracts`
-es/es-CO). Checkpoint previo a ese, ya pusheado: INC-010 completo
-(`14eb8b9` backend gate, `e29eed4` primitive de frontend) — ver
-"Registro de checkpoints".
+Checkpoint anterior, ya pusheado: INC-011 completo (`f1d6ae1` Contract
+management, `6cb0f71` review-fix de la confirmación de dos pasos en
+"Terminar contrato") — ver "Registro de checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado del review-fix (encima de `f1d6ae1`),
-ejecutado de forma independiente por la sesión orquestadora y
-re-verificado por un `habitex-reviewer` enfocado (contexto independiente
-del fix, no el mismo que lo implementó):
+Medido sobre el resultado integrado de INC-012, ejecutado de forma
+independiente por la sesión orquestadora y re-verificado por el
+reviewer (incluyendo re-verificación en vivo vía Supabase MCP read-only
+del cuerpo completo de `generate_rent_charges` y de la vista
+`charge_balances`, sin cambios respecto a lo investigado):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 614/614, 82 archivos |
-| `pnpm build` | PASS — emite el chunk `RentalContractsPage` correctamente |
+| `pnpm test -- --run` | PASS — 655/655, 85 archivos |
+| `pnpm build` | PASS — emite el chunk `RentalChargesPage` correctamente |
 
 ## Siguiente acción recomendada
 
-Con INC-011 completo y el MEDIUM de "Terminar contrato" resuelto, el
-ciclo de contratos (registrar Habitex-generado o externo, compartir,
-adjuntar copia firmada, terminar con confirmación de dos pasos) es
-usable de punta a punta sin deuda no bloqueante pendiente de este
-incremento.
+Con INC-012 completo, una relación `ACTIVE`/`ENDING`/`ENDED` puede
+generar y consultar sus cargos de renta reales, incluyendo su estado
+financiero derivado del backend — de punta a punta, sin deuda
+bloqueante. Deuda no bloqueante registrada (2 LOW, ver arriba): copy de
+plural manual en `generate.success.created`, y reutilización de
+`styles['termsAction']` para el botón "Cargos" — ambos triviales de
+corregir si se retoma este archivo.
 
 Candidatos sin dependencias técnicas pendientes:
 
+- **INC-013** — Payments: report & confirm (depende de INC-008, ya
+  completo; no depende de INC-012 — confirmado por la firma de
+  `report_payment`, que no toma `charge_id`). Con INC-012 ya completo,
+  `charge_balances` ya reflejará pagos reales en cuanto INC-013 exista.
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
 - **INC-017** — Corregir doc drift (sin dependencias).
 - **INC-018** — Habilitar `leaked_password_protection` (sin dependencias
   técnicas, pero es config de Supabase Auth — dispara HUMAN GATE
   automático por tocar Auth).
-- **INC-012** — Charges (depende de INC-006/INC-008, ambos completos).
-- **INC-013** — Payments: report & confirm (depende de INC-008; INC-010
-  ya provee el primitive de archivos que necesita para el comprobante
-  opcional).
 
 La priorización final sigue siendo del usuario, no del orchestrator (ver
 `SKILL.md` §"SELECT INCREMENT").
@@ -1337,4 +1548,5 @@ git, no aquí._
 | 2026-09-24 | `14eb8b9` | `chore/agentic-foundation` | INC-010 backend gate: RESEARCH GATE encontró `storage.objects` con RLS habilitada y cero policies (Storage completamente inalcanzable). Migration `20260924141732_storage_objects_administration_access.sql` autorada (3 policies `objects_select/insert/delete`, scoped por bucket + administración vía el primer segmento del path), revisada independientemente (`habitex-reviewer`: 0 BLOCKER/HIGH, 2 MEDIUM corregidos — `GRANT` redundante eliminado, nomenclatura alineada), verificada pre-apply (dry-run, conteo local/remoto) y **APLICADA** contra el proyecto real vía `supabase db push --yes` ejecutado por el usuario, verificada post-apply vía MCP read-only. INC-010 backend gate = RESOLVED. **Pusheado**. |
 | 2026-09-24 | `e29eed4` | `chore/agentic-foundation` | INC-010 primitive de frontend: nuevo `features/documents/` (`FileRepository` upload/download/remove, sin `presentation/`). Paths únicos vía `crypto.randomUUID()` que nunca leen `originalName`, `upsert: false` siempre, `download()` autenticado (no signed URL), limpieza best-effort si falla el insert de metadata tras upload exitoso, delete ordenado (metadata antes que storage, fallo de storage post-delete propagado). Sin hooks de `application/` (sin consumidor real todavía). 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado (mime_type vacío no validado). **INC-010 completo — Pusheado**. |
 | 2026-09-24 | `f1d6ae1` | `chore/agentic-foundation` | INC-011 — Contract management: nuevo `features/contracts/` (`ContractRepository` sobre las 3 RPCs desplegadas + 2 UPDATE directos guardados por status, `computeSha256Hex` real vía Web Crypto, `buildTermsSnapshot` desde `RentalTermVersion`+`RentalRelationship`, subida-luego-registro sin re-subida en reintento). Extensión aditiva `FileRepository.getById`. Ruta `/rentals/:id/contracts`, acción "Contratos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, creación de contrato solo para `ACTIVE`/`ENDING` (decisión de producto/UX, no autorización). Sin backend gate — las 3 RPCs y las 2 transiciones vía UPDATE ya estaban completamente soportadas. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM no bloqueante registrado (sin confirmación de dos pasos en "Terminar contrato"). **INC-011 completo — local, pendiente de push**. |
-| 2026-09-25 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-011 review-fix (no un nuevo incremento): resuelve el MEDIUM de `f1d6ae1` — nuevo componente local `TerminateContractAction` en `RentalContractsPage.tsx` reimplementa el patrón de confirmación inline de dos pasos de `LifecycleConfirmAction` (INC-009) para "Terminar contrato" (`SIGNED`→`TERMINATED`), sin Modal/Dialog nuevo, sin cambio a `ContractRepository`/Supabase/RLS/migrations. 6 tests nuevos. Revisión enfocada independiente (`habitex-reviewer`, contexto separado del fix): 0 BLOCKER/HIGH/MEDIUM/LOW nuevos, MEDIUM original **RESUELTO**. Validación completa PASS — 614/614 tests. **Local, pendiente de push junto con `f1d6ae1`**. |
+| 2026-09-25 | `6cb0f71` | `chore/agentic-foundation` | INC-011 review-fix (no un nuevo incremento): resuelve el MEDIUM de `f1d6ae1` — nuevo componente local `TerminateContractAction` en `RentalContractsPage.tsx` reimplementa el patrón de confirmación inline de dos pasos de `LifecycleConfirmAction` (INC-009) para "Terminar contrato" (`SIGNED`→`TERMINATED`), sin Modal/Dialog nuevo, sin cambio a `ContractRepository`/Supabase/RLS/migrations. 6 tests nuevos. Revisión enfocada independiente (`habitex-reviewer`, contexto separado del fix): 0 BLOCKER/HIGH/MEDIUM/LOW nuevos, MEDIUM original **RESUELTO**. Validación completa PASS — 614/614 tests. **INC-011 completo — Pusheado** (junto con `f1d6ae1`). |
+| 2026-09-25 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-012 — Charges: nuevo `features/charges/` (`ChargeRepository` con `listByRelationship` — dos `SELECT` separados contra `charges`/`charge_balances`, mezclados por id, financiero siempre desde la vista — y `generateRentCharges`, que envuelve `generate_rent_charges` llamado solo con `p_relationship_id`, sin lógica de periodos/monto en el frontend). Ruta `/rentals/:id/charges`, acción "Cargos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, sin creación manual de cargos, sin UI de editar/eliminar/anular, sin UI de pagos (decisiones humanas explícitas). Sin backend gate — `generate_rent_charges` y `charge_balances` ya estaban completamente soportados. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados. **INC-012 completo — local, pendiente de push**. |
