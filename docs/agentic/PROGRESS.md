@@ -201,7 +201,7 @@ INC-001/003/004/006/008/009/010 pusheados`.
 | INC-009 — Rental lifecycle completion (`RentalRepository.cancelDraft/startEnding/end`, `RentalLifecycleError`, 3 hooks nuevos, confirmación inline de dos pasos en `RentalListCard`, autorización asimétrica respetada exactamente) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `1e79c3b` pusheado |
 | INC-010 — backend gate (RESEARCH GATE encontró `storage.objects` sin policies; migration autorada, revisada, aplicada y verificada) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only, commiteada y pusheada (`14eb8b9`) |
 | INC-010 — primitive de frontend (`features/documents/`: `FileRepository` upload/download/remove, paths únicos, sin producto/UI) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `e29eed4` pusheado |
-| INC-011 — Contract management (`features/contracts/`: `ContractRepository` sobre las 3 RPCs + 2 UPDATE guardados, SHA-256 real, `terms_snapshot`, subida-luego-registro sin re-subida en reintento, ruta `/rentals/:id/contracts`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM no bloqueante registrado), checkpoint local pendiente de push |
+| INC-011 — Contract management (`features/contracts/`: `ContractRepository` sobre las 3 RPCs + 2 UPDATE guardados, SHA-256 real, `terms_snapshot`, subida-luego-registro sin re-subida en reintento, ruta `/rentals/:id/contracts`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM **resuelto** en review-fix del 2026-09-25, ver detalle abajo), checkpoints locales (`f1d6ae1` + fix) pendientes de push |
 
 ## Blockers
 
@@ -344,6 +344,37 @@ digital.
     para el mismo tipo de acción y simplemente no se reutilizó.
     Corrección sugerida: reutilizar `LifecycleConfirmAction` (cambio
     solo de presentación, sin tocar el repository/RPC).
+
+**RESUELTO (2026-09-25, review-fix sin nuevo incremento)**: nuevo
+componente local `TerminateContractAction` en `RentalContractsPage.tsx`
+(no exportado, no compartido con `rentals` — reimplementación fiel del
+mismo patrón de `LifecycleConfirmAction`, no un refactor cross-feature),
+reemplaza el botón directo de "Terminar contrato" en la rama `SIGNED` de
+`ContractCard`. Primer clic solo entra en estado `confirming` (nunca
+llama a `terminate.mutate`); en confirmación se reemplaza por dos
+botones nuevos y distintos ("Confirmar terminación" destructivo +
+"Volver" secundario, nunca el mismo elemento reetiquetado); foco movido
+al botón de confirmación vía ref+`useEffect`; confirmar deshabilitado
+mientras `terminate.isPending` (sin duplicar submit); si la mutación
+falla, se muestra el error mapeado, el badge permanece "Firmado" (nunca
+optimista) y permanece en estado de confirmación (no resetea
+silenciosamente, mismo principio que `LifecycleConfirmAction`). Las
+claves i18n `actions.terminate.confirmCta`/`back` ya existían sin usar
+en `contracts.json` (es/es-CO) desde la implementación original — no
+requirió cambio de locale. 6 tests nuevos en
+`RentalContractsPage.test.tsx` (primer clic no muta; confirmar muta
+exactamente una vez; "Volver" no muta; pending previene doble submit;
+fallo muestra error sin marcar TERMINATED falsamente y permanece
+confirmable; acciones existentes — markShared/attachSignedCopy/las 2
+formas de creación — sin regresión). Validación completa
+(`typecheck`/`lint`/`test -- --run`/`build`) PASS — 614/614 tests.
+Revisión independiente enfocada (`habitex-reviewer`, contexto
+independiente, no el mismo que implementó el fix): **0 BLOCKER/HIGH/
+MEDIUM/LOW nuevos**, MEDIUM original confirmado **RESUELTO**. Sin
+cambios a `ContractRepository`, Supabase, RLS, migrations, dependencias
+ni a ningún otro archivo/feature — fix acotado exactamente al alcance
+pedido. Commit del fix: ver "Registro de checkpoints" (commit separado,
+no amend de `f1d6ae1`).
 - **Validación** (ejecutada de forma independiente por la sesión
   orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
   lint && pnpm test -- --run && pnpm build` — todos PASS. 82 archivos /
@@ -1214,49 +1245,54 @@ explícito) cuando se lleguen a ejecutar.
 ## Último checkpoint
 
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit)_
+  actualización de `PROGRESS.md`, en el mismo commit — el review-fix del
+  MEDIUM de INC-011)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: nuevo `features/contracts/` completo
-  (domain/infrastructure/application/presentation/composition, ~19
-  archivos nuevos), extensión aditiva `FileRepository.getById` en
-  `features/documents/`, nueva ruta `/rentals/:id/contracts`, acción
-  "Contratos" en `RentalListCard`, nuevo namespace i18n `contracts`
-  (es/es-CO), más esta actualización de `PROGRESS.md`.
-- **Fecha**: 2026-09-24
+- **Contenido del checkpoint**: fix de revisión enfocado, no un nuevo
+  incremento — nuevo componente local `TerminateContractAction` en
+  `RentalContractsPage.tsx` (confirmación inline de dos pasos para
+  "Terminar contrato", mismo patrón que `LifecycleConfirmAction` de
+  INC-009), clase CSS `.confirmActions` en
+  `RentalContractsPage.module.css`, 6 tests nuevos en
+  `RentalContractsPage.test.tsx`. Ningún otro archivo tocado.
+- **Fecha**: 2026-09-25
 - **Estado**: commiteado localmente, **pendiente de push** — push/merge
   nunca son automáticos en este workflow.
-- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
-  (INC-011 confirmó que no se necesitaba ninguno — las 3 RPCs y las 2
-  transiciones vía UPDATE directo ya estaban completamente soportadas);
-  ninguna UI de eliminación de contrato/archivo; ninguna firma digital
-  avanzada.
+- **No incluido**: ningún cambio a `ContractRepository`/Supabase/RLS/
+  migrations/dependencias; ninguna nueva funcionalidad de producto;
+  ningún Modal/Dialog global nuevo.
 
-Checkpoint previo ya pusheado: INC-010 completo (`14eb8b9` backend gate,
-`e29eed4` primitive de frontend) — ver "Registro de checkpoints".
+Checkpoint anterior (mismo incremento, tampoco pusheado todavía):
+`f1d6ae1` — INC-011 Contract management completo (nuevo
+`features/contracts/` completo — domain/infrastructure/application/
+presentation/composition, ~19 archivos nuevos —, extensión aditiva
+`FileRepository.getById`, nueva ruta `/rentals/:id/contracts`, acción
+"Contratos" en `RentalListCard`, nuevo namespace i18n `contracts`
+es/es-CO). Checkpoint previo a ese, ya pusheado: INC-010 completo
+(`14eb8b9` backend gate, `e29eed4` primitive de frontend) — ver
+"Registro de checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado de INC-011, ejecutado de forma
-independiente por la sesión orquestadora y re-verificado por el
-reviewer (incluyendo re-verificación en vivo vía Supabase MCP read-only
-de las policies/RPCs de `contracts`, sin cambios respecto a lo
-investigado):
+Medido sobre el resultado integrado del review-fix (encima de `f1d6ae1`),
+ejecutado de forma independiente por la sesión orquestadora y
+re-verificado por un `habitex-reviewer` enfocado (contexto independiente
+del fix, no el mismo que lo implementó):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 609/609, 82 archivos |
+| `pnpm test -- --run` | PASS — 614/614, 82 archivos |
 | `pnpm build` | PASS — emite el chunk `RentalContractsPage` correctamente |
 
 ## Siguiente acción recomendada
 
-Con INC-011 completo, el ciclo de contratos (registrar Habitex-generado
-o externo, compartir, adjuntar copia firmada, terminar) es usable de
-punta a punta. Deuda no bloqueante registrada: confirmación de dos pasos
-para "Terminar contrato" (MEDIUM, ver arriba) — candidato natural para un
-retoque pequeño, solo de presentación, si se retoma este feature antes
-de seguir con otro incremento.
+Con INC-011 completo y el MEDIUM de "Terminar contrato" resuelto, el
+ciclo de contratos (registrar Habitex-generado o externo, compartir,
+adjuntar copia firmada, terminar con confirmación de dos pasos) es
+usable de punta a punta sin deuda no bloqueante pendiente de este
+incremento.
 
 Candidatos sin dependencias técnicas pendientes:
 
@@ -1300,4 +1336,5 @@ git, no aquí._
 | 2026-09-23 | `1e79c3b` | `chore/agentic-foundation` | INC-009 — Rental lifecycle completion: `RentalRepository.cancelDraft/startEnding/end`, `RentalLifecycleError`/`RentalLifecycleErrorCode` (`not_draft`/`not_active`/`not_endable`/`end_before_start`/`management_access_required`), 3 hooks nuevos, confirmación inline de dos pasos (sin Modal nuevo) en `RentalListCard` para Cancelar/Terminar arriendo, "Iniciar cierre" de un clic para `ACTIVE`. Autorización asimétrica del backend respetada exactamente: `cancelDraft` gateado por `useManagementGate` (`can_manage_administration`), `startEnding`/`end` deliberadamente NO gateados (`has_administration_management_role` únicamente — verificado en vivo por el reviewer). `end_rental` llamado sin `p_actual_end_date` (default del backend). Sin backend gate/cambios. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado (CSS duplicado). **Pusheado**. |
 | 2026-09-24 | `14eb8b9` | `chore/agentic-foundation` | INC-010 backend gate: RESEARCH GATE encontró `storage.objects` con RLS habilitada y cero policies (Storage completamente inalcanzable). Migration `20260924141732_storage_objects_administration_access.sql` autorada (3 policies `objects_select/insert/delete`, scoped por bucket + administración vía el primer segmento del path), revisada independientemente (`habitex-reviewer`: 0 BLOCKER/HIGH, 2 MEDIUM corregidos — `GRANT` redundante eliminado, nomenclatura alineada), verificada pre-apply (dry-run, conteo local/remoto) y **APLICADA** contra el proyecto real vía `supabase db push --yes` ejecutado por el usuario, verificada post-apply vía MCP read-only. INC-010 backend gate = RESOLVED. **Pusheado**. |
 | 2026-09-24 | `e29eed4` | `chore/agentic-foundation` | INC-010 primitive de frontend: nuevo `features/documents/` (`FileRepository` upload/download/remove, sin `presentation/`). Paths únicos vía `crypto.randomUUID()` que nunca leen `originalName`, `upsert: false` siempre, `download()` autenticado (no signed URL), limpieza best-effort si falla el insert de metadata tras upload exitoso, delete ordenado (metadata antes que storage, fallo de storage post-delete propagado). Sin hooks de `application/` (sin consumidor real todavía). 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado (mime_type vacío no validado). **INC-010 completo — Pusheado**. |
-| 2026-09-24 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-011 — Contract management: nuevo `features/contracts/` (`ContractRepository` sobre las 3 RPCs desplegadas + 2 UPDATE directos guardados por status, `computeSha256Hex` real vía Web Crypto, `buildTermsSnapshot` desde `RentalTermVersion`+`RentalRelationship`, subida-luego-registro sin re-subida en reintento). Extensión aditiva `FileRepository.getById`. Ruta `/rentals/:id/contracts`, acción "Contratos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, creación de contrato solo para `ACTIVE`/`ENDING` (decisión de producto/UX, no autorización). Sin backend gate — las 3 RPCs y las 2 transiciones vía UPDATE ya estaban completamente soportadas. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM no bloqueante registrado (sin confirmación de dos pasos en "Terminar contrato"). **INC-011 completo — local, pendiente de push**. |
+| 2026-09-24 | `f1d6ae1` | `chore/agentic-foundation` | INC-011 — Contract management: nuevo `features/contracts/` (`ContractRepository` sobre las 3 RPCs desplegadas + 2 UPDATE directos guardados por status, `computeSha256Hex` real vía Web Crypto, `buildTermsSnapshot` desde `RentalTermVersion`+`RentalRelationship`, subida-luego-registro sin re-subida en reintento). Extensión aditiva `FileRepository.getById`. Ruta `/rentals/:id/contracts`, acción "Contratos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, creación de contrato solo para `ACTIVE`/`ENDING` (decisión de producto/UX, no autorización). Sin backend gate — las 3 RPCs y las 2 transiciones vía UPDATE ya estaban completamente soportadas. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM no bloqueante registrado (sin confirmación de dos pasos en "Terminar contrato"). **INC-011 completo — local, pendiente de push**. |
+| 2026-09-25 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-011 review-fix (no un nuevo incremento): resuelve el MEDIUM de `f1d6ae1` — nuevo componente local `TerminateContractAction` en `RentalContractsPage.tsx` reimplementa el patrón de confirmación inline de dos pasos de `LifecycleConfirmAction` (INC-009) para "Terminar contrato" (`SIGNED`→`TERMINATED`), sin Modal/Dialog nuevo, sin cambio a `ContractRepository`/Supabase/RLS/migrations. 6 tests nuevos. Revisión enfocada independiente (`habitex-reviewer`, contexto separado del fix): 0 BLOCKER/HIGH/MEDIUM/LOW nuevos, MEDIUM original **RESUELTO**. Validación completa PASS — 614/614 tests. **Local, pendiente de push junto con `f1d6ae1`**. |

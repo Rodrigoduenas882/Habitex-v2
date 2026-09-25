@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation, type UseTranslationResponse } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import { useActiveAdministration } from '@/features/administration/application/useActiveAdministration'
@@ -228,6 +228,95 @@ function AttachSignedCopyAction({
   )
 }
 
+interface TerminateContractActionProps {
+  disabled: boolean
+  blockReasonText: string | null
+  isPending: boolean
+  errorMessage: string | null
+  onConfirm: () => void
+}
+
+/**
+ * Two-step inline confirmation for terminate (SIGNED -> TERMINATED), the
+ * one irreversible-negative contract action - same principle as
+ * RentalListCard's LifecycleConfirmAction (INC-009), reimplemented locally
+ * here rather than imported/shared, since that component isn't exported and
+ * this fix's scope is limited to this feature (no cross-feature refactor).
+ *
+ * The first click only flips local `confirming` state - it never calls
+ * onConfirm. Once confirming, the single trigger button is replaced by two
+ * distinct elements (destructive "Confirmar terminación" + secondary
+ * "Volver"), never the same element relabeled in place, and focus moves to
+ * the confirm button on that transition.
+ */
+function TerminateContractAction({
+  disabled,
+  blockReasonText,
+  isPending,
+  errorMessage,
+  onConfirm,
+}: TerminateContractActionProps) {
+  const { t } = useTranslation('contracts')
+  const [confirming, setConfirming] = useState(false)
+  const confirmButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (confirming) {
+      confirmButtonRef.current?.focus()
+    }
+  }, [confirming])
+
+  if (!confirming) {
+    return (
+      <>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          disabled={disabled}
+          aria-disabled={disabled ? 'true' : undefined}
+          onClick={() => {
+            setConfirming(true)
+          }}
+        >
+          {t('actions.terminate.cta')}
+        </Button>
+        {disabled && blockReasonText ? <p className="text-caption text-muted">{blockReasonText}</p> : null}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div className={styles['confirmActions']}>
+        <Button
+          ref={confirmButtonRef}
+          type="button"
+          variant="destructive"
+          size="sm"
+          loading={isPending}
+          disabled={isPending}
+          onClick={onConfirm}
+        >
+          {t('actions.terminate.confirmCta')}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={isPending}
+          onClick={() => {
+            setConfirming(false)
+          }}
+        >
+          {t('actions.terminate.back')}
+        </Button>
+      </div>
+      {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+    </>
+  )
+}
+
 interface ContractCardProps {
   contract: Contract
   administrationId: string
@@ -322,21 +411,15 @@ function ContractCard({ contract, administrationId, relationshipId, managementBl
 
       {contract.status === 'SIGNED' ? (
         <div className={styles['actionsRow']}>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            loading={isTerminatePending}
-            disabled={managementBlocked || isTerminatePending}
-            aria-disabled={managementBlocked ? 'true' : undefined}
-            onClick={() => {
+          <TerminateContractAction
+            disabled={managementBlocked}
+            blockReasonText={managementBlocked ? t('administration:managementAccessGate.blocked') : null}
+            isPending={isTerminatePending}
+            errorMessage={terminateError ? contractErrorMessage(t, terminateError) : null}
+            onConfirm={() => {
               terminate.mutate({ administrationId, rentalRelationshipId: relationshipId, contractId: contract.id })
             }}
-          >
-            {t('actions.terminate.cta')}
-          </Button>
-          {managementBlocked ? <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p> : null}
-          {terminateError ? <Alert tone="danger">{contractErrorMessage(t, terminateError)}</Alert> : null}
+          />
         </div>
       ) : null}
     </Card>

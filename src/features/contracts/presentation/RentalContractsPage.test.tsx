@@ -261,6 +261,121 @@ describe('RentalContractsPage', () => {
     expect(screen.queryByRole('button', { name: 'Adjuntar copia firmada' })).not.toBeInTheDocument()
   })
 
+  it('does not call terminate on the first "Terminar contrato" click - it only enters confirmation state', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+    listByRelationship.mockResolvedValueOnce([
+      makeContract({ status: 'SIGNED', signedFileId: 'file-2', signedAt: '2026-03-01T00:00:00Z' }),
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Terminar contrato' }))
+
+    expect(terminate).not.toHaveBeenCalled()
+    expect(await screen.findByRole('button', { name: 'Confirmar terminación' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument()
+    // The original trigger is replaced, not merely relabeled.
+    expect(screen.queryByRole('button', { name: 'Terminar contrato' })).not.toBeInTheDocument()
+  })
+
+  it('calls terminate exactly once when the confirmation action is clicked', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+    listByRelationship.mockResolvedValueOnce([
+      makeContract({ status: 'SIGNED', signedFileId: 'file-2', signedAt: '2026-03-01T00:00:00Z' }),
+    ])
+    terminate.mockResolvedValueOnce(
+      makeContract({ status: 'TERMINATED', signedFileId: 'file-2', terminatedAt: '2026-05-01T00:00:00Z' }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Terminar contrato' }))
+    await user.click(await screen.findByRole('button', { name: 'Confirmar terminación' }))
+
+    await waitFor(() => {
+      expect(terminate).toHaveBeenCalledTimes(1)
+    })
+    expect(terminate).toHaveBeenCalledWith('contract-1')
+  })
+
+  it('"Volver" leaves confirmation state without calling terminate', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+    listByRelationship.mockResolvedValueOnce([
+      makeContract({ status: 'SIGNED', signedFileId: 'file-2', signedAt: '2026-03-01T00:00:00Z' }),
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Terminar contrato' }))
+    await user.click(await screen.findByRole('button', { name: 'Volver' }))
+
+    expect(terminate).not.toHaveBeenCalled()
+    expect(await screen.findByRole('button', { name: 'Terminar contrato' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Confirmar terminación' })).not.toBeInTheDocument()
+  })
+
+  it('disables the confirm button while termination is pending, preventing a duplicate submission', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+    listByRelationship.mockResolvedValueOnce([
+      makeContract({ status: 'SIGNED', signedFileId: 'file-2', signedAt: '2026-03-01T00:00:00Z' }),
+    ])
+    let resolveTerminate: (value: Contract) => void = () => {}
+    terminate.mockImplementationOnce(
+      () =>
+        new Promise<Contract>((resolve) => {
+          resolveTerminate = resolve
+        }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Terminar contrato' }))
+    const confirmButton = await screen.findByRole('button', { name: 'Confirmar terminación' })
+    await user.click(confirmButton)
+
+    await waitFor(() => {
+      expect(confirmButton).toBeDisabled()
+    })
+    // A second click while pending must not queue a second call.
+    await user.click(confirmButton)
+    expect(terminate).toHaveBeenCalledTimes(1)
+
+    resolveTerminate(makeContract({ status: 'TERMINATED', signedFileId: 'file-2' }))
+    await waitFor(() => {
+      expect(terminate).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('shows the terminate error and stays confirmable (not falsely TERMINATED) when the mutation fails', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+    listByRelationship.mockResolvedValueOnce([
+      makeContract({ status: 'SIGNED', signedFileId: 'file-2', signedAt: '2026-03-01T00:00:00Z' }),
+    ])
+    const { ContractRepositoryError } = await import('../domain/contract.types')
+    terminate.mockRejectedValueOnce(new ContractRepositoryError('not_found'))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Terminar contrato' }))
+    await user.click(await screen.findByRole('button', { name: 'Confirmar terminación' }))
+
+    expect(
+      await screen.findByText('No encontramos el elemento referenciado. Actualiza la página e intenta de nuevo.'),
+    ).toBeInTheDocument()
+    // Still shows the SIGNED badge, not TERMINATED - the failed mutation
+    // never optimistically flipped the displayed status.
+    expect(screen.getByText('Firmado')).toBeInTheDocument()
+    expect(screen.queryByText('Terminado')).not.toBeInTheDocument()
+    // Still confirmable (stays in confirming state), not reset to the
+    // original trigger.
+    expect(screen.getByRole('button', { name: 'Confirmar terminación' })).toBeInTheDocument()
+  })
+
   it('TERMINATED shows no actions', async () => {
     resolveOneAdministration()
     listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
