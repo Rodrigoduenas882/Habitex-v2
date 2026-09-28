@@ -113,14 +113,46 @@ BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix). Corrige además un error de
 documentación verificado durante el research: `issue_receipt` SÍ requiere
 al menos una allocation (`PAYMENT_HAS_NO_ALLOCATIONS`), por lo que INC-015
 SÍ depende de INC-014 — el texto anterior de
-`HABITEX_COMPLETION_PLAN.md` decía lo contrario. Checkpoint local
-pendiente de push. Ver detalle en "Último incremento ejecutado" más
+`HABITEX_COMPLETION_PLAN.md` decía lo contrario. Checkpoint `65c8e08`
+pusheado a `origin/chore/agentic-foundation`. Ver detalle en "Incremento
+anterior: INC-015" más abajo.
+
+**INC-005 — Fix dead Dashboard CTAs**: **completo** (frontend-only, sin
+backend), FAST PATH combinado con INC-017 en un solo ciclo
+implementación+revisión+checkpoint (autorizado explícitamente por el
+usuario). `QuickActions` ahora navega de verdad: `addProperty`→
+`/properties/new`, `createRental`→`/rentals/new`,
+`registerPayment`/`uploadDocument`→`/rentals` (decisión humana explícita
+— ambos flujos son scoped a una relación que Dashboard no tiene, así que
+envían a la lista de rentals en vez de inventar un flujo global o un
+selector de relación). Sin rutas nuevas, sin cambio visual. Validado e
+independientemente revisado — **0 BLOCKER/HIGH/MEDIUM/LOW**. Checkpoint
+local pendiente de push. Ver detalle en "Último incremento ejecutado" más
 abajo.
+
+**INC-017 — Corregir doc drift**: **completo** (documentación únicamente,
+sin cambio de runtime), mismo ciclo FAST PATH que INC-005. Corrige 2
+afirmaciones verificadas como falsas: `docs/ARCHITECTURE.md` (bloque de
+cita + §0.A) ya no afirma que Supabase Auth es la única superficie que
+toca `src/` — ahora documenta que `infrastructure/` de 8 features lee/
+escribe tablas y llama RPCs reales, reafirmando la frontera vigente
+(el SDK solo se importa dentro de `infrastructure/`, nunca en
+`domain/`/`application/`/`presentation/`, verificado por grep por el
+reviewer); `session.types.ts`'s `SessionRepository` ya no afirma que
+Account/Person/Administrations depende de un schema inexistente — ahora
+señala que está implementado en `features/administration/`. Un residuo
+de doc drift separado en `ARCHITECTURE.md` §4 (afirmación sobre "solo 2
+archivos" que usan `supabaseClient`) quedó identificado pero
+deliberadamente sin tocar — fuera del alcance de las 2 afirmaciones que
+el usuario pidió corregir; registrado como candidato a un incremento
+futuro, no bloqueante. Validado e independientemente revisado — **0
+BLOCKER/HIGH/MEDIUM/LOW**. Checkpoint local pendiente de push. Ver
+detalle en "Último incremento ejecutado" más abajo.
 
 ## Estado
 
-`INC-015 completo, checkpoint local pendiente de push.
-INC-001/003/004/006/008/009/010/011/012/013/014 pusheados`.
+`INC-005 e INC-017 completos, checkpoint local pendiente de push.
+INC-001/003/004/006/008/009/010/011/012/013/014/015 pusheados`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -445,8 +477,53 @@ INC-001/003/004/006/008/009/010/011/012/013/014 pusheados`.
   única de `receipts`, `UNIQUE(payment_id)`, `receipt_number` como
   `GENERATED ALWAYS AS IDENTITY`, y que ningún otro RPC/policy toca
   `receipts`: **0 BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix, deliverable
-  excepcionalmente limpio pese a la interrupción). Checkpoint local
-  pendiente de push.
+  excepcionalmente limpio pese a la interrupción). Checkpoint `65c8e08`
+  pusheado.
+- INC-005 + INC-017 (FAST PATH combinado en un solo ciclo, autorizado
+  explícitamente por el usuario — 2 incrementos pequeños y disjuntos, sin
+  dependencias entre sí): triage previo (turno separado, research-only)
+  clasificó los 5 incrementos restantes del MVP
+  (INC-005/007/016/017/018) y recomendó INC-017 primero por ser el más
+  simple/sin ambigüedad; el usuario decidió combinarlo con INC-005 en el
+  mismo ciclo. **INC-005**: `QuickActions.tsx` (antes 4 botones inertes,
+  sin `onClick`) ahora navega de verdad vía `useNavigate()` +
+  `ACTION_DESTINATION: Record<ActionKey, string>`
+  (`addProperty`→`/properties/new`, `createRental`→`/rentals/new`,
+  `registerPayment`/`uploadDocument`→`/rentals` — decisión humana
+  explícita: ambos flujos son scoped a una relación que Dashboard no
+  tiene, así que envían a la lista de rentals en vez de un flujo
+  global/selector de relación/query params ocultos/ruta nueva). Sin
+  cambio de CSS/iconos/copy — solo comportamiento sobre un componente ya
+  diseñado. **INC-017**: corrige 2 afirmaciones de documentación
+  verificadas como falsas — `docs/ARCHITECTURE.md` (bloque de cita + §0.A:
+  ya no dice que Auth es la única superficie de Supabase que toca `src/`,
+  ahora documenta que `infrastructure/` de 8 features lee/escribe tablas y
+  llama RPCs reales, reafirmando que el SDK solo se importa dentro de
+  `infrastructure/`, nunca en `domain/`/`application/`/`presentation/` —
+  verificado por grep por el reviewer, cero resultados fuera de
+  `infrastructure/`); `session.types.ts`'s `SessionRepository` (ya no dice
+  que Account/Person/Administrations depende de un schema inexistente,
+  ahora señala `features/administration/` como su implementación real) —
+  cambio de comentario únicamente, cero cambio de tipo/interfaz/runtime.
+  Colateral necesario (no un incremento nuevo): `DashboardPage.test.tsx`
+  ganó un wrapper local de `MemoryRouter` porque `QuickActions` ahora usa
+  `useNavigate()` y rompía los renders existentes sin Router — sin cambiar
+  ninguna aserción, solo el wrapper y un título de test desactualizado
+  ("...but inert...") corregido a algo preciso. Un residuo de doc drift
+  separado en `ARCHITECTURE.md` §4 (afirmación de "exactamente 2 archivos"
+  que usan el SDK — hoy son más porque 17 adapters ya usan
+  `supabaseClient`) quedó identificado por el reviewer pero
+  deliberadamente sin tocar, por estar fuera del alcance de las 2
+  afirmaciones puntuales que el usuario pidió corregir — registrado como
+  candidato a un incremento futuro, no bloqueante. Implementado en 1
+  ronda de `habitex-implementer`, validado (797/797 tests) y revisado por
+  `habitex-reviewer` (contexto independiente, verificó en vivo que
+  `/properties/new`/`/rentals/new`/`/rentals` ya existían como rutas
+  reales sin diff en `router.tsx`, que los tests de navegación son
+  aserciones reales end-to-end vía `MemoryRouter`+`Routes`, y grep propio
+  confirmando las afirmaciones nuevas de `ARCHITECTURE.md`): **0
+  BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix. Checkpoint local pendiente
+  de push.
 
 ## Subtareas
 
@@ -479,7 +556,10 @@ INC-001/003/004/006/008/009/010/011/012/013/014 pusheados`.
 | INC-013 — Payments: report & confirm/reject (`features/payments/`: `PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, asimetría de autorización, subida-luego-registro de comprobante sin re-subida en reintento, confirmación de dos pasos para rechazar, ruta `/rentals/:id/payments`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado), checkpoint `a6e167f` pusheado |
 | INC-014 — Payment allocation (`features/payments/`: `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, resumen de allocation por pago, cargos elegibles filtrados por relación/balance/no-ya-asignado, invalidación cross-feature autorizada hacia `chargeQueryKeys` de `features/charges/`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 BLOCKER/HIGH; 2 MEDIUM + 1 LOW en la revisión original) |
 | INC-014 review-fix (2 rondas: gateo en vivo de `useManagementGate` en el submit de allocation; mensaje de error obsoleto persistente en vez de ser tapado por "aplicado completamente"; ronda 2 corrige un 3er MEDIUM introducido por la ronda 1 — limpieza del mensaje obsoleto al iniciar un intento nuevo) | done — re-revisado (`habitex-reviewer`, contexto independiente): 2 MEDIUM originales **RESUELTOS**, 0 BLOCKER/HIGH/MEDIUM nuevos tras la ronda 2 (verificada por lectura directa del diff), 1 LOW original sin tocar por decisión humana, checkpoints `22db1bc` + `c3c6a1a` pusheados |
-| INC-015 — Receipt issuance (`features/payments/`: `PaymentRepository` gana `getReceiptForPayment`/`issueReceipt` sobre `issue_receipt`, elegibilidad correcta por `allocations.length > 0` sin exigir allocation completa, recibo ya emitido siempre visible sin gate, manejo de carrera `receipt_already_issued` sin enmascarar fallos, sin flujo de archivo/PDF, corrección de la dependencia INC-014 en `HABITEX_COMPLETION_PLAN.md`) | done — FAST PATH (research+plan+implementación en el mismo ciclo, 1 implementer, interrumpido por rate limit y retomado por la sesión orquestadora), validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix), checkpoint local pendiente de push |
+| INC-015 — Receipt issuance (`features/payments/`: `PaymentRepository` gana `getReceiptForPayment`/`issueReceipt` sobre `issue_receipt`, elegibilidad correcta por `allocations.length > 0` sin exigir allocation completa, recibo ya emitido siempre visible sin gate, manejo de carrera `receipt_already_issued` sin enmascarar fallos, sin flujo de archivo/PDF, corrección de la dependencia INC-014 en `HABITEX_COMPLETION_PLAN.md`) | done — FAST PATH (research+plan+implementación en el mismo ciclo, 1 implementer, interrumpido por rate limit y retomado por la sesión orquestadora), validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix), checkpoint `65c8e08` pusheado |
+| Triage rápido del MVP restante (INC-005/007/016/017/018 — turno research-only, sin implementación) | done — clasificación de propósito/estado actual/faltante/dependencias/gate/tamaño/fast-path para cada uno, orden de ejecución recomendado, sin close-outs (ninguno ya satisfecho incidentalmente) |
+| INC-005 — Fix dead Dashboard CTAs (`QuickActions.tsx` navega de verdad: `addProperty`/`createRental`/`registerPayment`/`uploadDocument`) | done — FAST PATH combinado con INC-017 en 1 ciclo, validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW**), checkpoint local pendiente de push |
+| INC-017 — Corregir doc drift (`ARCHITECTURE.md` bloque de cita + §0.A, `session.types.ts`'s `SessionRepository`) | done — FAST PATH combinado con INC-005 en 1 ciclo, validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW**), checkpoint local pendiente de push |
 
 ## Blockers
 
@@ -487,12 +567,116 @@ Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006 (`1b1dc3a`),
 INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`, `e29eed4`),
 INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`), INC-013 (`2bc3a3f`
-backend, `a6e167f` frontend) e INC-014 (`22db1bc`, `c3c6a1a`) ya están en
-`origin/chore/agentic-foundation` — HEAD y origin sincronizados. El nuevo
-checkpoint de INC-015 (ver "Último incremento ejecutado") sigue pendiente
-de revisión humana antes de push.
+backend, `a6e167f` frontend), INC-014 (`22db1bc`, `c3c6a1a`) e INC-015
+(`65c8e08`) ya están en `origin/chore/agentic-foundation` — HEAD y origin
+sincronizados. El nuevo checkpoint combinado de INC-005+017 (ver "Último
+incremento ejecutado") sigue pendiente de revisión humana antes de push.
+Restante del MVP: INC-007 (LARGE, su propio ciclo), INC-016 (MEDIUM,
+research breve + implementación), INC-018 (HUMAN ACTION pura, toggle de
+Supabase Auth, fuera del alcance de este repo).
 
 ## Último incremento ejecutado
+
+**INC-005 — Fix dead Dashboard CTAs** + **INC-017 — Corregir doc drift**
+(`docs/agentic/HABITEX_COMPLETION_PLAN.md`, secciones INC-005/INC-017) —
+dos incrementos pequeños y disjuntos, combinados en un solo ciclo
+implementación+revisión+checkpoint por autorización explícita del
+usuario, tras un triage rápido del MVP restante en un turno research-only
+separado.
+
+- **Triage previo** (turno separado, sin implementación): clasificó los 5
+  incrementos restantes del MVP (INC-005/007/016/017/018) por propósito,
+  estado actual, lo que falta, dependencias, gate humano/research, tamaño
+  y candidatura a FAST PATH. Ningún candidato a close-out (todos tenían un
+  gap real). INC-016 confirmado 100% mock (`DashboardPage.tsx` lee
+  exclusivamente de `dashboard-mock-data.ts`, sin llamadas a Supabase) con
+  sus 6 dependencias ya completas. INC-018 confirmado en vivo vía
+  `get_advisors(security)`: `auth_leaked_password_protection` sigue
+  deshabilitado — acción 100% humana en el dashboard de Supabase Auth, sin
+  camino de código. INC-007 confirmado con solo el lado de lectura ya
+  construido (`useTenantCandidates`) — todo el lado de escritura
+  (invitación + reclamo público) sigue sin implementar, RPCs desplegadas
+  sin consumir. Recomendación: INC-017 primero (sin ambigüedad), pero el
+  usuario decidió combinarlo con INC-005 en el mismo ciclo dado que ambos
+  son pequeños y disjuntos.
+- **Qué se agregó (INC-005)**: `QuickActions.tsx` — antes 4 botones
+  inertes sin `onClick`, comentario "Inert by design" ya desactualizado
+  (los flujos subyacentes ya existían desde hace varios incrementos).
+  Ahora usa `useNavigate()` + un mapa `ACTION_DESTINATION:
+  Record<ActionKey, string>` (decisión humana explícita, no
+  re-litigada): `addProperty`→`/properties/new`,
+  `createRental`→`/rentals/new`, `registerPayment`/`uploadDocument`→
+  `/rentals` (payments/documentos son scoped a una relación que Dashboard
+  no tiene — en vez de inventar un flujo global, un selector de relación,
+  query params ocultos, o una ruta nueva, ambos envían a la lista de
+  rentals para que el usuario elija la relación y continúe desde sus
+  acciones contextuales ya existentes). **Sin rutas nuevas** — las 3
+  rutas ya existían, confirmado sin diff en `router.tsx`. Sin cambio de
+  CSS/iconos/copy — puramente comportamiento sobre un componente ya
+  diseñado.
+- **Qué se agregó (INC-017)**: `docs/ARCHITECTURE.md` (bloque de cita
+  cerca de la línea 9 + §0.A) ya no afirma que Supabase Auth es la única
+  superficie de Supabase que toca `src/` ni que no hay lectura/escritura
+  de tablas/RPC — corregido a la realidad actual: `infrastructure/` de 8
+  features (`administration`/`properties`/`parking`/`rentals`/
+  `documents`/`contracts`/`charges`/`payments`) lee/escribe tablas/vistas
+  y llama RPCs reales, reafirmando que la frontera de dependencia sigue
+  vigente (el SDK de Supabase solo se importa dentro de `infrastructure/`
+  de cada feature, nunca en `domain/`/`application/`/`presentation/` —
+  verificado por grep propio del reviewer, cero resultados fuera de
+  `infrastructure/`). `session.types.ts`'s `SessionRepository` ya no
+  afirma que Account/Person/Administrations depende de un schema que no
+  existe — ahora señala correctamente que está implementado en
+  `features/administration/`, sin re-documentar los detalles de esa otra
+  feature. **Cambio de comentario únicamente en ambos archivos** — cero
+  cambio de tipo/interfaz/runtime, verificado por el reviewer leyendo el
+  diff completo.
+- **Colateral necesario, no un incremento nuevo**: `DashboardPage.test.tsx`
+  ganó un wrapper local de `render()` con `MemoryRouter` porque
+  `QuickActions` ahora llama `useNavigate()`, lo que rompía los renders
+  existentes de `DashboardPage` sin contexto de Router — sin cambiar
+  ninguna aserción existente, solo el wrapper transparente y un título de
+  test desactualizado ("...but inert...") corregido a uno preciso
+  ("renders the four quick action buttons"). `DashboardPage.tsx` (el
+  archivo no-test) permanece sin diff.
+- **Residuo de doc drift identificado pero deliberadamente sin tocar**:
+  `ARCHITECTURE.md` §4 todavía afirma que "exactamente 2 archivos" usan
+  el SDK de Supabase — hoy son más, ya que 17 adapters bajo
+  `infrastructure/` ya importan y usan el `supabaseClient` compartido
+  (la afirmación literal sobre `@supabase/supabase-js` en sí sigue siendo
+  técnicamente cierta — solo 2 archivos importan el paquete crudo — pero
+  la oración vecina sobre "el único adapter que lo usa" ya no lo es).
+  Fuera del alcance de las 2 afirmaciones puntuales que el usuario pidió
+  corregir en este incremento — registrado aquí como candidato a un
+  incremento futuro, no bloqueante.
+- **Tests**: 797/797 en la suite completa (5 nuevos en
+  `QuickActions.test.tsx` — 1 render-todos-los-botones + 4 navegación,
+  una por destino, incluyendo `registerPayment` y `uploadDocument` cada
+  una asertando `/rentals` independientemente — vía `MemoryRouter` +
+  `Routes`/`Route` + `userEvent.click` + un marcador real de la ruta
+  destino, no un mock superficial de `navigate`). INC-017 no requirió
+  tests nuevos (cambio de comentario únicamente).
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente) no
+  encontró ningún hallazgo. Verificó en vivo que
+  `/properties/new`/`/rentals/new`/`/rentals` ya existían como rutas
+  reales (sin diff en `router.tsx`), que los 5 tests nuevos son
+  aserciones reales end-to-end, y corrió grep propio para confirmar cada
+  afirmación nueva de `ARCHITECTURE.md` contra el código real.
+- **Deuda no bloqueante registrada**: 1 LOW, fuera de alcance de este
+  incremento (el residuo de doc drift de `ARCHITECTURE.md` §4 descrito
+  arriba) — candidato a un incremento futuro pequeño, no urgente.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
+  lint && pnpm test -- --run && pnpm build` — todos PASS. 98 archivos /
+  797 tests (0 fallos), 0 errores de lint (mismos 4 warnings
+  preexistentes, no relacionados). Build PASS.
+- **Human gates**: ninguno — ambos incrementos usaron FAST PATH sin
+  ambigüedad. Sin cambios de schema/RLS/grants/migrations/dependencias
+  (confirmado por `git status`/`git diff --stat`: solo 4 archivos
+  modificados + 1 nuevo, ninguno bajo `supabase/migrations/`,
+  `package.json`/`pnpm-lock.yaml` sin cambios).
+
+### Incremento anterior: INC-015 — Receipt issuance
 
 **INC-015 — Receipt issuance** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
 sección INC-015, corregida durante este mismo incremento — ver más abajo)
@@ -2267,59 +2451,63 @@ explícito) cuando se lleguen a ejecutar.
 ## Último checkpoint
 
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit — INC-015)_
+  actualización de `PROGRESS.md`, en el mismo commit — INC-005 + INC-017
+  combinados)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: extensión de `features/payments/`
-  existente (domain/infrastructure/application/presentation) con
-  `Receipt`, `getReceiptForPayment`/`issueReceipt`,
-  `usePaymentReceipt`/`useIssueReceipt`, y la UI de recibo en
-  `PaymentCard` — sin nueva feature, sin nueva ruta. Namespace i18n
-  `payments` extendido (es/es-CO). Corrección de
-  `HABITEX_COMPLETION_PLAN.md` (sección INC-015: dependencia real de
-  INC-014, allocation parcial suficiente, "anular recibos" retirado del
-  alcance), más esta actualización de `PROGRESS.md`.
+- **Contenido del checkpoint**: `QuickActions.tsx` navega de verdad
+  (INC-005); `ARCHITECTURE.md` + `session.types.ts` corregidos (INC-017);
+  colateral necesario en `DashboardPage.test.tsx` (wrapper de
+  `MemoryRouter`); más esta actualización de `PROGRESS.md`.
 - **Fecha**: 2026-09-28
 - **Estado**: commiteado localmente, **pendiente de push** — push/merge
   nunca son automáticos en este workflow.
-- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
-  (verdict FAST PATH: BACKEND READY); ningún flujo de archivo/PDF; ninguna
-  edición/anulación/reemisión de recibo; ningún efecto sobre
-  `charges`/`payment_allocations`/`payments`.
+- **No incluido**: ninguna ruta nueva; ningún flujo global de pagos/
+  documentos; ningún selector de relación; ningún cambio de CSS/visual;
+  ningún cambio de schema/RLS/migrations/dependencias; ARCHITECTURE.md §4
+  (residuo de doc drift separado, deliberadamente fuera de alcance).
 
-Checkpoint anterior, ya pusheado: INC-014 completo (`22db1bc`
-implementación, `c3c6a1a` review-fix) — ver "Registro de checkpoints".
+Checkpoint anterior, ya pusheado: INC-015 completo (`65c8e08`) — ver
+"Registro de checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado de INC-015, ejecutado de forma
-independiente por la sesión orquestadora (incluyendo la corrección de 1
-error trivial de lint dejado por la implementación parcial interrumpida
-por rate limit — ver detalle en "Último incremento ejecutado") y
-re-verificado por `habitex-reviewer` (contexto independiente, incluyendo
-re-verificación en vivo vía Supabase MCP read-only del cuerpo completo de
-`issue_receipt`, sin cambios respecto a lo investigado):
+Medido sobre el resultado integrado de INC-005+INC-017, ejecutado de
+forma independiente por la sesión orquestadora y re-verificado por
+`habitex-reviewer` (contexto independiente, incluyendo grep propio contra
+el código real para verificar cada afirmación nueva de `ARCHITECTURE.md`
+y confirmación de que `/properties/new`/`/rentals/new`/`/rentals` ya
+existían sin diff en `router.tsx`):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
-| `pnpm lint` | PASS — 0 errores (1 error trivial corregido por la sesión orquestadora antes de esta validación — ver detalle abajo), 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 792/792, 97 archivos |
-| `pnpm build` | PASS — emite el chunk `RentalPaymentsPage` ampliado (26.05 kB) correctamente |
+| `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
+| `pnpm test -- --run` | PASS — 797/797, 98 archivos |
+| `pnpm build` | PASS |
 
 ## Siguiente acción recomendada
 
-Con INC-015 completo, un pago `CONFIRMED` con al menos una allocation
-(parcial o total) puede emitir un recibo — de punta a punta, sin deuda
-bloqueante ni findings registrados (0 BLOCKER/HIGH/MEDIUM/LOW).
+Con INC-005 e INC-017 completos, el Dashboard ya no tiene CTAs muertos y
+la documentación de arquitectura ya no contradice el código real (salvo
+el residuo puntual de §4, registrado como deuda no bloqueante) — de punta
+a punta, sin deuda bloqueante ni findings registrados (0
+BLOCKER/HIGH/MEDIUM/LOW).
 
-Candidatos sin dependencias técnicas pendientes:
+Restante del MVP (triage completo en turno separado, ver "Incremento
+anterior" más abajo para el detalle):
 
-- **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
-- **INC-007** — Tenant invitation & claim (depende de INC-001).
-- **INC-017** — Corregir doc drift (sin dependencias).
-- **INC-018** — Habilitar `leaked_password_protection` (sin dependencias
-  técnicas, pero es config de Supabase Auth — dispara HUMAN GATE
-  automático por tocar Auth).
+- **INC-016** — Dashboard con datos reales (MEDIUM, sus 6 dependencias ya
+  completas — `DashboardPage.tsx` sigue 100% mock; research breve
+  recomendado antes de implementar, especialmente para el shape exacto de
+  los KPIs financieros).
+- **INC-007** — Tenant invitation & claim (LARGE, solo el lado de lectura
+  existe hoy — `useTenantCandidates`; merece su propio ciclo de
+  research+plan dado que introduce una ruta pública nueva, fuera de
+  `ProtectedRoute`, con superficie de seguridad genuina).
+- **INC-018** — Habilitar `leaked_password_protection` (HUMAN ACTION
+  pura, confirmado aún deshabilitado vía `get_advisors(security)` en
+  vivo — toggle en el dashboard de Supabase Auth, sin camino de código
+  posible desde este repo).
 
 La priorización final sigue siendo del usuario, no del orchestrator (ver
 `SKILL.md` §"SELECT INCREMENT").
@@ -2357,4 +2545,5 @@ git, no aquí._
 | 2026-09-28 | `a6e167f` | `chore/agentic-foundation` | INC-013 frontend — Payments: report & confirm/reject: nuevo `features/payments/` (`PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, nunca INSERT/UPDATE/DELETE directo; asimetría de autorización replicada exactamente — reportar/leer sin `useManagementGate`, confirmar/rechazar con él; confirmación de dos pasos para rechazar; subida-luego-registro de comprobante sin re-subida en reintento, reutilizando `FilePurpose.PAYMENT_PROOF`/bucket `'documents'` de INC-010; UX financiera explícita de que un pago `CONFIRMED` no fue aplicado a un cargo). Ruta `/rentals/:id/payments`, acción "Pagos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado. **INC-013 completo (backend + frontend) — Pusheado**. |
 | 2026-09-28 | `22db1bc` | `chore/agentic-foundation` | INC-014 — Payment allocation: extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, nunca INSERT/UPDATE/DELETE directo contra `payment_allocations`; `PaymentErrorCode` extendido con los 4 errores con nombre del trigger `validate_payment_allocation` + `23505`/`23514`; `summarizePaymentAllocations` puro; cargos elegibles filtrados por relación/`balance > 0`/no-ya-asignado-por-este-pago (reutiliza `useCharges`/`chargeQueryKeys` de `features/charges/`, cross-feature invalidation explícitamente autorizada); cargo ya asignado se oculta (nunca deshabilitado); pago totalmente aplicado muestra "Pago aplicado completamente" sin acción; máximo aplicable = `min(restante, balance)` como guard de UX, backend sigue siendo la autoridad. Research verdict: BACKEND READY — NO MIGRATION REQUIRED. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles (0 BLOCKER/HIGH) — 2 MEDIUM (submit no re-gateado en vivo; estado "aplicado" puede tapar un error de carrera concurrente) + 1 LOW (cobertura end-to-end parcial de códigos de error) no bloqueantes registrados. **Implementación retenida sin push a pedido del usuario hasta resolver los 2 MEDIUM — ver fila siguiente**. |
 | 2026-09-28 | `c3c6a1a` | `chore/agentic-foundation` | INC-014 review-fix (no un nuevo incremento, 2 rondas sobre `RentalPaymentsPage.tsx`/`.test.tsx` únicamente): Ronda 1 resuelve los 2 MEDIUM de `22db1bc` — `managementGate` enhebrado como prop viva hasta `PaymentAllocationAmountForm` (gateo en vivo del submit de allocation) y `staleAllocationError` elevado a `PaymentAllocationSummary` (mensaje de carrera obsoleto ya no tapado por "Pago aplicado completamente"). Re-revisión enfocada (`habitex-reviewer`, contexto independiente): ambos MEDIUM **RESUELTOS** con tests que ejercitan el escenario real, pero detecta un 3er MEDIUM nuevo introducido por la ronda 1 (mensaje obsoleto no se limpiaba al iniciar un segundo intento sin cerrar la sección). Ronda 2 (mismo día, fix quirúrgico): nuevo callback `onNewAttempt` limpia el mensaje al inicio de cada intento nuevo, sin tocar el fix de la ronda 1. Verificada por lectura directa del diff por la sesión orquestadora (sin 3ra ronda de reviewer, dado el tamaño mecánico del cambio). LOW original sin tocar, por decisión humana. Validación completa PASS en cada etapa — 759/759 tests finales. **INC-014 completo (backend ya pusheado en `2bc3a3f`; frontend `22db1bc` + este review-fix) — Pusheado**. |
-| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-015 — Receipt issuance (FAST PATH: research+plan+implementación en el mismo ciclo): extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `getReceiptForPayment`/`issueReceipt` sobre `issue_receipt`, nunca INSERT/UPDATE/DELETE directo contra `receipts` (único RPC que escribe esa tabla en todo el schema); `PaymentErrorCode` extendido con `payment_has_no_allocations`/`receipt_already_issued` (`23505`). **Resuelve la contradicción de documentación de INC-013/014**: `issue_receipt` SÍ requiere ≥1 allocation (verificado leyendo el cuerpo completo del RPC, no solo la firma) — `HABITEX_COMPLETION_PLAN.md` corregido (INC-015 depende de INC-014; allocation parcial es suficiente, no se exige completa; "anular recibos" retirado del alcance, sin RPC/policy que lo permita). Elegibilidad correcta por `allocations.length > 0` (nunca `remainingAmount === 0`); recibo ya emitido siempre visible sin gate; manejo de carrera `receipt_already_issued` sin enmascarar el fallo real (mismo principio ya corregido dos veces para `staleAllocationError` de INC-014); sin efecto financiero (`useIssueReceipt` invalida solo su propia query); sin flujo de archivo/PDF (`file_id` nunca seteado por ningún camino desplegado). Implementado en 1 ronda de `habitex-implementer` — interrumpida a mitad de camino por un rate limit de sesión, retomada e integrada directamente por la sesión orquestadora tras el reset (1 error trivial de lint corregido). 0 fix cycles — **0 BLOCKER/HIGH/MEDIUM/LOW**, deliverable excepcionalmente limpio. **INC-015 completo — local, pendiente de push**. |
+| 2026-09-28 | `65c8e08` | `chore/agentic-foundation` | INC-015 — Receipt issuance (FAST PATH: research+plan+implementación en el mismo ciclo): extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `getReceiptForPayment`/`issueReceipt` sobre `issue_receipt`, nunca INSERT/UPDATE/DELETE directo contra `receipts` (único RPC que escribe esa tabla en todo el schema); `PaymentErrorCode` extendido con `payment_has_no_allocations`/`receipt_already_issued` (`23505`). **Resuelve la contradicción de documentación de INC-013/014**: `issue_receipt` SÍ requiere ≥1 allocation (verificado leyendo el cuerpo completo del RPC, no solo la firma) — `HABITEX_COMPLETION_PLAN.md` corregido (INC-015 depende de INC-014; allocation parcial es suficiente, no se exige completa; "anular recibos" retirado del alcance, sin RPC/policy que lo permita). Elegibilidad correcta por `allocations.length > 0` (nunca `remainingAmount === 0`); recibo ya emitido siempre visible sin gate; manejo de carrera `receipt_already_issued` sin enmascarar el fallo real (mismo principio ya corregido dos veces para `staleAllocationError` de INC-014); sin efecto financiero (`useIssueReceipt` invalida solo su propia query); sin flujo de archivo/PDF (`file_id` nunca seteado por ningún camino desplegado). Implementado en 1 ronda de `habitex-implementer` — interrumpida a mitad de camino por un rate limit de sesión, retomada e integrada directamente por la sesión orquestadora tras el reset (1 error trivial de lint corregido). 0 fix cycles — **0 BLOCKER/HIGH/MEDIUM/LOW**, deliverable excepcionalmente limpio. **Pusheado**. |
+| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-005 + INC-017 (FAST PATH combinado en 1 ciclo, autorizado explícitamente por el usuario, tras triage rápido del MVP restante INC-005/007/016/017/018 en turno separado research-only): **INC-005** — `QuickActions.tsx` navega de verdad vía `useNavigate()` + `ACTION_DESTINATION` (`addProperty`→`/properties/new`, `createRental`→`/rentals/new`, `registerPayment`/`uploadDocument`→`/rentals`, decisión humana explícita — sin ruta nueva, sin flujo global, sin selector de relación). **INC-017** — corrige 2 afirmaciones falsas verificadas: `ARCHITECTURE.md` (bloque de cita + §0.A) ya no dice que Auth es la única superficie de Supabase que toca `src/`; `session.types.ts`'s `SessionRepository` ya no dice que Account/Person/Administrations depende de un schema inexistente (ahora señala `features/administration/`) — cambio de comentario únicamente en ambos archivos. Colateral necesario: `DashboardPage.test.tsx` gana wrapper de `MemoryRouter`, sin cambiar aserciones. Residuo de doc drift en `ARCHITECTURE.md` §4 identificado pero deliberadamente sin tocar (fuera del alcance de las 2 afirmaciones pedidas) — registrado como candidato a incremento futuro. 1 ronda de `habitex-implementer`. 0 fix cycles — **0 BLOCKER/HIGH/MEDIUM/LOW**. **INC-005 e INC-017 completos — local, pendiente de push**. |

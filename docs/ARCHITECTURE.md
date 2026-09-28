@@ -9,11 +9,10 @@ Toda regla cita el código que la respalda.
 > Supabase (`supabase/migrations/`) — ver §0.1. El *contenido* de esas
 > migrations (schema, políticas RLS, funciones RPC) sigue gestionándose y
 > aplicándose fuera de este repo: aquí solo vive el registro versionado, no
-> el mecanismo de ejecución contra producción. Que esta auditoría solo
-> pueda observar el uso de Supabase Auth desde el código de `src/`
-> **no significa que Habitex "solo tenga Supabase Auth"** como backend;
-> significa que es lo único verificable desde el código de aplicación. Ver
-> §0.
+> el mecanismo de ejecución contra producción. El código de `src/` ya usa
+> Supabase más allá de Auth: `infrastructure/` de múltiples features lee y
+> escribe tablas y llama RPCs reales, siempre detrás del boundary de
+> puertos/adapters (§3/§4). Ver §0.
 
 ---
 
@@ -24,11 +23,17 @@ producto":
 
 **A. Observable desde este repositorio (frontend):**
 Supabase Auth (`getSession`, `signInWithPassword`, `onAuthStateChange`,
-`signOut`) es la única superficie de Supabase que el código de `src/` toca.
-No hay lectura/escritura de tablas, RPC, Storage ni Edge Functions en
-`src/`. `supabase/migrations/` (ver §0.1) sí vive en este repo, pero es
-historial versionado de schema/RLS/RPC — no código de aplicación, y no
-implica que `src/` llame a Supabase más allá de Auth.
+`signOut`) sigue siendo la superficie que resuelve autenticación/sesión.
+Más allá de Auth, `infrastructure/` de múltiples features
+(`administration`, `properties`, `parking`, `rentals`, `documents`,
+`contracts`, `charges`, `payments`) lee y escribe tablas/vistas y llama
+RPCs de Supabase reales y desplegadas — esto es la realidad actual del
+código, no una evolución prevista. La frontera se mantiene: `domain/`,
+`application/` y `presentation/` de esas mismas features nunca importan el
+SDK de Supabase directamente, ese import solo aparece dentro de la carpeta
+`infrastructure/` de cada feature (regla de dependencia ya vigente, ver
+§3/§4). `supabase/migrations/` (ver §0.1) sí vive en este repo, pero es
+historial versionado de schema/RLS/RPC — no código de aplicación.
 
 **B. Backend actual del producto** (fuera del alcance de `src/`, pero
 real): Supabase como plataforma — Auth, PostgreSQL, RLS, RPC, Storage, Edge

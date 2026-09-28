@@ -1,4 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render as rtlRender, screen, type RenderResult } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import DashboardPage from './DashboardPage'
@@ -9,6 +11,13 @@ vi.mock('@/features/auth/application/useAuthSession', () => ({
     isLoading: false,
   }),
 }))
+
+// QuickActions (rendered by DashboardPage) navigates via useNavigate, so it
+// needs a Router context - wrapped here once so every existing render(...)
+// call site below stays unchanged.
+function render(ui: ReactElement): RenderResult {
+  return rtlRender(ui, { wrapper: MemoryRouter })
+}
 
 describe('DashboardPage', () => {
   it('greets the user with a name derived from their session email, not a hardcoded one', () => {
@@ -26,7 +35,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Inmuebles')).toBeInTheDocument()
   })
 
-  it('renders the four quick actions as real, focusable (but inert) buttons', () => {
+  it('renders the four quick action buttons', () => {
     render(<DashboardPage />)
 
     expect(screen.getByRole('button', { name: 'Crear arriendo' })).toBeInTheDocument()

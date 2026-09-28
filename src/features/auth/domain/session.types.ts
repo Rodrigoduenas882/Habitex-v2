@@ -41,9 +41,9 @@ export class SessionAuthError extends Error {
  * is defined by the Supabase SDK we already depend on.
  *
  * The next layer of this flow - Account / Person / Administrations, resolved from
- * this session - depends on a backend schema (tables/RPCs) that does not exist yet
- * in this repository. That layer is intentionally not implemented until the
- * contract is known; do not guess table or RPC names here.
+ * this session - is implemented separately, in `features/administration/`. This
+ * file's own job stays scoped to the auth boundary itself; it does not re-document
+ * that other feature's internals.
  */
 export interface SessionRepository {
   getSession(): Promise<AuthSession>
