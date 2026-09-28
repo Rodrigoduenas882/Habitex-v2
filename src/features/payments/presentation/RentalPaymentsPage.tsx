@@ -318,8 +318,32 @@ interface PaymentAllocationAmountFormProps {
   chargeId: string
   paymentRemainingAmount: number
   chargeBalance: number
+  managementGate: ManagementGateResult
   onAllocated: () => void
-  onStaleAllocationState: () => void
+  /**
+   * Carries the mapped error message of a stale/concurrent
+   * ALLOCATION_EXCEEDS_PAYMENT/ALLOCATION_EXCEEDS_CHARGE failure, rather than
+   * firing with no argument - the parent chain (PaymentAllocationSection ->
+   * PaymentAllocationSummary) keeps this message visible even after the
+   * refetch it triggers causes this form's own subtree to unmount (e.g. once
+   * remainingAmount reaches 0 and PaymentAllocationSection is replaced by the
+   * "fully applied" success state), so the user who just had their own
+   * submission rejected still sees why, instead of only a plain success
+   * message.
+   */
+  onStaleAllocationState: (message: string) => void
+  /**
+   * Fired as the very first thing on every submit (see this form's own
+   * onSubmit below), before allocatePayment.mutate - clears
+   * PaymentAllocationSummary's lifted staleAllocationError so a message from
+   * a previous, already-resolved attempt never survives into a new one. This
+   * covers the gap left by clearing only on reopen (see
+   * PaymentAllocationSummary's own staleAllocationError doc comment): a
+   * second attempt submitted without closing the section - whether it
+   * succeeds or fails with an unrelated code - must not keep rendering a
+   * stale message from a prior, distinct attempt.
+   */
+  onNewAttempt: () => void
 }
 
 /**
@@ -333,9 +357,13 @@ interface PaymentAllocationAmountFormProps {
  * simplest correct way to guarantee validation always uses the right bound,
  * and it also naturally clears the amount field for a newly-selected charge.
  *
- * Not gated by useManagementGate itself - the trigger button one level up
- * (PaymentAllocationSummary) already is, so reaching this form implies the
- * gate already allowed it.
+ * `managementGate` is threaded down as a live prop (not just relied upon via
+ * the trigger button one level up in PaymentAllocationSummary, which is only
+ * checked once when the section is first opened) so a mid-session change -
+ * e.g. the subscription expiring while this form is already open - disables
+ * the amount input and submit button on the very next render. React
+ * re-renders this whole tree whenever the underlying useSubscription query
+ * (which useManagementGate wraps) updates, so this stays live for free.
  */
 function PaymentAllocationAmountForm({
   administrationId,
@@ -344,10 +372,12 @@ function PaymentAllocationAmountForm({
   chargeId,
   paymentRemainingAmount,
   chargeBalance,
+  managementGate,
   onAllocated,
   onStaleAllocationState,
+  onNewAttempt,
 }: PaymentAllocationAmountFormProps) {
-  const { t } = useTranslation('payments')
+  const { t } = useTranslation(['payments', 'administration'])
   const allocatePayment = useAllocatePayment()
   const maximum = Math.min(paymentRemainingAmount, chargeBalance)
 
@@ -362,6 +392,7 @@ function PaymentAllocationAmountForm({
   })
 
   const onSubmit = handleSubmit((values) => {
+    onNewAttempt()
     allocatePayment.mutate(
       {
         administrationId,
@@ -383,14 +414,25 @@ function PaymentAllocationAmountForm({
             error instanceof PaymentRepositoryError &&
             (error.code === 'allocation_exceeds_payment' || error.code === 'allocation_exceeds_charge')
           ) {
-            onStaleAllocationState()
+            onStaleAllocationState(allocatePaymentErrorMessage(t, error))
           }
         },
       },
     )
   })
 
-  const errorMessage = allocatePayment.isError ? allocatePaymentErrorMessage(t, allocatePayment.error) : null
+  // A stale/concurrent ALLOCATION_EXCEEDS_PAYMENT/ALLOCATION_EXCEEDS_CHARGE
+  // is already surfaced by the parent chain via onStaleAllocationState (see
+  // this form's own onError above and PaymentAllocationSummary's
+  // staleAllocationError) - excluded here so it never renders twice while
+  // this form stays mounted alongside that lifted message. Every other
+  // allocate_payment error is local-only and still rendered right here.
+  const isLiftedStaleError =
+    allocatePayment.isError &&
+    allocatePayment.error instanceof PaymentRepositoryError &&
+    (allocatePayment.error.code === 'allocation_exceeds_payment' || allocatePayment.error.code === 'allocation_exceeds_charge')
+  const errorMessage =
+    allocatePayment.isError && !isLiftedStaleError ? allocatePaymentErrorMessage(t, allocatePayment.error) : null
 
   return (
     <form
@@ -416,18 +458,21 @@ function PaymentAllocationAmountForm({
         step="any"
         label={t('card.allocations.form.amount.label')}
         error={errors.amount?.message}
-        disabled={allocatePayment.isPending}
+        disabled={allocatePayment.isPending || managementGate.blocked}
         {...register('amount')}
       />
       <Button
         type="submit"
         size="sm"
         loading={allocatePayment.isPending}
-        disabled={allocatePayment.isPending}
+        disabled={allocatePayment.isPending || managementGate.blocked}
         className={styles['submit']}
       >
         {allocatePayment.isPending ? t('card.allocations.form.submitting') : t('card.allocations.form.submit')}
       </Button>
+      {managementGate.blocked ? (
+        <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
+      ) : null}
       {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
     </form>
   )
@@ -439,8 +484,19 @@ interface PaymentAllocationSectionProps {
   payment: Payment
   remainingAmount: number
   allocatedChargeIds: Set<string>
+  managementGate: ManagementGateResult
   onClose: () => void
-  onStaleAllocationState: () => void
+  /**
+   * Bubbles the mapped stale-allocation-error message up to
+   * PaymentAllocationSummary - see PaymentAllocationAmountFormProps's own doc
+   * comment for why this carries the message instead of firing bare.
+   */
+  onStaleAllocationState: (message: string) => void
+  /**
+   * Straight pass-through down to PaymentAllocationAmountForm - see that
+   * component's own onNewAttempt doc comment.
+   */
+  onNewAttempt: () => void
 }
 
 /**
@@ -461,8 +517,10 @@ function PaymentAllocationSection({
   payment,
   remainingAmount,
   allocatedChargeIds,
+  managementGate,
   onClose,
   onStaleAllocationState,
+  onNewAttempt,
 }: PaymentAllocationSectionProps) {
   const { t } = useTranslation('payments')
   const chargesQuery = useCharges(administrationId, relationshipId)
@@ -510,17 +568,23 @@ function PaymentAllocationSection({
               chargeId={selectedCharge.id}
               paymentRemainingAmount={remainingAmount}
               chargeBalance={selectedCharge.balance}
+              managementGate={managementGate}
               onAllocated={() => {
                 setSelectedChargeId('')
               }}
-              onStaleAllocationState={() => {
+              onNewAttempt={onNewAttempt}
+              onStaleAllocationState={(message) => {
                 // This section owns the charges query - refetch it directly
                 // here, and bubble up to the parent (PaymentAllocationSummary)
                 // for its own usePaymentAllocations refetch, so a stale
                 // ALLOCATION_EXCEEDS_PAYMENT/ALLOCATION_EXCEEDS_CHARGE
                 // refreshes both halves of this feature's stale-state data.
+                // The message itself is only bubbled up, not shown here -
+                // PaymentAllocationSummary is the layer that survives this
+                // section unmounting (e.g. once remainingAmount reaches 0),
+                // so it's the one that keeps it visible.
                 void chargesQuery.refetch()
-                onStaleAllocationState()
+                onStaleAllocationState(message)
               }}
             />
           ) : null}
@@ -557,6 +621,19 @@ function PaymentAllocationSummary({ payment, administrationId, relationshipId, m
   const { t } = useTranslation(['payments', 'administration'])
   const allocationsQuery = usePaymentAllocations(administrationId, payment.id)
   const [isOpen, setIsOpen] = useState(false)
+  // Set by PaymentAllocationSection's onStaleAllocationState on a stale
+  // ALLOCATION_EXCEEDS_PAYMENT/ALLOCATION_EXCEEDS_CHARGE failure - kept here
+  // (rather than only in the amount form's own local state) so the message
+  // survives PaymentAllocationSection unmounting, e.g. when the refetch it
+  // triggers resolves with remainingAmount === 0 and this component swaps to
+  // the "fully applied" success state. Cleared in two places: when the user
+  // closes "Aplicar a cargos" and opens it again for a fresh attempt, and -
+  // so it never survives a second, distinct attempt submitted without
+  // closing the section first (different charge, or a smaller amount for the
+  // same charge) - at the start of every new submission via onNewAttempt,
+  // threaded down to PaymentAllocationAmountForm's own onSubmit (see that
+  // component's onNewAttempt doc comment).
+  const [staleAllocationError, setStaleAllocationError] = useState<string | null>(null)
 
   if (allocationsQuery.isLoading) {
     return (
@@ -585,6 +662,7 @@ function PaymentAllocationSummary({ payment, administrationId, relationshipId, m
       <p className={cx('text-body-sm', 'tabular-nums')}>
         {t('card.allocations.remainingAmount', { amount: formatAmount(remainingAmount) })}
       </p>
+      {staleAllocationError ? <Alert tone="danger">{staleAllocationError}</Alert> : null}
       {remainingAmount === 0 ? (
         <Alert tone="success">{t('card.allocations.fullyApplied')}</Alert>
       ) : isOpen ? (
@@ -594,11 +672,16 @@ function PaymentAllocationSummary({ payment, administrationId, relationshipId, m
           payment={payment}
           remainingAmount={remainingAmount}
           allocatedChargeIds={new Set(allocations.map((allocation) => allocation.chargeId))}
+          managementGate={managementGate}
           onClose={() => {
             setIsOpen(false)
           }}
-          onStaleAllocationState={() => {
+          onStaleAllocationState={(message) => {
+            setStaleAllocationError(message)
             void allocationsQuery.refetch()
+          }}
+          onNewAttempt={() => {
+            setStaleAllocationError(null)
           }}
         />
       ) : (
@@ -609,6 +692,7 @@ function PaymentAllocationSummary({ payment, administrationId, relationshipId, m
             disabled={managementGate.blocked}
             aria-disabled={managementGate.blocked ? 'true' : undefined}
             onClick={() => {
+              setStaleAllocationError(null)
               setIsOpen(true)
             }}
           >

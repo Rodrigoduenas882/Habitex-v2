@@ -92,9 +92,13 @@ research verdict: BACKEND READY — NO MIGRATION REQUIRED), extiende
 `features/payments/` (sin nueva feature/ruta), implementado en 2
 subtareas secuenciales (domain/infrastructure/application, luego
 presentation/i18n), validado e independientemente revisado (0
-BLOCKER/HIGH; 2 MEDIUM + 1 LOW no bloqueantes registrados). Checkpoint
-local pendiente de push. Ver detalle en "Último incremento ejecutado"
-más abajo.
+BLOCKER/HIGH; 2 MEDIUM + 1 LOW no bloqueantes registrados en la revisión
+original). Los 2 MEDIUM se resolvieron en un review-fix de 2 rondas
+(la primera ronda introdujo un 3er MEDIUM nuevo, detectado por la
+re-revisión enfocada y corregido en una segunda ronda inmediata) — 0
+BLOCKER/HIGH/MEDIUM tras el review-fix, 1 LOW original sigue registrado
+como deuda no bloqueante. Checkpoint local pendiente de push. Ver
+detalle en "Último incremento ejecutado" más abajo.
 
 ## Estado
 
@@ -387,7 +391,8 @@ INC-001/003/004/006/008/009/010/011/012/013 pusheados`.
 | INC-012 — Charges (`features/charges/`: `ChargeRepository` con `listByRelationship`/`generateRentCharges`, `charge_balances` como fuente de verdad de balance/estado financiero, ruta `/rentals/:id/charges`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados), checkpoint `0ed26b3` pusheado |
 | INC-013 — backend gate (`reject_payment(uuid)`, migration `20260928131439_reject_payment.sql`) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only, commiteada y pusheada (`2bc3a3f`) |
 | INC-013 — Payments: report & confirm/reject (`features/payments/`: `PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, asimetría de autorización, subida-luego-registro de comprobante sin re-subida en reintento, confirmación de dos pasos para rechazar, ruta `/rentals/:id/payments`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado), checkpoint `a6e167f` pusheado |
-| INC-014 — Payment allocation (`features/payments/`: `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, resumen de allocation por pago, cargos elegibles filtrados por relación/balance/no-ya-asignado, invalidación cross-feature autorizada hacia `chargeQueryKeys` de `features/charges/`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 2 MEDIUM + 1 LOW no bloqueantes registrados), checkpoint local pendiente de push |
+| INC-014 — Payment allocation (`features/payments/`: `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, resumen de allocation por pago, cargos elegibles filtrados por relación/balance/no-ya-asignado, invalidación cross-feature autorizada hacia `chargeQueryKeys` de `features/charges/`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 BLOCKER/HIGH; 2 MEDIUM + 1 LOW en la revisión original) |
+| INC-014 review-fix (2 rondas: gateo en vivo de `useManagementGate` en el submit de allocation; mensaje de error obsoleto persistente en vez de ser tapado por "aplicado completamente"; ronda 2 corrige un 3er MEDIUM introducido por la ronda 1 — limpieza del mensaje obsoleto al iniciar un intento nuevo) | done — re-revisado (`habitex-reviewer`, contexto independiente): 2 MEDIUM originales **RESUELTOS**, 0 BLOCKER/HIGH/MEDIUM nuevos tras la ronda 2 (verificada por lectura directa del diff), 1 LOW original sin tocar por decisión humana, checkpoint local pendiente de push |
 
 ## Blockers
 
@@ -581,16 +586,65 @@ afectar el balance de un cargo.
     componente — los otros 3 están cubiertos a nivel de repository
     (subtarea anterior) y el reviewer verificó en vivo que las 7 keys de
     i18n correspondientes existen sin typos, por lo que el riesgo
-    residual es bajo.
+    residual es bajo. **Sin fix — deuda no bloqueante registrada,
+    explícitamente fuera de alcance del review-fix por decisión humana.**
+
+**RESUELTO (2026-09-28, review-fix sin nuevo incremento, 2 rondas)**: el
+usuario aprobó la implementación pero pidió resolver los 2 MEDIUM antes
+de push (checkpoint `22db1bc` retenido). **Ronda 1**: `managementGate`
+enhebrado como prop viva `RentalPaymentsView` → `PaymentCard` →
+`PaymentAllocationSummary` → `PaymentAllocationSection` →
+`PaymentAllocationAmountForm` (mismo valor de `useManagementGate`, nunca
+una segunda llamada) — el input de monto y el botón de envío ahora se
+deshabilitan reactivamente si el gate se bloquea mientras la sección ya
+está abierta, con el texto de razón estándar (resuelve el 1er MEDIUM);
+`onStaleAllocationState` cambia de forma a `(message: string) => void` y
+`PaymentAllocationSummary` gana `staleAllocationError`, mostrado de forma
+**independiente** (nunca reemplazado por) el estado "aplicado
+completamente" cuando una `ALLOCATION_EXCEEDS_PAYMENT`/
+`ALLOCATION_EXCEEDS_CHARGE` concurrente coincide con un refetch que
+revela `remainingAmount === 0` (resuelve el 2do MEDIUM). La re-revisión
+enfocada (`habitex-reviewer`, contexto independiente, sin ver la revisión
+original) confirmó ambos MEDIUM **RESUELTOS** con tests que ejercitan el
+escenario real (gate que cambia mid-sesión vía escritura directa en el
+cache de `useSubscription`, y ambos mensajes — error obsoleto + éxito —
+presentes simultáneamente para `ALLOCATION_EXCEEDS_PAYMENT` y
+`ALLOCATION_EXCEEDS_CHARGE`) — pero detectó un **3er MEDIUM nuevo**,
+introducido por la propia ronda 1: `staleAllocationError` solo se
+limpiaba al reabrir "Aplicar a cargos", no al iniciar un segundo intento
+distinto sin cerrar la sección, dejando un mensaje de carrera obsoleto
+visible junto a un segundo intento ya exitoso (o junto a un error no
+relacionado). **Ronda 2** (misma tarde, fix quirúrgico de 1 archivo):
+nuevo callback `onNewAttempt` enhebrado por la misma cadena de props,
+llamado al inicio exacto de `onSubmit` (antes de `allocatePayment.mutate`)
+para limpiar `staleAllocationError` en cada intento nuevo, sin tocar el
+fix de la ronda 1 ni la lógica de-duplicación `isLiftedStaleError` (ambas
+confirmadas correctas por la re-revisión). Verificado directamente por la
+sesión orquestadora (sin una 3ra ronda de `habitex-reviewer` — cambio de
+4 líneas de prop-threading + 1 test, revisado por lectura directa del
+diff dado el tamaño y claridad del cambio). El LOW original permanece sin
+tocar, por decisión humana explícita. Validación completa
+(`typecheck`/`lint`/`test -- --run`/`build`) PASS tras ambas rondas —
+759/759 tests (759 = 754 + 3 de la ronda 1 + 1 de la ronda 1 adicional +
+1 de la ronda 2; ver "Último resultado de validación" para el desglose
+exacto). Sin cambios a Supabase/RLS/migrations/dependencias en ninguna de
+las 2 rondas — confirmado por `git status`/`git diff --stat` (solo
+`RentalPaymentsPage.tsx`/`.test.tsx` tocados en todo el review-fix).
+Commit del fix: ver "Registro de checkpoints" (commit separado, no amend
+de `22db1bc`).
 - **Validación** (ejecutada de forma independiente por la sesión
-  orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
-  lint && pnpm test -- --run && pnpm build` — todos PASS. 95 archivos /
-  754 tests (0 fallos), 0 errores de lint (mismos 4 warnings
+  orquestadora y re-verificada por el reviewer, incluyendo la validación
+  post-review-fix ejecutada de forma independiente por la sesión
+  orquestadora): `pnpm typecheck && pnpm lint && pnpm test -- --run &&
+  pnpm build` — todos PASS en cada etapa (implementación original: 754
+  tests; tras ronda 1 del review-fix: 758 tests; tras ronda 2: 759
+  tests). 95 archivos, 0 fallos, 0 errores de lint (mismos 4 warnings
   preexistentes, no relacionados). Build emite el chunk
-  `RentalPaymentsPage` ampliado (21.81 kB) correctamente. El reviewer
-  además corrió `habitex-design-review` sobre el CSS/presentación nuevos:
-  sin hallazgos (tokens existentes, sin valores hardcodeados, sin
-  primitivas nuevas).
+  `RentalPaymentsPage` correctamente en cada etapa (22.35 kB final). El
+  reviewer de la implementación original además corrió
+  `habitex-design-review` sobre el CSS/presentación nuevos: sin
+  hallazgos (tokens existentes, sin valores hardcodeados, sin primitivas
+  nuevas).
 - **Human gates**: solo el RESEARCH/RECONCILIATION GATE (ya resuelto y
   aprobado explícitamente por el usuario antes de implementar). Sin
   cambios de schema/RLS/grants/migrations/dependencias/arquitectura en el
@@ -1965,42 +2019,47 @@ explícito) cuando se lleguen a ejecutar.
 ## Último checkpoint
 
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit — INC-014)_
+  actualización de `PROGRESS.md`, en el mismo commit — INC-014 review-fix,
+  commit separado, no amend de `22db1bc`)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: extensión de `features/payments/`
-  existente (domain/infrastructure/application/presentation) con
-  `PaymentAllocation`, `listAllocationsForPayment`/`allocatePayment`,
-  `usePaymentAllocations`/`useAllocatePayment`,
-  `summarizePaymentAllocations`, y la UI de allocation en `PaymentCard` —
-  sin nueva feature, sin nueva ruta. Namespace i18n `payments` extendido
-  (es/es-CO), más esta actualización de `PROGRESS.md`.
+- **Contenido del checkpoint**: review-fix de 2 rondas sobre
+  `RentalPaymentsPage.tsx`/`.test.tsx` únicamente (ningún otro archivo) —
+  gateo en vivo de `useManagementGate` en el submit de allocation (1er
+  MEDIUM), mensaje de error obsoleto persistente en vez de ser tapado por
+  "Pago aplicado completamente" (2do MEDIUM), y la limpieza de ese mensaje
+  al iniciar un intento nuevo sin cerrar la sección (3er MEDIUM, detectado
+  por la re-revisión como introducido por la propia ronda 1 y corregido de
+  inmediato en la ronda 2), más esta actualización de `PROGRESS.md`.
 - **Fecha**: 2026-09-28
 - **Estado**: commiteado localmente, **pendiente de push** — push/merge
   nunca son automáticos en este workflow.
-- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
-  (research verdict: BACKEND READY — NO MIGRATION REQUIRED); ninguna
-  edición/eliminación/reversión de allocation; ningún recibo; ninguna
-  allocation automática; ningún cambio a `features/charges/` más allá de
-  importar su `chargeQueryKeys`/`useCharges`/`Charge` ya exportados.
+- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations/
+  dependencias; ningún archivo fuera de `features/payments/presentation/
+  RentalPaymentsPage.{tsx,test.tsx}`; el LOW original de la revisión de
+  INC-014 sigue sin tocar, por decisión humana explícita.
 
-Checkpoint anterior, ya pusheado: INC-013 completo (`2bc3a3f` backend
-gate, `a6e167f` frontend) — ver "Registro de checkpoints".
+Checkpoint anterior de INC-014 (implementación original, retenido sin
+push a pedido del usuario hasta resolver los 2 MEDIUM): `22db1bc`.
+Checkpoint anterior a ese, ya pusheado: INC-013 completo (`2bc3a3f`
+backend gate, `a6e167f` frontend) — ver "Registro de checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado de INC-014, ejecutado de forma
-independiente por la sesión orquestadora y re-verificado por el reviewer
-(incluyendo re-verificación en vivo vía Supabase MCP read-only del cuerpo
-completo de `allocate_payment` y de su trigger
-`validate_payment_allocation`, la policy única `payment_allocations_select`,
-y `charge_balances` sin cambios respecto a lo investigado):
+Medido sobre el resultado integrado del review-fix de INC-014 (2 rondas),
+ejecutado de forma independiente por la sesión orquestadora tras cada
+ronda, y re-verificado por `habitex-reviewer` (contexto independiente)
+tras la ronda 1 (confirmó ambos MEDIUM originales resueltos, detectó el
+3er MEDIUM introducido por esa misma ronda). La ronda 2 (fix de 4 líneas
+de prop-threading + 1 test) se verificó por lectura directa del diff por
+la sesión orquestadora, sin una 3ra ronda de `habitex-reviewer`, dado el
+tamaño y claridad mecánica del cambio:
 
 | Check | Resultado |
 |---|---|
-| `pnpm typecheck` | PASS |
+| `pnpm typecheck` | PASS (en cada etapa: implementación original, ronda 1, ronda 2) |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 754/754, 95 archivos |
-| `pnpm build` | PASS — emite el chunk `RentalPaymentsPage` ampliado (21.81 kB) correctamente |
+| `pnpm test -- --run` | PASS en cada etapa — 754/754 (original) → 758/758 (ronda 1) → 759/759 (ronda 2, final), 95 archivos |
+| `pnpm build` | PASS en cada etapa — emite el chunk `RentalPaymentsPage` correctamente (22.35 kB final) |
 
 ## Siguiente acción recomendada
 
@@ -2064,4 +2123,5 @@ git, no aquí._
 | 2026-09-25 | `0ed26b3` | `chore/agentic-foundation` | INC-012 — Charges: nuevo `features/charges/` (`ChargeRepository` con `listByRelationship` — dos `SELECT` separados contra `charges`/`charge_balances`, mezclados por id, financiero siempre desde la vista — y `generateRentCharges`, que envuelve `generate_rent_charges` llamado solo con `p_relationship_id`, sin lógica de periodos/monto en el frontend). Ruta `/rentals/:id/charges`, acción "Cargos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, sin creación manual de cargos, sin UI de editar/eliminar/anular, sin UI de pagos (decisiones humanas explícitas). Sin backend gate — `generate_rent_charges` y `charge_balances` ya estaban completamente soportados. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados. **Pusheado** (junto con `2bc3a3f`). |
 | 2026-09-28 | `2bc3a3f` | `chore/agentic-foundation` | INC-013 backend gate: migration `20260928131439_reject_payment.sql` (`reject_payment(uuid)`, espejo exacto de las convenciones de `confirm_payment` — `SECURITY DEFINER`, mismo `search_path` hardening, misma función de autorización `can_manage_administration`, mismo row-locking `for update`, mismo patrón `REVOKE`/`GRANT`) autorada, aplicada contra el proyecto real vía `supabase db push --yes` ejecutado por el usuario, verificada post-apply de forma independiente vía Supabase MCP read-only (definición desplegada, autorización, concurrencia, grants, RLS, historial de migration, advisors — 0 hallazgos nuevos relevantes). **Pusheado**. |
 | 2026-09-28 | `a6e167f` | `chore/agentic-foundation` | INC-013 frontend — Payments: report & confirm/reject: nuevo `features/payments/` (`PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, nunca INSERT/UPDATE/DELETE directo; asimetría de autorización replicada exactamente — reportar/leer sin `useManagementGate`, confirmar/rechazar con él; confirmación de dos pasos para rechazar; subida-luego-registro de comprobante sin re-subida en reintento, reutilizando `FilePurpose.PAYMENT_PROOF`/bucket `'documents'` de INC-010; UX financiera explícita de que un pago `CONFIRMED` no fue aplicado a un cargo). Ruta `/rentals/:id/payments`, acción "Pagos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado. **INC-013 completo (backend + frontend) — Pusheado**. |
-| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-014 — Payment allocation: extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, nunca INSERT/UPDATE/DELETE directo contra `payment_allocations`; `PaymentErrorCode` extendido con los 4 errores con nombre del trigger `validate_payment_allocation` + `23505`/`23514`; `summarizePaymentAllocations` puro; cargos elegibles filtrados por relación/`balance > 0`/no-ya-asignado-por-este-pago (reutiliza `useCharges`/`chargeQueryKeys` de `features/charges/`, cross-feature invalidation explícitamente autorizada); cargo ya asignado se oculta (nunca deshabilitado); pago totalmente aplicado muestra "Pago aplicado completamente" sin acción; máximo aplicable = `min(restante, balance)` como guard de UX, backend sigue siendo la autoridad. Research verdict: BACKEND READY — NO MIGRATION REQUIRED. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles (0 BLOCKER/HIGH) — 2 MEDIUM (submit no re-gateado en vivo; estado "aplicado" puede tapar un error de carrera concurrente) + 1 LOW (cobertura end-to-end parcial de códigos de error) no bloqueantes registrados. **INC-014 completo — local, pendiente de push**. |
+| 2026-09-28 | `22db1bc` | `chore/agentic-foundation` | INC-014 — Payment allocation: extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, nunca INSERT/UPDATE/DELETE directo contra `payment_allocations`; `PaymentErrorCode` extendido con los 4 errores con nombre del trigger `validate_payment_allocation` + `23505`/`23514`; `summarizePaymentAllocations` puro; cargos elegibles filtrados por relación/`balance > 0`/no-ya-asignado-por-este-pago (reutiliza `useCharges`/`chargeQueryKeys` de `features/charges/`, cross-feature invalidation explícitamente autorizada); cargo ya asignado se oculta (nunca deshabilitado); pago totalmente aplicado muestra "Pago aplicado completamente" sin acción; máximo aplicable = `min(restante, balance)` como guard de UX, backend sigue siendo la autoridad. Research verdict: BACKEND READY — NO MIGRATION REQUIRED. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles (0 BLOCKER/HIGH) — 2 MEDIUM (submit no re-gateado en vivo; estado "aplicado" puede tapar un error de carrera concurrente) + 1 LOW (cobertura end-to-end parcial de códigos de error) no bloqueantes registrados. **Implementación retenida sin push a pedido del usuario hasta resolver los 2 MEDIUM — ver fila siguiente**. |
+| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-014 review-fix (no un nuevo incremento, 2 rondas sobre `RentalPaymentsPage.tsx`/`.test.tsx` únicamente): Ronda 1 resuelve los 2 MEDIUM de `22db1bc` — `managementGate` enhebrado como prop viva hasta `PaymentAllocationAmountForm` (gateo en vivo del submit de allocation) y `staleAllocationError` elevado a `PaymentAllocationSummary` (mensaje de carrera obsoleto ya no tapado por "Pago aplicado completamente"). Re-revisión enfocada (`habitex-reviewer`, contexto independiente): ambos MEDIUM **RESUELTOS** con tests que ejercitan el escenario real, pero detecta un 3er MEDIUM nuevo introducido por la ronda 1 (mensaje obsoleto no se limpiaba al iniciar un segundo intento sin cerrar la sección). Ronda 2 (mismo día, fix quirúrgico): nuevo callback `onNewAttempt` limpia el mensaje al inicio de cada intento nuevo, sin tocar el fix de la ronda 1. Verificada por lectura directa del diff por la sesión orquestadora (sin 3ra ronda de reviewer, dado el tamaño mecánico del cambio). LOW original sin tocar, por decisión humana. Validación completa PASS en cada etapa — 759/759 tests finales. **INC-014 completo (backend ya pusheado en `2bc3a3f`; frontend `22db1bc` + este review-fix) — local, pendiente de push**. |

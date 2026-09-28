@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
+import { administrationQueryKeys } from '@/features/administration/application/administration-query-keys'
 import type { Charge } from '@/features/charges/domain/charge.types'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import { PaymentRepositoryError, type Payment, type PaymentAllocation } from '../domain/payment.types'
@@ -167,9 +168,13 @@ const UNLIMITED_SUBSCRIPTION = {
   activeRelationshipLimit: null,
 }
 
+// Returns the render result merged with its own QueryClient - some tests
+// (e.g. a management-access gate flipping mid-session) simulate a cache
+// change directly via client.setQueryData, the same technique already used
+// by auth-reactivity.test.tsx, rather than inventing a new mechanism.
 function renderPage(entry = '/rentals/rel-1/payments') {
   const client = createTestQueryClient()
-  return render(
+  const result = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[entry]}>
         <Routes>
@@ -178,6 +183,7 @@ function renderPage(entry = '/rentals/rel-1/payments') {
       </MemoryRouter>
     </QueryClientProvider>,
   )
+  return { ...result, client }
 }
 
 function resolveOneAdministration() {
@@ -646,6 +652,179 @@ describe('RentalPaymentsPage', () => {
       await user.click(screen.getByRole('button', { name: 'Aplicar' }))
 
       expect(await screen.findByText('No tienes permiso para aplicar este pago a un cargo.')).toBeInTheDocument()
+    })
+
+    it('disables the amount input and submit button live, and never submits, once the management gate becomes blocked while the section is already open', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 300_000 }),
+      ])
+      const user = userEvent.setup()
+      const { client } = renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-eligible')
+      const amountInput = await screen.findByLabelText('Valor a aplicar')
+      const submitButton = screen.getByRole('button', { name: 'Aplicar' })
+      expect(amountInput).toBeEnabled()
+      expect(submitButton).toBeEnabled()
+      await user.type(amountInput, '100000')
+
+      // Simulates the subscription expiring mid-session (e.g. the
+      // subscription query refetching in the background) - same technique as
+      // auth-reactivity.test.tsx's own direct client.setQueryData usage,
+      // rather than a real refetch/timer.
+      client.setQueryData(administrationQueryKeys.subscription('admin-1'), {
+        ...UNLIMITED_SUBSCRIPTION,
+        status: 'EXPIRED',
+      })
+
+      await waitFor(() => {
+        expect(submitButton).toBeDisabled()
+      })
+      expect(amountInput).toBeDisabled()
+      expect(
+        await screen.findAllByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+      ).not.toHaveLength(0)
+
+      await user.click(submitButton)
+      expect(allocatePayment).not.toHaveBeenCalled()
+    })
+
+    describe.each([
+      ['allocation_exceeds_payment', 'Ese valor ya no está disponible en este pago. Actualizando…'] as const,
+      ['allocation_exceeds_charge', 'Ese valor ya no está disponible para este cargo. Actualizando…'] as const,
+    ])('a stale %s failure whose refetch reports the payment as fully applied', (code, expectedMessage) => {
+      it('keeps the failure message visible alongside the "fully applied" success state, instead of one silently replacing the other', async () => {
+        resolveOneAdministration()
+        listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+        listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+        listAllocationsForPayment.mockResolvedValueOnce([])
+        // A concurrent allocation won the race and, by the time this
+        // client's own failed attempt triggers a refetch, fully applies the
+        // payment - remainingAmount becomes 0 after the refetch.
+        listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 500_000 })])
+        listChargesByRelationship.mockResolvedValueOnce([
+          makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 300_000 }),
+        ])
+        listChargesByRelationship.mockResolvedValueOnce([
+          makeCharge({
+            id: 'charge-eligible',
+            description: 'Cargo elegible',
+            balance: 0,
+            paidAmount: 300_000,
+            financialStatus: 'PAID',
+          }),
+        ])
+        allocatePayment.mockRejectedValueOnce(new PaymentRepositoryError(code))
+        const user = userEvent.setup()
+        renderPage()
+
+        await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+        await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-eligible')
+        await user.type(await screen.findByLabelText('Valor a aplicar'), '100000')
+        await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+        expect(await screen.findByText(expectedMessage)).toBeInTheDocument()
+        expect(await screen.findByText('Pago aplicado completamente')).toBeInTheDocument()
+      })
+    })
+
+    it('clears a previous stale-allocation error once "Aplicar a cargos" is opened again for a fresh attempt', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      // The refetch after the stale failure still reports a remaining
+      // balance > 0, so the trigger button re-appears instead of "fully
+      // applied" - the scenario where the cleared-on-reopen behavior is
+      // actually observable.
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 450_000 })])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 300_000 }),
+      ])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 50_000 }),
+      ])
+      allocatePayment.mockRejectedValueOnce(new PaymentRepositoryError('allocation_exceeds_payment'))
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-eligible')
+      await user.type(await screen.findByLabelText('Valor a aplicar'), '100000')
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+      const staleMessage = await screen.findByText('Ese valor ya no está disponible en este pago. Actualizando…')
+      expect(staleMessage).toBeInTheDocument()
+
+      // remainingAmount stays > 0 after the refetch, so the section stays
+      // open (isOpen is untouched by onStaleAllocationState) - closing it
+      // manually and reopening is the actual "fresh attempt" boundary.
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+
+      expect(screen.queryByText('Ese valor ya no está disponible en este pago. Actualizando…')).not.toBeInTheDocument()
+    })
+
+    it('clears a previous stale-allocation error once a second, distinct attempt succeeds without closing the section', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      // 1) initial load, 2) refetch triggered by the first (failed) attempt's
+      // stale-state handling, 3) refetch triggered by the second (succeeded)
+      // attempt's own invalidation.
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ chargeId: 'charge-b', amount: 50_000 })])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-a', description: 'Cargo A', balance: 300_000 }),
+        makeCharge({ id: 'charge-b', description: 'Cargo B', balance: 200_000 }),
+      ])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-a', description: 'Cargo A', balance: 300_000 }),
+        makeCharge({ id: 'charge-b', description: 'Cargo B', balance: 200_000 }),
+      ])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-a', description: 'Cargo A', balance: 300_000 }),
+        makeCharge({
+          id: 'charge-b',
+          description: 'Cargo B',
+          balance: 150_000,
+          paidAmount: 50_000,
+          financialStatus: 'PARTIAL',
+        }),
+      ])
+      allocatePayment.mockRejectedValueOnce(new PaymentRepositoryError('allocation_exceeds_payment'))
+      allocatePayment.mockResolvedValueOnce(makeAllocation({ chargeId: 'charge-b', amount: 50_000 }))
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-a')
+      await user.type(await screen.findByLabelText('Valor a aplicar'), '100000')
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+      expect(await screen.findByText('Ese valor ya no está disponible en este pago. Actualizando…')).toBeInTheDocument()
+
+      // Without closing the section, submit a second, distinct attempt (a
+      // different charge) that succeeds this time.
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-b')
+      await user.type(await screen.findByLabelText('Valor a aplicar'), '50000')
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+      await waitFor(() => {
+        expect(allocatePayment).toHaveBeenCalledWith({ paymentId: 'payment-1', chargeId: 'charge-b', amount: 50000 })
+      })
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Ese valor ya no está disponible en este pago. Actualizando…'),
+        ).not.toBeInTheDocument()
+      })
+      expect(await screen.findByText('Aplicado: $50.000')).toBeInTheDocument()
     })
 
     it('never renders receipt-related copy or an allocation edit/delete/reversal control', async () => {
