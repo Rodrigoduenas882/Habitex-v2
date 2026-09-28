@@ -57,7 +57,8 @@
     "paymentDay": "Pago el día {{day}}",
     "completeTerms": "Completar términos",
     "contracts": "Contratos",
-    "charges": "Cargos"
+    "charges": "Cargos",
+    "payments": "Pagos"
   },
   "activate": {
     "cta": "Activar",

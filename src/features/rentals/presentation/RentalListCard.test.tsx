@@ -402,6 +402,43 @@ describe('RentalListCard', () => {
     expect(screen.getByText('Charges page for rental-9')).toBeInTheDocument()
   })
 
+  it('shows a "Pagos" action for ACTIVE, ENDING and ENDED rentals', () => {
+    for (const status of ['ACTIVE', 'ENDING', 'ENDED'] as const) {
+      const { unmount } = render(<RentalListCard rental={{ ...BASE, id: 'rental-payments', status }} />)
+
+      expect(screen.getByRole('button', { name: 'Pagos' })).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('shows no "Pagos" action for DRAFT or CANCELLED rentals', () => {
+    for (const status of ['DRAFT', 'CANCELLED'] as const) {
+      const { unmount } = render(<RentalListCard rental={{ ...BASE, id: 'rental-payments', status }} />)
+
+      expect(screen.queryByRole('button', { name: 'Pagos' })).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('navigates to /rentals/:id/payments when "Pagos" is clicked', async () => {
+    const user = userEvent.setup()
+    rtlRender(
+      <MemoryRouter initialEntries={['/rentals']}>
+        <Routes>
+          <Route
+            path="/rentals"
+            element={<RentalListCard rental={{ ...BASE, id: 'rental-9', status: 'ACTIVE' }} />}
+          />
+          <Route path="/rentals/:id/payments" element={<div>Payments page for rental-9</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Pagos' }))
+
+    expect(screen.getByText('Payments page for rental-9')).toBeInTheDocument()
+  })
+
   describe('DRAFT cancel (cancelDraft prop)', () => {
     function cancelDraftProps(overrides: Partial<Parameters<typeof RentalListCard>[0]['cancelDraft']> = {}) {
       return {

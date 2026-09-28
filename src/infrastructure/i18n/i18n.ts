@@ -7,6 +7,7 @@ import commonEsCO from './locales/es-CO/common.json'
 import contractsEsCO from './locales/es-CO/contracts.json'
 import dashboardEsCO from './locales/es-CO/dashboard.json'
 import parkingEsCO from './locales/es-CO/parking.json'
+import paymentsEsCO from './locales/es-CO/payments.json'
 import propertiesEsCO from './locales/es-CO/properties.json'
 import rentalsEsCO from './locales/es-CO/rentals.json'
 import uiPreviewEsCO from './locales/es-CO/uiPreview.json'
@@ -17,6 +18,7 @@ import commonEs from './locales/es/common.json'
 import contractsEs from './locales/es/contracts.json'
 import dashboardEs from './locales/es/dashboard.json'
 import parkingEs from './locales/es/parking.json'
+import paymentsEs from './locales/es/payments.json'
 import propertiesEs from './locales/es/properties.json'
 import rentalsEs from './locales/es/rentals.json'
 import uiPreviewEs from './locales/es/uiPreview.json'
@@ -41,6 +43,7 @@ export const resources = {
     administration: administrationEsCO,
     contracts: contractsEsCO,
     charges: chargesEsCO,
+    payments: paymentsEsCO,
   },
   es: {
     common: commonEs,
@@ -53,6 +56,7 @@ export const resources = {
     administration: administrationEs,
     contracts: contractsEs,
     charges: chargesEs,
+    payments: paymentsEs,
   },
 } as const
 
@@ -72,6 +76,7 @@ void i18next.use(initReactI18next).init({
     'administration',
     'contracts',
     'charges',
+    'payments',
   ],
   interpolation: {
     // React already escapes interpolated values.

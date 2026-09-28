@@ -1,0 +1,84 @@
+{
+  "title": "Pagos",
+  "description": "Consulta los pagos reportados para este arriendo y confirma o rechaza los que estén pendientes.",
+  "status": {
+    "REPORTED": "Reportado",
+    "CONFIRMED": "Confirmado",
+    "REJECTED": "Rechazado",
+    "CANCELLED": "Cancelado"
+  },
+  "paymentMethod": {
+    "BANK_TRANSFER": "Transferencia bancaria",
+    "CASH": "Efectivo",
+    "DIGITAL_WALLET": "Billetera digital",
+    "OTHER": "Otro"
+  },
+  "card": {
+    "amount": "Valor: {{amount}}",
+    "paymentDate": "Fecha de pago: {{date}}",
+    "paymentMethod": "Método de pago: {{method}}",
+    "externalReference": "Referencia: {{reference}}",
+    "notes": "Notas: {{notes}}",
+    "reportedAt": "Reportado el {{date}}",
+    "proofDownload": "Descargar comprobante",
+    "downloadError": "No pudimos descargar este archivo. Intenta de nuevo.",
+    "confirmedNotApplied": "Este pago fue confirmado, pero todavía no se ha aplicado a un cargo específico.",
+    "actions": {
+      "confirm": {
+        "cta": "Confirmar pago",
+        "errors": {
+          "payment_not_reported": "El estado de este pago ya cambió. Actualiza la página para ver su estado actual.",
+          "forbidden": "No tienes permiso para confirmar este pago.",
+          "unknown": "No pudimos confirmar este pago. Intenta de nuevo."
+        }
+      },
+      "reject": {
+        "cta": "Rechazar pago",
+        "confirmCta": "Confirmar rechazo",
+        "back": "Volver",
+        "errors": {
+          "payment_not_reported": "El estado de este pago ya cambió. Actualiza la página para ver su estado actual.",
+          "forbidden": "No tienes permiso para rechazar este pago.",
+          "unknown": "No pudimos rechazar este pago. Intenta de nuevo."
+        }
+      }
+    }
+  },
+  "reportForm": {
+    "title": "Reportar un pago",
+    "amount": { "label": "Valor pagado" },
+    "paymentDate": { "label": "Fecha de pago" },
+    "paymentMethod": {
+      "label": "Método de pago",
+      "none": "Sin especificar",
+      "BANK_TRANSFER": "Transferencia bancaria",
+      "CASH": "Efectivo",
+      "DIGITAL_WALLET": "Billetera digital",
+      "OTHER": "Otro"
+    },
+    "externalReference": { "label": "Referencia externa" },
+    "notes": { "label": "Notas" },
+    "proofFile": { "label": "Comprobante de pago" },
+    "submit": "Reportar pago",
+    "submitting": "Reportando…",
+    "validation": {
+      "amountInvalid": "Ingresa un valor de pago válido.",
+      "paymentDateRequired": "Ingresa la fecha de pago."
+    },
+    "errors": {
+      "forbidden": "No tienes permiso para reportar un pago en este arriendo.",
+      "invalid_amount": "Ingresa un valor de pago válido.",
+      "invalid_proof_file": "El comprobante seleccionado no es válido. Intenta con otro archivo.",
+      "unknown": "No pudimos reportar este pago. Intenta de nuevo."
+    }
+  },
+  "empty": {
+    "title": "Todavía no hay pagos reportados para este arriendo",
+    "description": "Reporta un pago para empezar a hacer seguimiento a los pagos de este arriendo."
+  },
+  "errors": {
+    "paymentsTitle": "No pudimos cargar los pagos",
+    "paymentsDescription": "Ocurrió un error al consultar los pagos de este arriendo. Intenta de nuevo más tarde.",
+    "relationshipNotFound": "No encontramos este arriendo en tu administración."
+  }
+}

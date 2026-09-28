@@ -277,6 +277,25 @@ export function RentalListCard({ rental, activation, cancelDraft, startEnding, e
           {t('list.charges')}
         </Button>
       ) : null}
+      {rental.status === 'ACTIVE' || rental.status === 'ENDING' || rental.status === 'ENDED' ? (
+        // Same visibility rule and plain-navigation pattern as "Contratos"/
+        // "Cargos" above - see RentalPaymentsPage's own doc comment for why
+        // DRAFT (never payable) and CANCELLED (nothing to show) are
+        // excluded. This is a UX-visibility decision, not a security
+        // boundary - report_payment/confirm_payment/reject_payment place no
+        // such restriction on rental_relationships.status.
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className={styles['termsAction']}
+          onClick={() => {
+            void navigate(`/rentals/${rental.id}/payments`)
+          }}
+        >
+          {t('list.payments')}
+        </Button>
+      ) : null}
       {rental.status === 'DRAFT' && activation ? (
         <div className={styles['activateRow']}>
           <Button

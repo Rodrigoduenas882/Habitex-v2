@@ -68,13 +68,28 @@ backend — `generate_rent_charges` ya desplegado, idempotente, y
 `public.charge_balances` ya provee `paid_amount`/`balance`/
 `financial_status` derivados server-side), implementado, validado e
 independientemente revisado (0 BLOCKER/HIGH; 2 LOW no bloqueantes
-registrados). Checkpoint local pendiente de push. Ver detalle en "Último
-incremento ejecutado" más abajo.
+registrados). Checkpoint `0ed26b3` pusheado a
+`origin/chore/agentic-foundation`. Ver detalle en "Incremento anterior:
+INC-012" más abajo.
+
+**INC-013 — Payments: report & confirm/reject**: **completo** (backend +
+frontend). Backend: migration `20260928131439_reject_payment.sql`
+(`reject_payment` RPC) autorada, aplicada por el usuario vía `supabase db
+push --yes`, verificada de forma independiente vía Supabase MCP
+read-only, y checkpointed/pusheado (`2bc3a3f`) — `report_payment`/
+`confirm_payment` ya estaban desplegados de incrementos previos. Frontend
+(este checkpoint): nuevo `features/payments/`, implementado en 2
+subtareas secuenciales (domain/infrastructure/application, luego
+presentation/routing/i18n), validado e independientemente revisado (0
+BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado). Checkpoint local
+pendiente de push. Ver detalle en "Último incremento ejecutado" más
+abajo.
 
 ## Estado
 
-`INC-012 completo, checkpoint local pendiente de push.
-INC-001/003/004/006/008/009/010/011 pusheados`.
+`INC-013 completo (backend + frontend), checkpoint frontend local
+pendiente de push. INC-001/003/004/006/008/009/010/011/012/013-backend
+pusheados`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -239,8 +254,41 @@ INC-001/003/004/006/008/009/010/011 pusheados`.
   `pg_class.reloptions`, y el grant a `authenticated` vía
   `has_table_privilege` — no vía `information_schema.role_table_grants`,
   que ya dio un falso negativo en INC-010: 0 BLOCKER/HIGH, 2 LOW no
-  bloqueantes registrados), checkpointed localmente (ver "Último
-  checkpoint").
+  bloqueantes registrados), checkpointed y pusheado (`0ed26b3`, como parte
+  del mismo push que incluyó el checkpoint de backend de INC-013).
+- INC-013 (backend + frontend): **completo**. Backend: migration
+  `20260928131439_reject_payment.sql` (`reject_payment(uuid)`, espejo
+  exacto de las convenciones de `confirm_payment`) autorada, aplicada por
+  el usuario (`supabase db push --yes`), verificada de forma
+  independiente post-apply vía Supabase MCP read-only (definición
+  desplegada, autorización, concurrencia, grants, RLS, historial de
+  migration, advisors — 0 hallazgos nuevos), checkpointed y pusheado
+  (`2bc3a3f`). Frontend: nuevo `features/payments/` — aggregate propio,
+  no plegado en `features/rentals/`, implementado en 2 subtareas
+  secuenciales (domain/infrastructure/application primero, presentation/
+  routing/i18n después). `PaymentRepository` con exactamente 4 métodos
+  (`listByRelationship`/`reportPayment`/`confirmPayment`/
+  `rejectPayment`), nunca un INSERT/UPDATE/DELETE directo contra
+  `public.payments`. Asimetría de autorización replicada exactamente
+  como está desplegada: reportar/leer nunca gateados por
+  `useManagementGate` (`report_payment` usa `can_view_relationship`);
+  confirmar/rechazar sí (`can_manage_administration`). Rechazar pago usa
+  confirmación inline de dos pasos (mismo patrón que
+  `TerminateContractAction`); mientras confirmar o rechazar está pendiente
+  para un pago, ambos botones de esa tarjeta se deshabilitan. Comprobante
+  de pago reutiliza `FilePurpose.PAYMENT_PROOF`/bucket `'documents'` de
+  INC-010, con el mismo patrón subida-luego-registro sin re-subida en
+  reintento de INC-011. UX financiera explícita: un pago `CONFIRMED`
+  muestra que todavía no fue aplicado a un cargo específico — sin lectura
+  de `payment_allocations`/`charges`/`charge_balances`/`receipts` en
+  ningún lugar (INC-014/015 poseen esa responsabilidad). Ruta angosta
+  `/rentals/:id/payments`, entrada "Pagos" en `RentalListCard` solo para
+  `ACTIVE`/`ENDING`/`ENDED`. Implementado, validado (721/721 tests, build
+  con chunk propio) y revisado por `habitex-reviewer` (contexto
+  independiente, re-verificó en vivo vía Supabase MCP read-only las 3
+  RPCs, la policy única `payments_select`, y el esquema completo contra el
+  tipo de dominio: 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante). Checkpoint
+  frontend local pendiente de push (ver "Último incremento ejecutado").
 
 ## Subtareas
 
@@ -268,19 +316,200 @@ INC-001/003/004/006/008/009/010/011 pusheados`.
 | INC-010 — backend gate (RESEARCH GATE encontró `storage.objects` sin policies; migration autorada, revisada, aplicada y verificada) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only, commiteada y pusheada (`14eb8b9`) |
 | INC-010 — primitive de frontend (`features/documents/`: `FileRepository` upload/download/remove, paths únicos, sin producto/UI) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado), checkpoint `e29eed4` pusheado |
 | INC-011 — Contract management (`features/contracts/`: `ContractRepository` sobre las 3 RPCs + 2 UPDATE guardados, SHA-256 real, `terms_snapshot`, subida-luego-registro sin re-subida en reintento, ruta `/rentals/:id/contracts`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM **resuelto** en review-fix del 2026-09-25), checkpoints `f1d6ae1` + `6cb0f71` pusheados |
-| INC-012 — Charges (`features/charges/`: `ChargeRepository` con `listByRelationship`/`generateRentCharges`, `charge_balances` como fuente de verdad de balance/estado financiero, ruta `/rentals/:id/charges`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados), checkpoint local pendiente de push |
+| INC-012 — Charges (`features/charges/`: `ChargeRepository` con `listByRelationship`/`generateRentCharges`, `charge_balances` como fuente de verdad de balance/estado financiero, ruta `/rentals/:id/charges`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados), checkpoint `0ed26b3` pusheado |
+| INC-013 — backend gate (`reject_payment(uuid)`, migration `20260928131439_reject_payment.sql`) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only, commiteada y pusheada (`2bc3a3f`) |
+| INC-013 — Payments: report & confirm/reject (`features/payments/`: `PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, asimetría de autorización, subida-luego-registro de comprobante sin re-subida en reintento, confirmación de dos pasos para rechazar, ruta `/rentals/:id/payments`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado), checkpoint local pendiente de push |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006 (`1b1dc3a`),
-INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`, `e29eed4`)
-e INC-011 (`f1d6ae1`, `6cb0f71`) ya están en
-`origin/chore/agentic-foundation` — HEAD y origin sincronizados. El
-nuevo checkpoint de INC-012 (ver "Último checkpoint") sigue pendiente de
-revisión humana antes de push.
+INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`, `e29eed4`),
+INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`) e INC-013 backend
+(`2bc3a3f`) ya están en `origin/chore/agentic-foundation` — HEAD y origin
+sincronizados. El nuevo checkpoint frontend de INC-013 (ver "Último
+incremento ejecutado") sigue pendiente de revisión humana antes de push.
 
 ## Último incremento ejecutado
+
+**INC-013 — Payments: report & confirm/reject** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
+sección INC-013) — reportar un pago sobre una relación activa y
+confirmarlo/rechazarlo, sin custodiar dinero ni asignar el pago a cargos
+específicos (eso es INC-014).
+
+- **Backend** (checkpoint separado, ya pusheado antes de este frontend):
+  `report_payment`/`confirm_payment` ya estaban desplegados de incrementos
+  previos de infraestructura; el único gate real de este incremento fue
+  `reject_payment(uuid)`, ausente hasta ahora (`public.payments` tenía la
+  columna `rejected_at` y el CHECK `payments_check1` desde el schema
+  original, pero ninguna RPC escribía `status = 'REJECTED'`). Migration
+  `20260928131439_reject_payment.sql` autorada como espejo exacto de
+  `confirm_payment` (`SECURITY DEFINER`, mismo `search_path` hardening,
+  misma función de autorización `can_manage_administration`, mismo
+  row-locking `for update`, mismo patrón `REVOKE ALL`/`GRANT EXECUTE TO
+  authenticated`), aplicada por el usuario vía `supabase db push --yes`,
+  verificada post-apply de forma independiente vía Supabase MCP read-only
+  (definición desplegada byte-a-byte igual a la migration, autorización
+  idéntica a `confirm_payment`, `for update` presente, concurrencia
+  confirm-vs-reject segura por el row lock, `SECURITY DEFINER`/`search_path`
+  hardened, grants/privileges correctos, RLS de `payments` sin cambios —
+  solo `payments_select`, sin política de INSERT/UPDATE/DELETE nueva,
+  historial de migration presente local y remotamente, advisors sin
+  hallazgos nuevos relevantes), checkpointed y pusheado (`2bc3a3f`).
+- **RESEARCH previo al frontend** (sin RESEARCH GATE nuevo — el único gate
+  real ya se resolvió en el backend): firmas de las 3 RPCs re-confirmadas
+  en vivo — las 3 `RETURNS public.payments` (una sola fila, no
+  `TABLE(...)`, a diferencia de las RPCs de contracts); `report_payment`
+  usa `can_view_relationship` (asimetría deliberada respecto a
+  `confirm_payment`/`reject_payment`, que usan
+  `can_manage_administration`); `report_payment` valida
+  `p_proof_file_id` contra `files.administration_id`/
+  `rental_relationship_id` de la relación — el archivo debe subirse ya
+  scoped a la administration/relationship correcta antes de invocar la
+  RPC, confirmando el patrón subida-luego-registro de INC-011 también
+  aplica aquí. `public.payments`: RLS de una sola policy
+  (`payments_select`, SELECT, `can_view_relationship`), sin INSERT/UPDATE/
+  DELETE — tabla RPC-write-only. Columnas del dominio confirmadas
+  field-by-field contra `information_schema.columns`/`pg_constraint`
+  (incluyendo el CHECK `currency = 'COP'` y los 2 CHECK condicionales que
+  exigen `confirmed_at`/`confirmed_by_person_id` en `CONFIRMED` y
+  `rejected_at` en `REJECTED`).
+- **Qué se agregó** (frontend, 2 subtareas secuenciales del orchestrator —
+  domain/infrastructure/application primero, presentation/routing/i18n
+  después, ya que la segunda depende de los tipos/hooks de la primera):
+  - Nuevo `features/payments/` — aggregate propio con las 5 capas
+    (domain/infrastructure/application/presentation/composition), **no
+    plegado en `features/rentals/`**.
+  - `PaymentRepository`, exactamente 4 métodos: `listByRelationship`
+    (único SELECT directo contra `public.payments`, sin joins, sin leer
+    `payment_allocations`/`charges`/`charge_balances` — fuera de alcance
+    explícito de este incremento —, ordenado `reported_at desc`);
+    `reportPayment`/`confirmPayment`/`rejectPayment` (cada uno una sola
+    llamada RPC; `reportPayment` envía siempre las 7 keys explícitamente,
+    mapeando opcionales no provistos a `null`, nunca omitiéndolas;
+    `response.data` tratado como una fila única, sin el helper `firstRow`
+    que sí necesita contracts). **Nunca un INSERT/UPDATE/DELETE directo**
+    contra `public.payments` — verificado por grep y por el reviewer
+    contra la RLS real en vivo.
+  - `PaymentErrorCode` deliberadamente acotado a los códigos realmente
+    alcanzables (`forbidden`/`invalid_amount`/`invalid_proof_file`/
+    `payment_not_reported`/`unknown`) — `ACCOUNT_REQUIRED` (existe en el
+    cuerpo de `report_payment` pero es inalcanzable en el flujo real de
+    esta app, que ya exige una cuenta vía el guard `RequiresAccount` antes
+    de llegar a cualquier ruta de payments) se pliega en `unknown`, mismo
+    principio que charges plegó `RENTAL_RELATIONSHIP_NOT_FOUND`.
+  - **Asimetría de autorización replicada exactamente como está
+    desplegada** (verificado en vivo por el reviewer contra el cuerpo real
+    de las 3 RPCs): el listado de pagos y el formulario de reporte
+    **nunca** están gateados por `useManagementGate` (`report_payment` usa
+    `can_view_relationship` — un participante/viewer con acceso de
+    gestión vencido puede seguir leyendo el historial y reportando un
+    pago nuevo, exactamente como el backend lo permite); confirmar/
+    rechazar **sí** lo están (ambos usan `can_manage_administration`).
+    Esta asimetría es la verificación de seguridad más importante de este
+    incremento y quedó confirmada con tests de comportamiento reales (no
+    solo de presencia de UI).
+  - Confirmar pago es un único click; rechazar pago usa una confirmación
+    inline de dos pasos local a esta feature (`RejectPaymentAction`, no
+    exportada, no compartida entre features — reimplementa el mismo
+    patrón que `TerminateContractAction`/`LifecycleConfirmAction`
+    byte a byte: primer click solo cambia estado local sin mutar, el
+    trigger se reemplaza por dos botones distintos nunca el mismo
+    reetiquetado, foco movido al botón de confirmación, un segundo click
+    mientras está pendiente no duplica el submit, un fallo deja el pago
+    sin mutar mostrando el error y la tarjeta permanece en modo
+    confirmación).
+  - **Guard de transiciones en competencia**: mientras confirmar o
+    rechazar está pendiente para un pago dado, **ambos** botones de esa
+    misma tarjeta se deshabilitan — cada `PaymentCard` instancia sus
+    propios hooks `useConfirmPayment`/`useRejectPayment`, así que el guard
+    queda naturalmente scoped por fila sin necesidad de comparar
+    variables de una mutation compartida.
+  - `PAYMENT_NOT_REPORTED` (transición ya ganada por otra llamada) se
+    mapea a una copy de "estado ya cambió" distinta de un error genérico,
+    y dispara una invalidación de la query de la lista para que la UI se
+    ponga al día con la transición real.
+  - Comprobante de pago: reutiliza `FilePurpose.PAYMENT_PROOF`/bucket
+    `'documents'` **ya existentes** en `features/documents` (INC-010) —
+    sin ningún valor de enum nuevo — a través de un hook local
+    `usePaymentProofUpload` que envuelve `fileRepository.upload` (mismo
+    patrón que `useUploadContractFile` de INC-011). Sigue el mismo patrón
+    subida-luego-registro de INC-011: si `reportPayment` falla después de
+    una subida exitosa, el `fileId` ya subido se conserva en estado local
+    del componente y se reutiliza en el reintento sin volver a subir el
+    archivo — verificado con un test explícito de conteo exacto de
+    llamadas (`uploadFile` llamado una sola vez en total across 2 intentos
+    de submit, `reportPayment` llamado 2 veces, la segunda reutilizando el
+    mismo `proofFileId` de la primera subida). Descarga del comprobante
+    vía `fileRepository.getById`+`.download()` autenticado (nunca
+    `createSignedUrl`/URL pública), mismo mecanismo que contracts.
+  - **UX financiera crítica, explícita en copy**: un pago `CONFIRMED`
+    muestra una nota visible de que todavía no fue aplicado a un cargo
+    específico. Esta feature **no lee ni referencia**
+    `payment_allocations`/`charges`/`charge_balances`/`receipts` en
+    ningún lugar del código — verificado por grep exhaustivo del reviewer
+    sobre toda la feature y ambos archivos de locale — esa responsabilidad
+    es de INC-014 (allocation)/INC-015 (receipts), no de este incremento.
+  - Sin vista de detalle general — ruta angosta `/rentals/:id/payments`
+    (mismo principio que terms/contracts/charges), entrada "Pagos" nueva
+    en `RentalListCard` solo para `ACTIVE`/`ENDING`/`ENDED` (no
+    `DRAFT`/`CANCELLED`) — decisión de UX documentada como tal, no de
+    autorización real (el backend no impone esa restricción).
+  - `CANCELLED` representado defensivamente en el dominio y en la UI
+    (badge simple, cero acciones, sin crashear) por exhaustividad contra
+    el enum `payment_status` desplegado — ningún camino de código en este
+    incremento produce ese status.
+  - Dinero: `number` plano, `currency: 'COP'` como tipo literal (nunca
+    `string` genérico, mismo patrón que `Charge.currency`),
+    `.tabular-nums` por `DESIGN.md` §4, `Intl.NumberFormat('es-CO')`, sin
+    BigDecimal ni capa de minor-units. Fecha de pago (columna `date` sin
+    hora) parseada a medianoche local para evitar corrimiento de día por
+    timezone; timestamps (`reportedAt`, etc.) formateados con
+    `dateStyle`/`timeStyle`.
+  - i18n: nuevo namespace `payments` (es/es-CO, byte-idénticos, registrado
+    en `i18n.ts`/`i18next.d.ts`) + una clave nueva en `rentals.json`
+    (`list.payments`, "Pagos"). Sin pluralización manual tipo `"(s)"` (no
+    hubo copy con conteo en este incremento, así que no aplicaba el
+    patrón `_one`/`_other` de `administration.json`, pero tampoco se
+    repitió el error de INC-012).
+- **Tests**: 721/721 en la suite completa (28 nuevos: 6 archivos con 38
+  tests en la subtarea de domain/infrastructure/application más 25 en
+  `RentalPaymentsPage.test.tsx` y 3 en `RentalListCard.test.tsx` en la
+  subtarea de presentation — el reviewer re-leyó varios de ellos
+  directamente, no solo sus títulos, incluyendo el test de conteo exacto
+  de subida-sin-re-subida, el set completo de dos-pasos de rechazo, y el
+  test de que la nota de "no aplicado" solo aparece en `CONFIRMED`).
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente,
+  re-verificó en vivo vía Supabase MCP read-only las 3 definiciones de
+  RPC completas, la policy única `payments_select`, y el esquema completo
+  de `payments` campo por campo contra el tipo de dominio) no encontró
+  BLOCKER/HIGH/MEDIUM.
+- **Deuda no bloqueante registrada** (1 LOW del reviewer, sin fix loop por
+  debajo del umbral BLOCKER/HIGH/MEDIUM):
+  - LOW: el mensaje de error de "falta el parámetro `:id` en la URL"
+    reutiliza la key `termsForm.errors.missingRelationship` del namespace
+    `rentals` en vez de tener su propia key dentro del namespace
+    `payments` — copy correcta e idéntica a la que ya usa
+    `RentalContractsPage` para el mismo escenario, puramente cosmético,
+    sin impacto funcional ni de seguridad.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
+  lint && pnpm test -- --run && pnpm build` — todos PASS. 92 archivos /
+  721 tests (0 fallos), 0 errores de lint (mismos 4 warnings preexistentes,
+  no relacionados). Build emite los chunks `RentalPaymentsPage-*.js`/
+  `.css` correctamente.
+- **Human gates**: el único gate real de este incremento fue el backend
+  (`reject_payment`, ya resuelto y aprobado antes de este frontend). Sin
+  cambios de schema/RLS/grants/migrations/dependencias/arquitectura en el
+  frontend (confirmado por `git status`/`git diff --stat`, y por el
+  reviewer: sin archivo nuevo bajo `supabase/migrations/` en este diff,
+  `package.json`/`pnpm-lock.yaml` sin cambios).
+- **Seguridad verificada** (vía MCP read-only, por el reviewer): re-
+  confirmó en vivo las 3 definiciones completas de RPC, la policy única
+  `payments_select` (sin INSERT/UPDATE/DELETE), y el esquema completo de
+  `payments` (columnas, CHECKs, FKs) campo por campo contra `Payment`.
+
+### Incremento anterior: INC-012 — Charges
 
 **INC-012 — Charges** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, sección
 INC-012) — generar cargos de renta reales sobre una relación activa a
@@ -1461,56 +1690,59 @@ explícito) cuando se lleguen a ejecutar.
 ## Último checkpoint
 
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit — INC-012)_
+  actualización de `PROGRESS.md`, en el mismo commit — INC-013 frontend)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: nuevo `features/charges/` completo
-  (domain/infrastructure/application/presentation/composition, 11
-  archivos nuevos), nuevo namespace i18n `charges` (es/es-CO), acción
-  "Cargos" nueva en `RentalListCard`, nueva ruta `/rentals/:id/charges`,
-  más esta actualización de `PROGRESS.md`.
-- **Fecha**: 2026-09-25
+- **Contenido del checkpoint**: nuevo `features/payments/` completo
+  (domain/infrastructure/application/presentation/composition), nuevo
+  namespace i18n `payments` (es/es-CO), acción "Pagos" nueva en
+  `RentalListCard`, nueva ruta `/rentals/:id/payments`, más esta
+  actualización de `PROGRESS.md`.
+- **Fecha**: 2026-09-28
 - **Estado**: commiteado localmente, **pendiente de push** — push/merge
   nunca son automáticos en este workflow.
 - **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
-  (INC-012 confirmó que no se necesitaba ninguno — `generate_rent_charges`
-  y `charge_balances` ya estaban completamente soportados); ninguna
-  creación/edición/eliminación de cargos; ninguna UI de pagos.
+  en este checkpoint (el gate de backend de INC-013, `reject_payment`, ya
+  se resolvió y pusheó por separado en `2bc3a3f`); ninguna allocation;
+  ningún recibo; ninguna mutación de cargos; ninguna transición a
+  `CANCELLED`.
 
-Checkpoint anterior, ya pusheado: INC-011 completo (`f1d6ae1` Contract
-management, `6cb0f71` review-fix de la confirmación de dos pasos en
-"Terminar contrato") — ver "Registro de checkpoints".
+Checkpoint anterior, ya pusheado: INC-012 completo (`0ed26b3` Charges) +
+INC-013 backend gate (`2bc3a3f` `reject_payment`) — ver "Registro de
+checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado de INC-012, ejecutado de forma
-independiente por la sesión orquestadora y re-verificado por el
+Medido sobre el resultado integrado de INC-013 frontend, ejecutado de
+forma independiente por la sesión orquestadora y re-verificado por el
 reviewer (incluyendo re-verificación en vivo vía Supabase MCP read-only
-del cuerpo completo de `generate_rent_charges` y de la vista
-`charge_balances`, sin cambios respecto a lo investigado):
+de las 3 definiciones completas de RPC y de la policy única
+`payments_select`, sin cambios respecto a lo investigado):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 655/655, 85 archivos |
-| `pnpm build` | PASS — emite el chunk `RentalChargesPage` correctamente |
+| `pnpm test -- --run` | PASS — 721/721, 92 archivos |
+| `pnpm build` | PASS — emite los chunks `RentalPaymentsPage-*.js`/`.css` correctamente |
 
 ## Siguiente acción recomendada
 
-Con INC-012 completo, una relación `ACTIVE`/`ENDING`/`ENDED` puede
-generar y consultar sus cargos de renta reales, incluyendo su estado
-financiero derivado del backend — de punta a punta, sin deuda
-bloqueante. Deuda no bloqueante registrada (2 LOW, ver arriba): copy de
-plural manual en `generate.success.created`, y reutilización de
-`styles['termsAction']` para el botón "Cargos" — ambos triviales de
-corregir si se retoma este archivo.
+Con INC-013 completo (backend + frontend), una relación
+`ACTIVE`/`ENDING`/`ENDED` puede reportar un pago, y un usuario con
+gestión vigente puede confirmarlo o rechazarlo — de punta a punta, sin
+deuda bloqueante. Deuda no bloqueante registrada (1 LOW, ver arriba): una
+key de error de payments reutiliza el namespace `rentals` en vez de tener
+su propia key — trivial de corregir si se retoma este archivo.
 
 Candidatos sin dependencias técnicas pendientes:
 
-- **INC-013** — Payments: report & confirm (depende de INC-008, ya
-  completo; no depende de INC-012 — confirmado por la firma de
-  `report_payment`, que no toma `charge_id`). Con INC-012 ya completo,
-  `charge_balances` ya reflejará pagos reales en cuanto INC-013 exista.
+- **INC-014** — Payment allocation (depende de INC-013, ya completo, y de
+  INC-012, ya completo — ambos cargos y pagos confirmados ya existen
+  realmente). `allocate_payment(p_payment_id, p_charge_id, p_amount)` ya
+  desplegado.
+- **INC-015** — Receipt issuance (depende solo de INC-013, ya completo —
+  `issue_receipt(p_payment_id)` no depende de que exista una allocation,
+  confirmado por su firma).
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
 - **INC-017** — Corregir doc drift (sin dependencias).
@@ -1549,4 +1781,6 @@ git, no aquí._
 | 2026-09-24 | `e29eed4` | `chore/agentic-foundation` | INC-010 primitive de frontend: nuevo `features/documents/` (`FileRepository` upload/download/remove, sin `presentation/`). Paths únicos vía `crypto.randomUUID()` que nunca leen `originalName`, `upsert: false` siempre, `download()` autenticado (no signed URL), limpieza best-effort si falla el insert de metadata tras upload exitoso, delete ordenado (metadata antes que storage, fallo de storage post-delete propagado). Sin hooks de `application/` (sin consumidor real todavía). 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 LOW no bloqueante registrado (mime_type vacío no validado). **INC-010 completo — Pusheado**. |
 | 2026-09-24 | `f1d6ae1` | `chore/agentic-foundation` | INC-011 — Contract management: nuevo `features/contracts/` (`ContractRepository` sobre las 3 RPCs desplegadas + 2 UPDATE directos guardados por status, `computeSha256Hex` real vía Web Crypto, `buildTermsSnapshot` desde `RentalTermVersion`+`RentalRelationship`, subida-luego-registro sin re-subida en reintento). Extensión aditiva `FileRepository.getById`. Ruta `/rentals/:id/contracts`, acción "Contratos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, creación de contrato solo para `ACTIVE`/`ENDING` (decisión de producto/UX, no autorización). Sin backend gate — las 3 RPCs y las 2 transiciones vía UPDATE ya estaban completamente soportadas. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM no bloqueante registrado (sin confirmación de dos pasos en "Terminar contrato"). **INC-011 completo — local, pendiente de push**. |
 | 2026-09-25 | `6cb0f71` | `chore/agentic-foundation` | INC-011 review-fix (no un nuevo incremento): resuelve el MEDIUM de `f1d6ae1` — nuevo componente local `TerminateContractAction` en `RentalContractsPage.tsx` reimplementa el patrón de confirmación inline de dos pasos de `LifecycleConfirmAction` (INC-009) para "Terminar contrato" (`SIGNED`→`TERMINATED`), sin Modal/Dialog nuevo, sin cambio a `ContractRepository`/Supabase/RLS/migrations. 6 tests nuevos. Revisión enfocada independiente (`habitex-reviewer`, contexto separado del fix): 0 BLOCKER/HIGH/MEDIUM/LOW nuevos, MEDIUM original **RESUELTO**. Validación completa PASS — 614/614 tests. **INC-011 completo — Pusheado** (junto con `f1d6ae1`). |
-| 2026-09-25 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-012 — Charges: nuevo `features/charges/` (`ChargeRepository` con `listByRelationship` — dos `SELECT` separados contra `charges`/`charge_balances`, mezclados por id, financiero siempre desde la vista — y `generateRentCharges`, que envuelve `generate_rent_charges` llamado solo con `p_relationship_id`, sin lógica de periodos/monto en el frontend). Ruta `/rentals/:id/charges`, acción "Cargos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, sin creación manual de cargos, sin UI de editar/eliminar/anular, sin UI de pagos (decisiones humanas explícitas). Sin backend gate — `generate_rent_charges` y `charge_balances` ya estaban completamente soportados. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados. **INC-012 completo — local, pendiente de push**. |
+| 2026-09-25 | `0ed26b3` | `chore/agentic-foundation` | INC-012 — Charges: nuevo `features/charges/` (`ChargeRepository` con `listByRelationship` — dos `SELECT` separados contra `charges`/`charge_balances`, mezclados por id, financiero siempre desde la vista — y `generateRentCharges`, que envuelve `generate_rent_charges` llamado solo con `p_relationship_id`, sin lógica de periodos/monto en el frontend). Ruta `/rentals/:id/charges`, acción "Cargos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, sin creación manual de cargos, sin UI de editar/eliminar/anular, sin UI de pagos (decisiones humanas explícitas). Sin backend gate — `generate_rent_charges` y `charge_balances` ya estaban completamente soportados. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados. **Pusheado** (junto con `2bc3a3f`). |
+| 2026-09-28 | `2bc3a3f` | `chore/agentic-foundation` | INC-013 backend gate: migration `20260928131439_reject_payment.sql` (`reject_payment(uuid)`, espejo exacto de las convenciones de `confirm_payment` — `SECURITY DEFINER`, mismo `search_path` hardening, misma función de autorización `can_manage_administration`, mismo row-locking `for update`, mismo patrón `REVOKE`/`GRANT`) autorada, aplicada contra el proyecto real vía `supabase db push --yes` ejecutado por el usuario, verificada post-apply de forma independiente vía Supabase MCP read-only (definición desplegada, autorización, concurrencia, grants, RLS, historial de migration, advisors — 0 hallazgos nuevos relevantes). **Pusheado**. |
+| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-013 frontend — Payments: report & confirm/reject: nuevo `features/payments/` (`PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, nunca INSERT/UPDATE/DELETE directo; asimetría de autorización replicada exactamente — reportar/leer sin `useManagementGate`, confirmar/rechazar con él; confirmación de dos pasos para rechazar; subida-luego-registro de comprobante sin re-subida en reintento, reutilizando `FilePurpose.PAYMENT_PROOF`/bucket `'documents'` de INC-010; UX financiera explícita de que un pago `CONFIRMED` no fue aplicado a un cargo). Ruta `/rentals/:id/payments`, acción "Pagos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado. **INC-013 completo (backend + frontend) — frontend local, pendiente de push**. |
