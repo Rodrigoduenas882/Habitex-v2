@@ -8,6 +8,8 @@ import {
   type PaymentMethod,
   type PaymentRepository,
   type PaymentStatus,
+  type Receipt,
+  type ReceiptStatus,
   type ReportPaymentInput,
 } from '../domain/payment.types'
 
@@ -46,6 +48,39 @@ interface PaymentAllocationRow {
 }
 
 const PAYMENT_ALLOCATION_COLUMNS = 'id, administration_id, payment_id, charge_id, amount, created_at'
+
+interface ReceiptRow {
+  id: string
+  administration_id: string
+  rental_relationship_id: string
+  payment_id: string
+  receipt_number: number
+  status: ReceiptStatus
+  file_id: string | null
+  issued_at: string
+  voided_at: string | null
+  void_reason: string | null
+  created_at: string
+}
+
+const RECEIPT_COLUMNS =
+  'id, administration_id, rental_relationship_id, payment_id, receipt_number, status, file_id, issued_at, voided_at, void_reason, created_at'
+
+function toReceipt(row: ReceiptRow): Receipt {
+  return {
+    id: row.id,
+    administrationId: row.administration_id,
+    rentalRelationshipId: row.rental_relationship_id,
+    paymentId: row.payment_id,
+    receiptNumber: row.receipt_number,
+    status: row.status,
+    fileId: row.file_id,
+    issuedAt: row.issued_at,
+    voidedAt: row.voided_at,
+    voidReason: row.void_reason,
+    createdAt: row.created_at,
+  }
+}
 
 function toPaymentAllocation(row: PaymentAllocationRow): PaymentAllocation {
   return {
@@ -104,10 +139,19 @@ function toAllocatePaymentRpcArgs(input: AllocatePaymentInput) {
 
 /**
  * Translates a failed Supabase call (report_payment/confirm_payment/
- * reject_payment/allocate_payment's RPC exception string, or a raw Postgres
- * error code from payment_allocations' own constraints) into our own
- * PaymentRepositoryError - see PaymentErrorCode's own doc comment for the
- * exact mapping.
+ * reject_payment/allocate_payment/issue_receipt's RPC exception string, or a
+ * raw Postgres error code from payment_allocations'/receipts' own
+ * constraints) into our own PaymentRepositoryError - see PaymentErrorCode's
+ * own doc comment for the exact mapping.
+ *
+ * A raw 23505 unique_violation is ambiguous on its own between
+ * payment_allocations' own UNIQUE(payment_id, charge_id) (allocate_payment)
+ * and receipts' own UNIQUE(payment_id) (issue_receipt) - both surface the
+ * same error.code. Postgres' default constraint-naming convention embeds the
+ * table name in the constraint name inside the error message (e.g.
+ * "receipts_payment_id_key"), so that's what disambiguates the two here
+ * rather than the call site (this function has no notion of which RPC
+ * failed).
  */
 function toPaymentRepositoryError(error: { message: string; code?: string }): PaymentRepositoryError {
   if (error.message === 'FORBIDDEN') {
@@ -142,10 +186,21 @@ function toPaymentRepositoryError(error: { message: string; code?: string }): Pa
     return new PaymentRepositoryError('allocation_exceeds_charge', error)
   }
 
-  // A raw Postgres unique_violation from payment_allocations' own
-  // UNIQUE(payment_id, charge_id) - allocate_payment has no "increase an
-  // existing allocation" path.
+  // issue_receipt only - the payment has no payment_allocations row of any
+  // kind yet (full allocation is explicitly not required).
+  if (error.message === 'PAYMENT_HAS_NO_ALLOCATIONS') {
+    return new PaymentRepositoryError('payment_has_no_allocations', error)
+  }
+
+  // A raw Postgres unique_violation, either from payment_allocations' own
+  // UNIQUE(payment_id, charge_id) (allocate_payment has no "increase an
+  // existing allocation" path) or from receipts' own UNIQUE(payment_id)
+  // (issue_receipt has no idempotency guard beyond this constraint) - see
+  // this function's own doc comment for how the two are told apart.
   if (error.code === '23505') {
+    if (error.message.includes('receipts_')) {
+      return new PaymentRepositoryError('receipt_already_issued', error)
+    }
     return new PaymentRepositoryError('duplicate_allocation', error)
   }
 
@@ -273,5 +328,45 @@ export const supabasePaymentRepository: PaymentRepository = {
     }
 
     return toPaymentAllocation(row)
+  },
+
+  async getReceiptForPayment(paymentId: string): Promise<Receipt | null> {
+    // UNIQUE(payment_id) means 0-or-1 row - maybeSingle is the correct method
+    // here, never .single(), which throws on zero rows. RLS (receipts_select,
+    // can_view_relationship via rental_relationship_id) remains the real
+    // authority for scope.
+    const { data, error } = await supabaseClient
+      .from('receipts')
+      .select(RECEIPT_COLUMNS)
+      .eq('payment_id', paymentId)
+      .maybeSingle()
+
+    if (error) {
+      throw toPaymentRepositoryError(error)
+    }
+
+    return data ? toReceipt(data) : null
+  },
+
+  async issueReceipt(paymentId: string): Promise<Receipt> {
+    // can_manage_administration(), the payment-CONFIRMED check and the
+    // at-least-one-allocation check all happen inside the RPC - no direct
+    // INSERT, ever (see PaymentRepository's own doc comment). issue_receipt
+    // has no idempotency guard beyond receipts' own UNIQUE(payment_id) - a
+    // second call for an already-receipted payment surfaces as a raw
+    // unique_violation, mapped by toPaymentRepositoryError to
+    // 'receipt_already_issued'.
+    const response = await supabaseClient.rpc('issue_receipt', { p_payment_id: paymentId })
+
+    if (response.error) {
+      throw toPaymentRepositoryError(response.error)
+    }
+
+    const row = response.data as ReceiptRow | null
+    if (!row) {
+      throw new PaymentRepositoryError('unknown', new Error('issue_receipt returned no row'))
+    }
+
+    return toReceipt(row)
   },
 }

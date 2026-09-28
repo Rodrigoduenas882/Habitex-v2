@@ -1,19 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import { PaymentRepositoryError } from '../domain/payment.types'
 
-const { order, eq, from, rpc } = vi.hoisted(() => {
+const { order, eq, maybeSingle, from, rpc } = vi.hoisted(() => {
   const order = vi.fn()
-  const eq = vi.fn((_column: string, _value: string) => ({ order }))
+  const maybeSingle = vi.fn()
+  const eq = vi.fn((_column: string, _value: string) => ({ order, maybeSingle }))
   const select = vi.fn((_columns: string) => ({ eq }))
 
   const from = vi.fn((table: string) => {
     if (table === 'payments') return { select }
     if (table === 'payment_allocations') return { select }
+    if (table === 'receipts') return { select }
     throw new Error(`supabase-payment.repository.test: unexpected table "${table}"`)
   })
   const rpc = vi.fn()
 
-  return { order, eq, from, rpc }
+  return { order, eq, maybeSingle, from, rpc }
 })
 
 vi.mock('@/infrastructure/supabase/client', () => ({
@@ -90,6 +92,34 @@ const PAYMENT_ALLOCATION_DOMAIN = {
   chargeId: 'charge-1',
   amount: 500_000,
   createdAt: '2026-01-06T10:00:00Z',
+}
+
+const RECEIPT_ROW = {
+  id: 'receipt-1',
+  administration_id: 'admin-1',
+  rental_relationship_id: 'rel-1',
+  payment_id: 'payment-1',
+  receipt_number: 42,
+  status: 'ISSUED' as const,
+  file_id: null,
+  issued_at: '2026-01-07T10:00:00Z',
+  voided_at: null,
+  void_reason: null,
+  created_at: '2026-01-07T10:00:00Z',
+}
+
+const RECEIPT_DOMAIN = {
+  id: 'receipt-1',
+  administrationId: 'admin-1',
+  rentalRelationshipId: 'rel-1',
+  paymentId: 'payment-1',
+  receiptNumber: 42,
+  status: 'ISSUED',
+  fileId: null,
+  issuedAt: '2026-01-07T10:00:00Z',
+  voidedAt: null,
+  voidReason: null,
+  createdAt: '2026-01-07T10:00:00Z',
 }
 
 describe('supabasePaymentRepository.listByRelationship', () => {
@@ -528,6 +558,120 @@ describe('supabasePaymentRepository.allocatePayment', () => {
     const error = await supabasePaymentRepository
       .allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
       .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('unknown')
+  })
+})
+
+describe('supabasePaymentRepository.getReceiptForPayment', () => {
+  it('issues a single SELECT against receipts, scoped by payment_id, using maybeSingle', async () => {
+    maybeSingle.mockResolvedValueOnce({ data: RECEIPT_ROW, error: null })
+
+    await supabasePaymentRepository.getReceiptForPayment('payment-1')
+
+    expect(from).toHaveBeenCalledWith('receipts')
+    expect(eq).toHaveBeenCalledWith('payment_id', 'payment-1')
+    expect(maybeSingle).toHaveBeenCalledTimes(1)
+  })
+
+  it('maps a receipts row into camelCase domain shape', async () => {
+    maybeSingle.mockResolvedValueOnce({ data: RECEIPT_ROW, error: null })
+
+    const result = await supabasePaymentRepository.getReceiptForPayment('payment-1')
+
+    expect(result).toEqual(RECEIPT_DOMAIN)
+  })
+
+  it('returns null when no receipt exists yet, rather than throwing', async () => {
+    maybeSingle.mockResolvedValueOnce({ data: null, error: null })
+
+    const result = await supabasePaymentRepository.getReceiptForPayment('payment-1')
+
+    expect(result).toBeNull()
+  })
+
+  it('wraps a genuine query failure in PaymentRepositoryError with code unknown', async () => {
+    maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    const error = await supabasePaymentRepository.getReceiptForPayment('payment-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('unknown')
+  })
+})
+
+describe('supabasePaymentRepository.issueReceipt', () => {
+  it('calls issue_receipt with exactly p_payment_id', async () => {
+    rpc.mockResolvedValueOnce({ data: RECEIPT_ROW, error: null })
+
+    await supabasePaymentRepository.issueReceipt('payment-1')
+
+    expect(rpc).toHaveBeenCalledWith('issue_receipt', { p_payment_id: 'payment-1' })
+    const [, args] = rpc.mock.calls[0] as [string, Record<string, unknown>]
+    expect(Object.keys(args)).toEqual(['p_payment_id'])
+  })
+
+  it('maps the returned single row to domain shape', async () => {
+    rpc.mockResolvedValueOnce({ data: RECEIPT_ROW, error: null })
+
+    const result = await supabasePaymentRepository.issueReceipt('payment-1')
+
+    expect(result).toEqual(RECEIPT_DOMAIN)
+  })
+
+  it('throws PaymentRepositoryError with code unknown when the RPC returns no row (defensive)', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null })
+
+    const error = await supabasePaymentRepository.issueReceipt('payment-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('unknown')
+  })
+
+  it('maps FORBIDDEN to code forbidden', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'FORBIDDEN' } })
+
+    const error = await supabasePaymentRepository.issueReceipt('payment-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('forbidden')
+  })
+
+  it('maps PAYMENT_NOT_CONFIRMED to code payment_not_confirmed', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'PAYMENT_NOT_CONFIRMED' } })
+
+    const error = await supabasePaymentRepository.issueReceipt('payment-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('payment_not_confirmed')
+  })
+
+  it('maps PAYMENT_HAS_NO_ALLOCATIONS to code payment_has_no_allocations', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'PAYMENT_HAS_NO_ALLOCATIONS' } })
+
+    const error = await supabasePaymentRepository.issueReceipt('payment-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('payment_has_no_allocations')
+  })
+
+  it('maps a raw Postgres unique_violation (23505) on receipts own UNIQUE(payment_id) to code receipt_already_issued', async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'duplicate key value violates unique constraint "receipts_payment_id_key"', code: '23505' },
+    })
+
+    const error = await supabasePaymentRepository.issueReceipt('payment-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('receipt_already_issued')
+  })
+
+  it('maps any other unmapped exception string to code unknown', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'SOMETHING_ELSE' } })
+
+    const error = await supabasePaymentRepository.issueReceipt('payment-1').catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(PaymentRepositoryError)
     expect((error as PaymentRepositoryError).code).toBe('unknown')

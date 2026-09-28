@@ -41,8 +41,10 @@ import { summarizePaymentAllocations } from '../application/payment-allocation-s
 import { paymentQueryKeys } from '../application/payment-query-keys'
 import { useAllocatePayment } from '../application/useAllocatePayment'
 import { useConfirmPayment } from '../application/useConfirmPayment'
+import { useIssueReceipt } from '../application/useIssueReceipt'
 import { usePaymentAllocations } from '../application/usePaymentAllocations'
 import { usePaymentProofUpload } from '../application/usePaymentProofUpload'
+import { usePaymentReceipt } from '../application/usePaymentReceipt'
 import { usePayments } from '../application/usePayments'
 import { useRejectPayment } from '../application/useRejectPayment'
 import { useReportPayment } from '../application/useReportPayment'
@@ -173,6 +175,35 @@ function allocatePaymentErrorMessage(t: PaymentsT, error: unknown): string {
     }
   }
   return t('card.allocations.errors.unknown')
+}
+
+/**
+ * Maps a caught issue_receipt error to its specific copy - every
+ * PaymentErrorCode issue_receipt can actually raise gets its own key
+ * ('payment_not_confirmed', 'payment_has_no_allocations', 'forbidden',
+ * 'receipt_already_issued'). 'receipt_already_issued' is only ever rendered
+ * through this function for the general-purpose copy it returns - the actual
+ * stale-race UI (PaymentReceiptSummary's own handling) renders its own
+ * dedicated "actualizando…" message directly instead, mirroring
+ * allocatePaymentErrorMessage/PaymentAllocationAmountForm's own isLiftedStaleError
+ * split.
+ */
+function issueReceiptErrorMessage(t: PaymentsT, error: unknown): string {
+  if (error instanceof PaymentRepositoryError) {
+    switch (error.code) {
+      case 'payment_not_confirmed':
+        return t('card.receipt.errors.payment_not_confirmed')
+      case 'payment_has_no_allocations':
+        return t('card.receipt.errors.payment_has_no_allocations')
+      case 'forbidden':
+        return t('card.receipt.errors.forbidden')
+      case 'receipt_already_issued':
+        return t('card.receipt.errors.receipt_already_issued')
+      default:
+        return t('card.receipt.errors.unknown')
+    }
+  }
+  return t('card.receipt.errors.unknown')
 }
 
 /**
@@ -707,6 +738,131 @@ function PaymentAllocationSummary({ payment, administrationId, relationshipId, m
   )
 }
 
+interface PaymentReceiptSummaryProps {
+  payment: Payment
+  administrationId: string
+  relationshipId: string
+  managementGate: ManagementGateResult
+}
+
+/**
+ * Only rendered for status === 'CONFIRMED' (see PaymentCard below), as a
+ * sibling right after PaymentAllocationSummary. Owns its own
+ * usePaymentAllocations(administrationId, payment.id) instance - the exact
+ * same per-row-independent-hook-instance convention as every other query/
+ * mutation in this file - which TanStack Query dedupes against
+ * PaymentAllocationSummary's own instance (same query key), so this is not a
+ * second network request. Also owns its own usePaymentReceipt instance.
+ *
+ * Eligibility deliberately checks `allocations.length > 0`, never
+ * `remainingAmount === 0` - issue_receipt's own PAYMENT_HAS_NO_ALLOCATIONS
+ * guard only requires at least one payment_allocations row of any amount,
+ * full allocation is explicitly not required (see this feature's own scope
+ * notes - this is the single most important correctness requirement in this
+ * increment).
+ *
+ * An already-issued receipt always renders its read-only number/date,
+ * regardless of managementGate - reading an existing receipt is not gated,
+ * the same read/write authorization asymmetry as PaymentAllocationSummary's
+ * own allocated/remaining display. Issuing a new one, like opening/
+ * submitting "Aplicar a cargos", is gated.
+ *
+ * Stale-race handling for a receipt_already_issued (23505) failure follows
+ * PaymentAllocationSummary's own staleAllocationError principle exactly:
+ * the friendly message is lifted into this component's own state (not just
+ * local to the button's own render branch) so it survives this component
+ * swapping from the "Emitir recibo" branch to the read-only issued-receipt
+ * branch once the triggered refetch resolves - the user whose own submission
+ * lost a race still sees why, even as the real, authoritative receipt
+ * renders alongside it. Cleared only on a genuine new-attempt boundary (the
+ * very start of the next click), never implicitly by the refetch's own
+ * success.
+ */
+function PaymentReceiptSummary({ payment, administrationId, relationshipId, managementGate }: PaymentReceiptSummaryProps) {
+  const { t } = useTranslation(['payments', 'administration'])
+  const allocationsQuery = usePaymentAllocations(administrationId, payment.id)
+  const receiptQuery = usePaymentReceipt(administrationId, payment.id)
+  const issueReceipt = useIssueReceipt()
+  const [staleReceiptError, setStaleReceiptError] = useState<string | null>(null)
+
+  if (allocationsQuery.isLoading || receiptQuery.isLoading) {
+    return (
+      <div className={styles['receiptSummary']}>
+        <Skeleton height={16} width={200} />
+      </div>
+    )
+  }
+
+  if (receiptQuery.isError) {
+    return (
+      <div className={styles['receiptSummary']}>
+        <p className="text-caption text-muted">{t('card.receipt.loadError')}</p>
+      </div>
+    )
+  }
+
+  const receipt = receiptQuery.data ?? null
+  const allocations = allocationsQuery.data ?? []
+  const hasAllocations = allocations.length > 0
+
+  // The receipt_already_issued stale message is excluded here once it's
+  // being shown via staleReceiptError above - it would otherwise render
+  // twice (once from the lifted state, once from the mutation's own error)
+  // while this component stays mounted.
+  const localErrorMessage =
+    issueReceipt.isError &&
+    !(issueReceipt.error instanceof PaymentRepositoryError && issueReceipt.error.code === 'receipt_already_issued')
+      ? issueReceiptErrorMessage(t, issueReceipt.error)
+      : null
+
+  return (
+    <div className={styles['receiptSummary']}>
+      {staleReceiptError ? <Alert tone="danger">{staleReceiptError}</Alert> : null}
+      {receipt ? (
+        <>
+          <p className="text-body-sm">{t('card.receipt.issued.number', { number: receipt.receiptNumber })}</p>
+          <p className="text-caption text-muted">
+            {t('card.receipt.issued.date', { date: formatDateTime(receipt.issuedAt) })}
+          </p>
+        </>
+      ) : hasAllocations ? (
+        <div className={styles['actionsRow']}>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            loading={issueReceipt.isPending}
+            disabled={managementGate.blocked || issueReceipt.isPending}
+            aria-disabled={managementGate.blocked ? 'true' : undefined}
+            onClick={() => {
+              setStaleReceiptError(null)
+              issueReceipt.mutate(
+                { administrationId, rentalRelationshipId: relationshipId, paymentId: payment.id },
+                {
+                  onError: (error) => {
+                    if (error instanceof PaymentRepositoryError && error.code === 'receipt_already_issued') {
+                      setStaleReceiptError(issueReceiptErrorMessage(t, error))
+                      void receiptQuery.refetch()
+                    }
+                  },
+                },
+              )
+            }}
+          >
+            {issueReceipt.isPending ? t('card.receipt.issueSubmitting') : t('card.receipt.issueTrigger')}
+          </Button>
+          {managementGate.blocked ? (
+            <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
+          ) : null}
+          {localErrorMessage ? <Alert tone="danger">{localErrorMessage}</Alert> : null}
+        </div>
+      ) : (
+        <p className="text-caption text-muted">{t('card.receipt.noAllocationsHint')}</p>
+      )}
+    </div>
+  )
+}
+
 interface PaymentCardProps {
   payment: Payment
   administrationId: string
@@ -779,12 +935,20 @@ function PaymentCard({ payment, administrationId, relationshipId, managementGate
       {payment.proofFileId ? <PaymentProofDownloadButton proofFileId={payment.proofFileId} /> : null}
 
       {payment.status === 'CONFIRMED' ? (
-        <PaymentAllocationSummary
-          payment={payment}
-          administrationId={administrationId}
-          relationshipId={relationshipId}
-          managementGate={managementGate}
-        />
+        <>
+          <PaymentAllocationSummary
+            payment={payment}
+            administrationId={administrationId}
+            relationshipId={relationshipId}
+            managementGate={managementGate}
+          />
+          <PaymentReceiptSummary
+            payment={payment}
+            administrationId={administrationId}
+            relationshipId={relationshipId}
+            managementGate={managementGate}
+          />
+        </>
       ) : null}
 
       {payment.status === 'REPORTED' ? (
@@ -1051,12 +1215,14 @@ function RentalPaymentsView({ administrationId, relationshipId }: RentalPayments
  * /rentals/:id/payments - a narrow, single-purpose page (same principle as
  * RentalContractsPage/RentalChargesPage, explicitly not a general rental
  * detail view) for reporting payments, confirming/rejecting them
- * (report_payment / confirm_payment / reject_payment), and applying a
- * CONFIRMED payment against its rental relationship's charges
- * (allocate_payment - see PaymentAllocationSummary/PaymentAllocationSection
- * above). No allocation edit/delete/reversal (no such RPC exists), no
- * receipt issuance, no edit/delete of a payment itself - see this feature's
- * own scope notes.
+ * (report_payment / confirm_payment / reject_payment), applying a CONFIRMED
+ * payment against its rental relationship's charges (allocate_payment - see
+ * PaymentAllocationSummary/PaymentAllocationSection above), and issuing a
+ * receipt for a CONFIRMED, at-least-partially-allocated payment
+ * (issue_receipt - see PaymentReceiptSummary above). No allocation
+ * edit/delete/reversal (no such RPC exists), no receipt edit/void/reissue (no
+ * such RPC exists either), no edit/delete of a payment itself - see this
+ * feature's own scope notes.
  */
 export default function RentalPaymentsPage() {
   const { t } = useTranslation('rentals')

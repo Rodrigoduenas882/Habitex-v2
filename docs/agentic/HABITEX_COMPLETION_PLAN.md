@@ -658,24 +658,47 @@ Human gate? · Acceptance criteria · Validation strategy · Risk.
 - **Priority**: P2
 - **Goal**: emitir un recibo a partir de un pago.
 - **Product requirement**: "receipts" forman parte del MVP — explícito.
-- **Current evidence**: firma confirmada vía Supabase MCP —
-  `issue_receipt(p_payment_id)` — **solo requiere el `payment_id`, no
-  depende de que exista una allocation.** `receipts` (`status`:
-  `ISSUED`/`VOIDED`, `receipt_number`, `file_id`).
-- **Scope**: emitir recibo desde un pago (confirmado, por lógica de
-  producto aunque no esté forzado por la firma del RPC); listar/anular
-  recibos.
+- **Current evidence** (corregido 2026-09-28 tras inspección directa del
+  cuerpo completo de la función vía `pg_get_functiondef`, no solo su
+  firma — la entrada anterior de esta sección estaba equivocada en dos
+  puntos, ver nota más abajo): `issue_receipt(p_payment_id)` exige
+  `payment.status = 'CONFIRMED'` (`PAYMENT_NOT_CONFIRMED`) **y además al
+  menos una fila en `payment_allocations` para ese pago**
+  (`PAYMENT_HAS_NO_ALLOCATIONS` — `EXISTS(...)`, cualquier monto, **la
+  allocation completa NO es requerida**, una sola allocation parcial ya
+  satisface la condición). Nunca setea `file_id` (queda `NULL` siempre —
+  ningún RPC/policy en todo el schema lo popula). `receipts` (`status`:
+  `ISSUED`/`VOIDED` — `VOIDED` inalcanzable, sin RPC/policy que lo
+  produzca —, `receipt_number` es `GENERATED ALWAYS AS IDENTITY`,
+  `UNIQUE(payment_id)` — un recibo por pago).
+- **Scope**: emitir recibo desde un pago `CONFIRMED` con al menos una
+  allocation (exigido por el RPC, no solo por lógica de producto);
+  consultar el recibo ya emitido de un pago. **"Anular recibos" retirado
+  del alcance** — no existe RPC ni policy `UPDATE`/`DELETE` sobre
+  `receipts`, anular/reeditar/reemitir es estructuralmente imposible con
+  el backend desplegado actual.
 - **Out of scope**: generación de PDF/plantilla específica más allá de lo
-  que el RPC ya devuelva.
-- **Dependencies**: INC-013 (pago debe existir). **No depende de INC-014**
-  — confirmado por la firma del RPC.
+  que el RPC ya devuelva (el RPC no devuelve ni genera ningún archivo —
+  `file_id` es siempre `NULL`); descarga/subida de archivo de recibo (sin
+  soporte alguno en el backend desplegado); anular/reeditar/reemitir un
+  recibo (sin RPC/policy).
+- **Dependencies**: INC-013 (pago debe existir) **y INC-014** — corregido:
+  la entrada anterior decía "No depende de INC-014 — confirmado por la
+  firma del RPC", lo cual era incorrecto porque esa firma por sí sola
+  (`p_payment_id uuid`) no revela las validaciones internas del cuerpo de
+  la función. El cuerpo real exige `PAYMENT_HAS_NO_ALLOCATIONS`, y las
+  allocations solo existen a partir de `allocate_payment` (INC-014). En
+  la práctica esto no bloqueó nada porque INC-014 ya estaba completo
+  cuando se implementó INC-015, pero la dependencia real existe y debe
+  quedar corregida en el registro.
 - **Likely domains/files**: `features/payments/`.
 - **Existing Supabase support**: completo.
 - **Backend work required?**: no.
 - **Frontend work required?**: sí.
 - **Human gate?**: NONE.
 - **Acceptance criteria**: se puede emitir un recibo desde un pago
-  confirmado y consultarlo después.
+  `CONFIRMED` con al menos una allocation (parcial o total) y consultarlo
+  después.
 - **Validation strategy**: tests de repo/hook, typecheck/lint/test.
 - **Risk**: MEDIUM.
 

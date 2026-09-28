@@ -59,6 +59,14 @@
   margin-top: var(--space-2);
 }
 
+.receiptSummary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
 .allocationSection {
   display: flex;
   flex-direction: column;

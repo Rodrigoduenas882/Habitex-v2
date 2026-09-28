@@ -58,6 +58,23 @@
         "unknown": "No pudimos aplicar este pago al cargo seleccionado. Intenta de nuevo."
       }
     },
+    "receipt": {
+      "issueTrigger": "Emitir recibo",
+      "issueSubmitting": "Emitiendo…",
+      "loadError": "No pudimos cargar el recibo de este pago.",
+      "noAllocationsHint": "Aplica este pago a un cargo antes de emitir un recibo.",
+      "issued": {
+        "number": "Recibo No. {{number}}",
+        "date": "Emitido el {{date}}"
+      },
+      "errors": {
+        "payment_not_confirmed": "Este pago ya no está confirmado. Actualiza la página para ver su estado actual.",
+        "payment_has_no_allocations": "Este pago todavía no se ha aplicado a ningún cargo.",
+        "receipt_already_issued": "Ya existe un recibo para este pago. Actualizando…",
+        "forbidden": "No tienes permiso para emitir un recibo para este pago.",
+        "unknown": "No pudimos emitir el recibo de este pago. Intenta de nuevo."
+      }
+    },
     "actions": {
       "confirm": {
         "cta": "Confirmar pago",

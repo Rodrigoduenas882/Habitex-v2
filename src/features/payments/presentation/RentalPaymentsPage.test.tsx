@@ -7,7 +7,7 @@ import '@/infrastructure/i18n/i18n'
 import { administrationQueryKeys } from '@/features/administration/application/administration-query-keys'
 import type { Charge } from '@/features/charges/domain/charge.types'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
-import { PaymentRepositoryError, type Payment, type PaymentAllocation } from '../domain/payment.types'
+import { PaymentRepositoryError, type Payment, type PaymentAllocation, type Receipt } from '../domain/payment.types'
 import RentalPaymentsPage from './RentalPaymentsPage'
 
 const { listAccessibleAdministrations } = vi.hoisted(() => ({
@@ -15,15 +15,25 @@ const { listAccessibleAdministrations } = vi.hoisted(() => ({
 }))
 const { getSubscription } = vi.hoisted(() => ({ getSubscription: vi.fn() }))
 const { listByAdministration } = vi.hoisted(() => ({ listByAdministration: vi.fn() }))
-const { listByRelationship, reportPayment, confirmPayment, rejectPayment, listAllocationsForPayment, allocatePayment } =
-  vi.hoisted(() => ({
-    listByRelationship: vi.fn(),
-    reportPayment: vi.fn(),
-    confirmPayment: vi.fn(),
-    rejectPayment: vi.fn(),
-    listAllocationsForPayment: vi.fn(),
-    allocatePayment: vi.fn(),
-  }))
+const {
+  listByRelationship,
+  reportPayment,
+  confirmPayment,
+  rejectPayment,
+  listAllocationsForPayment,
+  allocatePayment,
+  getReceiptForPayment,
+  issueReceipt,
+} = vi.hoisted(() => ({
+  listByRelationship: vi.fn(),
+  reportPayment: vi.fn(),
+  confirmPayment: vi.fn(),
+  rejectPayment: vi.fn(),
+  listAllocationsForPayment: vi.fn(),
+  allocatePayment: vi.fn(),
+  getReceiptForPayment: vi.fn(),
+  issueReceipt: vi.fn(),
+}))
 const { listChargesByRelationship } = vi.hoisted(() => ({ listChargesByRelationship: vi.fn() }))
 const { uploadFile, getFileById, downloadFile } = vi.hoisted(() => ({
   uploadFile: vi.fn(),
@@ -59,6 +69,8 @@ vi.mock('../infrastructure/supabase-payment.repository', () => ({
     rejectPayment,
     listAllocationsForPayment,
     allocatePayment,
+    getReceiptForPayment,
+    issueReceipt,
   },
 }))
 
@@ -155,6 +167,23 @@ function makeAllocation(overrides: Partial<PaymentAllocation> = {}): PaymentAllo
   }
 }
 
+function makeReceipt(overrides: Partial<Receipt> = {}): Receipt {
+  return {
+    id: 'receipt-1',
+    administrationId: 'admin-1',
+    rentalRelationshipId: 'rel-1',
+    paymentId: 'payment-1',
+    receiptNumber: 42,
+    status: 'ISSUED',
+    fileId: null,
+    issuedAt: '2026-01-07T10:00:00Z',
+    voidedAt: null,
+    voidReason: null,
+    createdAt: '2026-01-07T10:00:00Z',
+    ...overrides,
+  }
+}
+
 const UNLIMITED_SUBSCRIPTION = {
   id: 'sub-1',
   administrationId: 'admin-1',
@@ -204,6 +233,11 @@ describe('RentalPaymentsPage', () => {
     // after confirmPayment succeeds) must never see rejected/undefined data.
     listAllocationsForPayment.mockResolvedValue([])
     listChargesByRelationship.mockResolvedValue([])
+    // Default to "no receipt issued yet" - usePaymentReceipt only ever fires
+    // for a CONFIRMED payment, but a CONFIRMED payment appearing anywhere
+    // (including via a refetch after confirmPayment succeeds) must never see
+    // rejected/undefined data.
+    getReceiptForPayment.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -827,7 +861,7 @@ describe('RentalPaymentsPage', () => {
       expect(await screen.findByText('Aplicado: $50.000')).toBeInTheDocument()
     })
 
-    it('never renders receipt-related copy or an allocation edit/delete/reversal control', async () => {
+    it('never renders an allocation edit/delete/reversal control', async () => {
       resolveOneAdministration()
       listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
       listByRelationship.mockResolvedValueOnce([
@@ -838,10 +872,224 @@ describe('RentalPaymentsPage', () => {
       renderPage()
 
       await screen.findByText('Aplicado: $200.000')
-      expect(screen.queryByText(/recibo/i)).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /eliminar/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /revertir/i })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('receipt issuance', () => {
+    for (const status of ['REPORTED', 'REJECTED', 'CANCELLED'] as const) {
+      it(`shows no receipt UI at all for a ${status} payment`, async () => {
+        resolveOneAdministration()
+        listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+        listByRelationship.mockResolvedValueOnce([makePayment({ status })])
+        renderPage()
+
+        await screen.findByText('Pagos')
+        expect(screen.queryByRole('button', { name: 'Emitir recibo' })).not.toBeInTheDocument()
+        expect(screen.queryByText(/^Recibo No\./)).not.toBeInTheDocument()
+        expect(getReceiptForPayment).not.toHaveBeenCalled()
+      })
+    }
+
+    it('shows no issue action for a CONFIRMED payment with zero allocations', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      renderPage()
+
+      await screen.findByText('Aplicado: $0')
+      expect(screen.queryByRole('button', { name: 'Emitir recibo' })).not.toBeInTheDocument()
+      expect(screen.getByText('Aplica este pago a un cargo antes de emitir un recibo.')).toBeInTheDocument()
+    })
+
+    it('shows the issue action for a CONFIRMED payment with exactly one partial allocation (remaining > 0) - full allocation is not required', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 100_000 })])
+      renderPage()
+
+      expect(await screen.findByText('Pendiente por aplicar: $400.000')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Emitir recibo' })).toBeEnabled()
+    })
+
+    it('renders the read-only issued number/date for an already-issued receipt, and never a trigger button', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 500_000 })])
+      getReceiptForPayment.mockResolvedValueOnce(makeReceipt({ receiptNumber: 42 }))
+      renderPage()
+
+      expect(await screen.findByText('Recibo No. 42')).toBeInTheDocument()
+      expect(screen.getByText((content) => content.startsWith('Emitido el'))).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Emitir recibo' })).not.toBeInTheDocument()
+    })
+
+    it('keeps an already-issued receipt visible even when the management gate is blocked', async () => {
+      resolveOneAdministration()
+      getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, status: 'EXPIRED' })
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 500_000 })])
+      getReceiptForPayment.mockResolvedValueOnce(makeReceipt({ receiptNumber: 7 }))
+      renderPage()
+
+      expect(await screen.findByText('Recibo No. 7')).toBeInTheDocument()
+    })
+
+    it('disables the issue action and shows the management-access reason when the gate denies', async () => {
+      resolveOneAdministration()
+      getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, status: 'EXPIRED' })
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 100_000 })])
+      renderPage()
+
+      const trigger = await screen.findByRole('button', { name: 'Emitir recibo' })
+      expect(trigger).toBeDisabled()
+      expect(
+        await screen.findAllByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+      ).not.toHaveLength(0)
+      expect(issueReceipt).not.toHaveBeenCalled()
+    })
+
+    it('disables the issue action live once the management gate flips to blocked while mounted', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 100_000 })])
+      const { client } = renderPage()
+
+      const trigger = await screen.findByRole('button', { name: 'Emitir recibo' })
+      expect(trigger).toBeEnabled()
+
+      // Same technique as the allocation section's own live-gate test -
+      // simulates the subscription expiring mid-session via a direct cache
+      // write rather than a real refetch/timer.
+      client.setQueryData(administrationQueryKeys.subscription('admin-1'), {
+        ...UNLIMITED_SUBSCRIPTION,
+        status: 'EXPIRED',
+      })
+
+      await waitFor(() => {
+        expect(trigger).toBeDisabled()
+      })
+      expect(issueReceipt).not.toHaveBeenCalled()
+    })
+
+    it('disables the issue button while the mutation is pending', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 100_000 })])
+      let resolveIssue: (value: Receipt) => void = () => {}
+      issueReceipt.mockImplementationOnce(
+        () =>
+          new Promise<Receipt>((resolve) => {
+            resolveIssue = resolve
+          }),
+      )
+      const user = userEvent.setup()
+      renderPage()
+
+      const trigger = await screen.findByRole('button', { name: 'Emitir recibo' })
+      await user.click(trigger)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Emitiendo…' })).toBeDisabled()
+      })
+      expect(issueReceipt).toHaveBeenCalledTimes(1)
+
+      resolveIssue(makeReceipt())
+      await waitFor(() => {
+        expect(issueReceipt).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    it('issues a receipt successfully, refetching the receipt query and rendering the read-only state - without ever invalidating the charges query', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValue([makeAllocation({ amount: 100_000 })])
+      getReceiptForPayment.mockResolvedValueOnce(null)
+      getReceiptForPayment.mockResolvedValueOnce(makeReceipt({ receiptNumber: 99 }))
+      issueReceipt.mockResolvedValueOnce(makeReceipt({ receiptNumber: 99 }))
+      const user = userEvent.setup()
+      renderPage()
+
+      const trigger = await screen.findByRole('button', { name: 'Emitir recibo' })
+      const chargesCallsBeforeIssuance = listChargesByRelationship.mock.calls.length
+      await user.click(trigger)
+
+      await waitFor(() => {
+        expect(issueReceipt).toHaveBeenCalledWith('payment-1')
+      })
+      await waitFor(() => {
+        expect(getReceiptForPayment).toHaveBeenCalledTimes(2)
+      })
+      expect(await screen.findByText('Recibo No. 99')).toBeInTheDocument()
+      // issue_receipt's only write is a single INSERT INTO receipts - it
+      // never touches charges/charge_balances, so a successful issuance must
+      // never trigger a charges-query call beyond whatever already ran
+      // before this click (in this test, none, since the allocation section
+      // was never opened).
+      expect(listChargesByRelationship.mock.calls.length).toBe(chargesCallsBeforeIssuance)
+    })
+
+    it('shows a friendly stale-state message and refetches the receipt on a receipt_already_issued (23505) failure, keeping the message visible alongside the now-real receipt instead of one silently replacing the other', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValue([makeAllocation({ amount: 100_000 })])
+      // No receipt yet when this client renders its own "Emitir recibo" -
+      // but another session/tab already issued one by the time this client's
+      // own attempt reaches the server, so the refetch triggered by the
+      // stale failure reveals the real, already-existing receipt.
+      getReceiptForPayment.mockResolvedValueOnce(null)
+      getReceiptForPayment.mockResolvedValueOnce(makeReceipt({ receiptNumber: 55 }))
+      issueReceipt.mockRejectedValueOnce(new PaymentRepositoryError('receipt_already_issued'))
+      const user = userEvent.setup()
+      renderPage()
+
+      const trigger = await screen.findByRole('button', { name: 'Emitir recibo' })
+      await user.click(trigger)
+
+      expect(await screen.findByText('Ya existe un recibo para este pago. Actualizando…')).toBeInTheDocument()
+      expect(await screen.findByText('Recibo No. 55')).toBeInTheDocument()
+      // Both remain visible simultaneously - the failure message is not
+      // silently replaced by the refetch's own correct success state.
+      expect(screen.getByText('Ya existe un recibo para este pago. Actualizando…')).toBeInTheDocument()
+      expect(screen.getByText('Recibo No. 55')).toBeInTheDocument()
+    })
+
+    it('never renders a download/file/PDF affordance for a receipt', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 500_000 })])
+      getReceiptForPayment.mockResolvedValueOnce(makeReceipt())
+      renderPage()
+
+      await screen.findByText('Recibo No. 42')
+      expect(screen.queryByRole('button', { name: /descargar/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /descargar|pdf/i })).not.toBeInTheDocument()
+      expect(screen.queryByText(/pdf/i)).not.toBeInTheDocument()
+    })
+
+    it('never renders a receipt edit/void/reissue control for any receipt state', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 500_000 })])
+      getReceiptForPayment.mockResolvedValueOnce(makeReceipt())
+      renderPage()
+
+      await screen.findByText('Recibo No. 42')
+      expect(screen.queryByRole('button', { name: /anular|editar|reemitir|eliminar/i })).not.toBeInTheDocument()
     })
   })
 

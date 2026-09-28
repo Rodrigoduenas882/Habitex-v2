@@ -79,6 +79,15 @@ export interface ReportPaymentInput {
  *   (error.code === '23505') from payment_allocations' own
  *   UNIQUE(payment_id, charge_id) - allocate_payment has no "increase an
  *   existing allocation" path.
+ * - 'payment_has_no_allocations' <- PAYMENT_HAS_NO_ALLOCATIONS (issue_receipt
+ *   only - the payment has no payment_allocations row of any kind yet; full
+ *   allocation is explicitly not required, a single partial allocation of any
+ *   amount already satisfies this).
+ * - 'receipt_already_issued' <- a raw Postgres unique_violation
+ *   (error.code === '23505') from receipts' own UNIQUE(payment_id) -
+ *   issue_receipt has no idempotency guard beyond that constraint, so a
+ *   second call for an already-receipted payment surfaces as this raw
+ *   constraint rather than a named exception.
  * - 'unknown' <- everything else, including ACCOUNT_REQUIRED and
  *   PAYMENT_OR_CHARGE_NOT_FOUND - both unreachable through this frontend's own
  *   flows (every route that can reach payments sits behind the
@@ -97,6 +106,8 @@ export type PaymentErrorCode =
   | 'allocation_exceeds_payment'
   | 'allocation_exceeds_charge'
   | 'duplicate_allocation'
+  | 'payment_has_no_allocations'
+  | 'receipt_already_issued'
   | 'unknown'
 
 export class PaymentRepositoryError extends Error {
@@ -134,12 +145,45 @@ export interface AllocatePaymentInput {
 }
 
 /**
+ * receipt_status, confirmed against the deployed schema (public.receipts).
+ * 'VOIDED' exists only for exhaustiveness against the deployed enum - no RPC
+ * or RLS policy in this codebase ever produces it (issue_receipt always
+ * inserts ISSUED, and there is no void/reissue/edit RPC anywhere for this
+ * table), and no UI action may create it.
+ */
+export type ReceiptStatus = 'ISSUED' | 'VOIDED'
+
+/**
+ * A public.receipts row, mirrored into camelCase domain shape. Every column
+ * confirmed against the deployed schema - no field invented here. `fileId`
+ * will always be `null` in practice today - no write path (issue_receipt or
+ * otherwise) ever sets it, even though FilePurpose.RECEIPT/
+ * FileStorageBucket.'receipts' already exist in features/documents' own
+ * domain types; wiring that up is explicitly out of scope for this
+ * increment (see this feature's own scope notes). `voidedAt`/`voidReason`
+ * mirror ReceiptStatus's own 'VOIDED' - never populated in practice.
+ */
+export interface Receipt {
+  id: string
+  administrationId: string
+  rentalRelationshipId: string
+  paymentId: string
+  receiptNumber: number
+  status: ReceiptStatus
+  fileId: string | null
+  issuedAt: string
+  voidedAt: string | null
+  voidReason: string | null
+  createdAt: string
+}
+
+/**
  * public.payments port. Every write goes through an RPC (report_payment/
- * confirm_payment/reject_payment/allocate_payment) - this port never issues a
- * raw INSERT/UPDATE/DELETE against public.payments, since the table is
- * RLS-scoped to SELECT only (payments_select, can_view_relationship). RLS
- * remains the real authority for both read and write; this port's typing is
- * not a security boundary. No edit/delete/cancel transition exists for
+ * confirm_payment/reject_payment/allocate_payment/issue_receipt) - this port
+ * never issues a raw INSERT/UPDATE/DELETE against public.payments, since the
+ * table is RLS-scoped to SELECT only (payments_select, can_view_relationship).
+ * RLS remains the real authority for both read and write; this port's typing
+ * is not a security boundary. No edit/delete/cancel transition exists for
  * payments - CANCELLED is never a reachable target here.
  *
  * allocatePayment (via the allocate_payment RPC) is the only write path
@@ -148,6 +192,12 @@ export interface AllocatePaymentInput {
  * port never issues a raw INSERT/UPDATE/DELETE against it either. No
  * charges/charge_balances read exists anywhere in this port - out of scope
  * for this increment (see this feature's own scope notes).
+ *
+ * issueReceipt (via the issue_receipt RPC) is the only write path against
+ * public.receipts - that table has no edit/void/reissue capability anywhere
+ * (no RPC, no RLS INSERT/UPDATE/DELETE policy besides the one this RPC uses
+ * SECURITY DEFINER to bypass), so this port never issues a raw INSERT/UPDATE/
+ * DELETE against it either.
  */
 export interface PaymentRepository {
   listByRelationship(rentalRelationshipId: string): Promise<Payment[]>
@@ -156,4 +206,6 @@ export interface PaymentRepository {
   rejectPayment(paymentId: string): Promise<Payment>
   listAllocationsForPayment(paymentId: string): Promise<PaymentAllocation[]>
   allocatePayment(input: AllocatePaymentInput): Promise<PaymentAllocation>
+  getReceiptForPayment(paymentId: string): Promise<Receipt | null>
+  issueReceipt(paymentId: string): Promise<Receipt>
 }

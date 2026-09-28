@@ -97,13 +97,30 @@ original). Los 2 MEDIUM se resolvieron en un review-fix de 2 rondas
 (la primera ronda introdujo un 3er MEDIUM nuevo, detectado por la
 re-revisión enfocada y corregido en una segunda ronda inmediata) — 0
 BLOCKER/HIGH/MEDIUM tras el review-fix, 1 LOW original sigue registrado
-como deuda no bloqueante. Checkpoint local pendiente de push. Ver
-detalle en "Último incremento ejecutado" más abajo.
+como deuda no bloqueante. Checkpoints `22db1bc` + `c3c6a1a` pusheados a
+`origin/chore/agentic-foundation`. Ver detalle en "Incremento anterior:
+INC-014" más abajo.
+
+**INC-015 — Receipt issuance**: **completo** (frontend-only, sin cambios
+de backend — `issue_receipt` ya estaba completamente soportado, research
+verdict: FAST PATH — BACKEND READY), extiende `features/payments/` (sin
+nueva feature/ruta), implementado en 1 ronda (FAST PATH: research +
+plan + implementación en turnos consecutivos, un solo `habitex-implementer`
+— la implementación fue interrumpida a mitad de camino por un rate limit
+de sesión y retomada/integrada directamente por la sesión orquestadora
+tras el reset), validado e independientemente revisado (**0
+BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix). Corrige además un error de
+documentación verificado durante el research: `issue_receipt` SÍ requiere
+al menos una allocation (`PAYMENT_HAS_NO_ALLOCATIONS`), por lo que INC-015
+SÍ depende de INC-014 — el texto anterior de
+`HABITEX_COMPLETION_PLAN.md` decía lo contrario. Checkpoint local
+pendiente de push. Ver detalle en "Último incremento ejecutado" más
+abajo.
 
 ## Estado
 
-`INC-014 completo, checkpoint local pendiente de push.
-INC-001/003/004/006/008/009/010/011/012/013 pusheados`.
+`INC-015 completo, checkpoint local pendiente de push.
+INC-001/003/004/006/008/009/010/011/012/013/014 pusheados`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -359,8 +376,77 @@ INC-001/003/004/006/008/009/010/011/012/013 pusheados`.
   revisado por `habitex-reviewer` (contexto independiente, re-verificó en
   vivo vía Supabase MCP read-only el trigger completo, la policy única de
   `payment_allocations`, y el esquema campo por campo: 0 BLOCKER/HIGH; 2
-  MEDIUM + 1 LOW no bloqueantes registrados, ver detalle en "Último
-  incremento ejecutado"). Checkpoint local pendiente de push.
+  MEDIUM + 1 LOW no bloqueantes registrados). Los 2 MEDIUM resueltos en un
+  review-fix de 2 rondas (ver detalle en "Incremento anterior: INC-014")
+  — checkpoints `22db1bc` + `c3c6a1a` pusheados.
+- INC-015 (frontend-only, sin backend gate — `issue_receipt` ya estaba
+  completamente soportado; FAST PATH: research + reconciliación + plan de
+  implementación en un solo turno, aprobado explícitamente por el
+  usuario, seguido de implementación en el mismo ciclo — verdict A,
+  BACKEND READY, FRONTEND IMPLEMENTATION ONLY): extiende
+  `features/payments/` (sin nueva feature/ruta). **Corrección de
+  documentación verificada durante el research** (contradicción señalada
+  explícitamente por el usuario para resolver, no asumir): el texto
+  anterior de `HABITEX_COMPLETION_PLAN.md` afirmaba que `issue_receipt`
+  "solo requiere el `payment_id`, no depende de que exista una
+  allocation" y que INC-015 "no depende de INC-014" — **ambas
+  afirmaciones eran incorrectas**, confirmado leyendo el cuerpo completo
+  de la función (no solo su firma) vía `pg_get_functiondef`: el RPC exige
+  `PAYMENT_HAS_NO_ALLOCATIONS` (`EXISTS` sobre `payment_allocations`,
+  cualquier monto — **la allocation completa NO es requerida**, una
+  allocation parcial ya satisface la condición). `HABITEX_COMPLETION_PLAN.md`
+  corregido en su sección INC-015 y en su lista de dependencias; la
+  matriz de gaps (snapshot histórico congelado desde la auditoría
+  original, nunca actualizado retroactivamente para ningún incremento ya
+  completo — mismo criterio ya aplicado a Payments/Payment allocation en
+  esa misma tabla) se dejó sin tocar deliberadamente. `PaymentRepository`
+  gana `getReceiptForPayment`/`issueReceipt` (8 métodos en total), nunca
+  un INSERT/UPDATE/DELETE directo contra `public.receipts` — el único
+  write es `issue_receipt` vía RPC, único RPC que toca esa tabla en todo
+  el schema. `PaymentErrorCode` extendido con
+  `payment_has_no_allocations`/`receipt_already_issued` (`23505` sobre
+  `UNIQUE(payment_id)`, reutiliza `payment_not_confirmed`/`forbidden`/
+  `unknown` ya existentes). Elegibilidad correcta y explícitamente
+  verificada: `allocations.length > 0`, **nunca** `remainingAmount === 0`
+  — una allocation parcial ya habilita "Emitir recibo" (test dedicado que
+  lo prueba con una allocation parcial real, no solo "alguna allocation
+  cualquiera"). Un recibo ya emitido se muestra de solo lectura
+  (`receiptNumber`/`issuedAt`, `receipt_number` es `GENERATED ALWAYS AS
+  IDENTITY`, nunca calculado ni seteado por el frontend) **siempre
+  visible aunque el management gate esté bloqueado** — igual que
+  montos de allocation en INC-014; solo "Emitir recibo" está gateado por
+  `useManagementGate` en vivo (mismo patrón enhebrado que el review-fix
+  de INC-014). `getReceiptForPayment` usa `.maybeSingle()` (nunca
+  `.single()`) para el caso 0-o-1 fila de `UNIQUE(payment_id)`. Manejo de
+  carrera para `receipt_already_issued` sigue exactamente el mismo
+  principio ya establecido (y ya corregido dos veces) para
+  `staleAllocationError` de INC-014 — mensaje elevado a estado del
+  componente padre, mostrado de forma independiente/simultánea al recibo
+  real ya refrescado, nunca reemplazado silenciosamente, limpiado solo al
+  iniciar un intento nuevo. **Sin efecto financiero alguno** — `useIssueReceipt`
+  invalida únicamente la query del recibo, nunca `charges`/`allocations`/
+  la lista de pagos (test negativo dedicado que lo prueba). **Sin flujo de
+  archivo/PDF de ningún tipo** — `file_id` nunca es seteado por ningún
+  camino de escritura desplegado (verificado en vivo), sin
+  `fileRepository` nuevo, sin dependencia PDF nueva, sin botón de
+  descarga. `ReceiptStatus.VOIDED` modelado defensivamente por
+  exhaustividad, inalcanzable (sin RPC/policy que lo produzca) — sin UI de
+  anular/reeditar/reemitir en ningún lugar. Implementado en 1 ronda (la
+  ejecución del implementer fue interrumpida a mitad de camino por un
+  rate limit de sesión de Claude Code; tras el reset, la sesión
+  orquestadora inspeccionó el árbol de trabajo parcial directamente,
+  encontró y corrigió 1 error trivial de lint —una aserción de tipo
+  innecesaria en `getReceiptForPayment`—, y verificó de forma
+  independiente que el resto del trabajo ya estaba completo y correcto
+  antes de continuar el flujo normal), validado (792/792 tests, build con
+  chunk `RentalPaymentsPage` ampliado a 26.05 kB) y revisado por
+  `habitex-reviewer` (contexto independiente, re-verificó en vivo vía
+  Supabase MCP read-only el cuerpo completo de `issue_receipt`, la policy
+  única de `receipts`, `UNIQUE(payment_id)`, `receipt_number` como
+  `GENERATED ALWAYS AS IDENTITY`, y que ningún otro RPC/policy toca
+  `receipts`: **0 BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix, deliverable
+  excepcionalmente limpio pese a la interrupción). Checkpoint local
+  pendiente de push.
 
 ## Subtareas
 
@@ -392,20 +478,182 @@ INC-001/003/004/006/008/009/010/011/012/013 pusheados`.
 | INC-013 — backend gate (`reject_payment(uuid)`, migration `20260928131439_reject_payment.sql`) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only, commiteada y pusheada (`2bc3a3f`) |
 | INC-013 — Payments: report & confirm/reject (`features/payments/`: `PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, asimetría de autorización, subida-luego-registro de comprobante sin re-subida en reintento, confirmación de dos pasos para rechazar, ruta `/rentals/:id/payments`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado), checkpoint `a6e167f` pusheado |
 | INC-014 — Payment allocation (`features/payments/`: `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, resumen de allocation por pago, cargos elegibles filtrados por relación/balance/no-ya-asignado, invalidación cross-feature autorizada hacia `chargeQueryKeys` de `features/charges/`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 BLOCKER/HIGH; 2 MEDIUM + 1 LOW en la revisión original) |
-| INC-014 review-fix (2 rondas: gateo en vivo de `useManagementGate` en el submit de allocation; mensaje de error obsoleto persistente en vez de ser tapado por "aplicado completamente"; ronda 2 corrige un 3er MEDIUM introducido por la ronda 1 — limpieza del mensaje obsoleto al iniciar un intento nuevo) | done — re-revisado (`habitex-reviewer`, contexto independiente): 2 MEDIUM originales **RESUELTOS**, 0 BLOCKER/HIGH/MEDIUM nuevos tras la ronda 2 (verificada por lectura directa del diff), 1 LOW original sin tocar por decisión humana, checkpoint local pendiente de push |
+| INC-014 review-fix (2 rondas: gateo en vivo de `useManagementGate` en el submit de allocation; mensaje de error obsoleto persistente en vez de ser tapado por "aplicado completamente"; ronda 2 corrige un 3er MEDIUM introducido por la ronda 1 — limpieza del mensaje obsoleto al iniciar un intento nuevo) | done — re-revisado (`habitex-reviewer`, contexto independiente): 2 MEDIUM originales **RESUELTOS**, 0 BLOCKER/HIGH/MEDIUM nuevos tras la ronda 2 (verificada por lectura directa del diff), 1 LOW original sin tocar por decisión humana, checkpoints `22db1bc` + `c3c6a1a` pusheados |
+| INC-015 — Receipt issuance (`features/payments/`: `PaymentRepository` gana `getReceiptForPayment`/`issueReceipt` sobre `issue_receipt`, elegibilidad correcta por `allocations.length > 0` sin exigir allocation completa, recibo ya emitido siempre visible sin gate, manejo de carrera `receipt_already_issued` sin enmascarar fallos, sin flujo de archivo/PDF, corrección de la dependencia INC-014 en `HABITEX_COMPLETION_PLAN.md`) | done — FAST PATH (research+plan+implementación en el mismo ciclo, 1 implementer, interrumpido por rate limit y retomado por la sesión orquestadora), validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix), checkpoint local pendiente de push |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006 (`1b1dc3a`),
 INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`, `e29eed4`),
-INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`) e INC-013 (`2bc3a3f`
-backend, `a6e167f` frontend) ya están en `origin/chore/agentic-foundation`
-— HEAD y origin sincronizados. El nuevo checkpoint de INC-014 (ver
-"Último incremento ejecutado") sigue pendiente de revisión humana antes
-de push.
+INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`), INC-013 (`2bc3a3f`
+backend, `a6e167f` frontend) e INC-014 (`22db1bc`, `c3c6a1a`) ya están en
+`origin/chore/agentic-foundation` — HEAD y origin sincronizados. El nuevo
+checkpoint de INC-015 (ver "Último incremento ejecutado") sigue pendiente
+de revisión humana antes de push.
 
 ## Último incremento ejecutado
+
+**INC-015 — Receipt issuance** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
+sección INC-015, corregida durante este mismo incremento — ver más abajo)
+— emitir un recibo a partir de un pago `CONFIRMED` que ya tiene al menos
+una allocation (parcial o total).
+
+- **FAST PATH**: research + reconciliación + plan de implementación
+  producidos en un solo turno (a pedido explícito del usuario), aprobados
+  explícitamente antes de continuar con la implementación en el mismo
+  ciclo — sin turno de research separado.
+- **RESOLUCIÓN DE CONTRADICCIÓN** (mandatoria, pedida explícitamente por
+  el usuario — "no confiar en resúmenes previos, inspeccionar el cuerpo
+  completo de la función"): investigación previa (research de INC-014)
+  había dejado una afirmación contradictoria/incorrecta en
+  `HABITEX_COMPLETION_PLAN.md` sobre si `issue_receipt` depende de que
+  exista una allocation. Se leyó el cuerpo completo de la función vía
+  `pg_get_functiondef` (no solo la firma): **SÍ requiere al menos una
+  allocation** —
+  `if not exists(select 1 from payment_allocations where payment_id=v_p.id) then raise exception 'PAYMENT_HAS_NO_ALLOCATIONS'`
+  — de cualquier monto, **la allocation completa NO es requerida**.
+  También confirmado: `status='CONFIRMED'` exigido
+  (`PAYMENT_NOT_CONFIRMED`), `can_manage_administration` exigido
+  (`FORBIDDEN`), `file_id` nunca seteado por el INSERT final,
+  `UNIQUE(payment_id)` (un recibo por pago), `receipt_number` es
+  `GENERATED ALWAYS AS IDENTITY` (nunca calculado por el frontend), único
+  RPC que escribe en `receipts` en todo el schema (sin void/reissue/edit),
+  sin policy `INSERT`/`UPDATE`/`DELETE` sobre `receipts` (solo
+  `receipts_select`, `can_view_relationship` — lectura sobrevive acceso
+  de gestión vencido). **Veredicto: A. FAST PATH — BACKEND READY,
+  FRONTEND IMPLEMENTATION ONLY.**
+- **Corrección de documentación**: `HABITEX_COMPLETION_PLAN.md` sección
+  INC-015 corregida — el texto anterior decía "`issue_receipt` solo
+  requiere el `payment_id`, no depende de que exista una allocation" y
+  "No depende de INC-014 — confirmado por la firma del RPC" — **ambas
+  afirmaciones eran incorrectas** (la firma por sí sola nunca revela las
+  validaciones internas del cuerpo de la función). Corregido a: SÍ
+  requiere ≥1 allocation, por lo tanto SÍ depende de INC-014 (sin bloqueo
+  práctico, ya que INC-014 ya estaba completo). También se retiró
+  "anular recibos" del alcance de INC-015 — no existe RPC ni policy que
+  lo permita. La matriz de gaps del mismo documento (snapshot histórico,
+  nunca actualizado retroactivamente para ningún incremento completo) se
+  dejó sin tocar, mismo criterio ya aplicado a Payments/Payment
+  allocation en esa tabla.
+- **Qué se agregó** (extiende `features/payments/`, sin nueva
+  feature/ruta, 1 ronda de `habitex-implementer`):
+  - `PaymentRepository` gana `getReceiptForPayment(paymentId): Promise<Receipt | null>`
+    (`SELECT` + `.maybeSingle()`, nunca `.single()` — correcto para la
+    relación 0-o-1 de `UNIQUE(payment_id)`) y `issueReceipt(paymentId): Promise<Receipt>`
+    (envuelve `issue_receipt`, fila única igual que las otras 4 RPCs de
+    este agregado, sin el helper `firstRow` de contracts). **Nunca un
+    INSERT/UPDATE/DELETE directo** contra `public.receipts` — verificado
+    por grep y por el reviewer contra la RLS real en vivo.
+  - `PaymentErrorCode` extendido con `payment_has_no_allocations`
+    (`PAYMENT_HAS_NO_ALLOCATIONS`) y `receipt_already_issued` (`23505`
+    sobre `UNIQUE(payment_id)` — `issue_receipt` no tiene guard de
+    idempotencia propio más allá de esa constraint); reutiliza
+    `payment_not_confirmed`/`forbidden`/`unknown` ya existentes de
+    INC-014, sin duplicar.
+  - **Elegibilidad correcta — el requisito de corrección más importante
+    de este incremento**: `allocations.length > 0`, **nunca**
+    `remainingAmount === 0` — una allocation parcial de cualquier monto ya
+    habilita "Emitir recibo", exactamente como el RPC lo permite. Test
+    dedicado prueba esto con una allocation genuinamente parcial (pago de
+    $500.000 con $100.000 ya asignado, $400.000 todavía pendiente),
+    verificado por el reviewer como una aserción real, no solo "alguna
+    allocation cualquiera".
+  - Un recibo ya emitido se muestra de solo lectura
+    (`card.receipt.issued.number`/`.date`, `receipt_number`/`issuedAt`
+    directos del RPC, nunca calculados por el frontend) **siempre
+    visible independientemente de `useManagementGate`** — misma
+    asimetría lectura/escritura ya establecida para
+    payments/allocations. Solo "Emitir recibo" está gateado, enhebrado
+    como prop viva desde `RentalPaymentsView` (mismo patrón exacto que el
+    review-fix de INC-014 estableció y que este incremento reutiliza sin
+    reinventar) — un solo click, sin confirmación de dos pasos (acción
+    aditiva/positiva, no negativa-irreversible como Rechazar).
+  - **Manejo de carrera para `receipt_already_issued`**: sigue el mismo
+    principio ya establecido (y ya corregido dos veces) para
+    `staleAllocationError` de INC-014 — el mensaje se eleva al estado del
+    componente padre (`PaymentReceiptSummary`), se muestra de forma
+    independiente/simultánea al recibo real ya refrescado (nunca
+    reemplazado silenciosamente por el éxito del refetch), y se limpia
+    solo al iniciar un intento nuevo. Test dedicado prueba la
+    co-presencia real de ambos mensajes tras la carrera, no solo "no
+    crashea".
+  - **Sin efecto financiero alguno**: `useIssueReceipt` invalida
+    únicamente `paymentQueryKeys.receipt(...)` — nunca
+    `chargeQueryKeys`/`paymentQueryKeys.allocations`/`paymentQueryKeys.list`.
+    Test negativo dedicado lo prueba explícitamente (spy sobre
+    `invalidateQueries` con aserciones `.not.toHaveBeenCalledWith`).
+  - **Sin flujo de archivo/PDF de ningún tipo**: `file_id` nunca es
+    seteado por ningún camino de escritura desplegado (verificado en vivo
+    por el reviewer — ningún otro RPC/policy toca `receipts`), por lo que
+    esta feature nunca importa `fileRepository` para nada relacionado a
+    recibos, no hay botón de descarga/subida, no hay dependencia PDF
+    nueva (`package.json`/`pnpm-lock.yaml` sin cambios). `FilePurpose.RECEIPT`/
+    `FileStorageBucket.'receipts'` (ya existentes desde INC-010) siguen
+    completamente sin usar.
+  - `ReceiptStatus.VOIDED` modelado defensivamente por exhaustividad
+    contra el enum desplegado — inalcanzable (sin RPC/policy que lo
+    produzca) — sin UI de anular/reeditar/reemitir en ningún lugar.
+  - i18n: namespace `payments` existente extendido (sin namespace nuevo)
+    con las claves de recibo emitido/acción/errores.
+- **Nota de ejecución**: la implementación fue interrumpida a mitad de
+  camino por un rate limit de sesión de Claude Code (el implementer
+  dejó el árbol de trabajo con cambios sustanciales pero sin validar).
+  Tras el reset del límite, la sesión orquestadora inspeccionó el diff
+  parcial directamente (sin volver a delegar desde cero), encontró y
+  corrigió 1 error trivial de lint (`toReceipt(data as ReceiptRow)` →
+  `toReceipt(data)`, una aserción de tipo innecesaria en
+  `getReceiptForPayment`), y verificó de forma independiente
+  (`typecheck`/`lint`/`test`/`build`, más lectura directa de los dos
+  puntos de mayor riesgo — elegibilidad por allocation parcial y manejo
+  de carrera obsoleta) que el resto del trabajo ya estaba completo y
+  correcto antes de continuar el flujo normal hacia la revisión
+  independiente.
+- **Tests**: 792/792 en la suite completa (33 nuevos). Cobertura
+  explícita de exactamente lo pedido: mapeo de dominio de `Receipt`;
+  `getReceiptForPayment` devuelve el recibo o `null` correctamente; forma
+  exacta del único argumento del RPC `issue_receipt`; ausencia de
+  escritura cruda; mapeo de `PAYMENT_NOT_CONFIRMED`/
+  `PAYMENT_HAS_NO_ALLOCATIONS`/`FORBIDDEN`/`23505`; ausencia de acción en
+  `REPORTED`/`REJECTED`/`CANCELLED`; ausencia de acción con cero
+  allocations; presencia de acción con allocation parcial (remaining > 0
+  — la prueba central de este incremento); recibo existente siempre
+  visible incluso con gate bloqueado; acción respeta el gate en vivo
+  (incluyendo el flip mid-sesión, misma técnica que el precedente de
+  INC-014); pending deshabilita el botón; éxito invalida solo la query de
+  recibo; éxito NO invalida cargos; carrera duplicada muestra feedback
+  amigable, refresca, y no enmascara el fallo real; sin UI de archivo/
+  descarga/PDF en ningún lugar; sin acción de editar/eliminar/anular/
+  reemitir en ningún lugar.
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente,
+  re-verificó en vivo vía Supabase MCP read-only el cuerpo completo de
+  `issue_receipt`, la policy única `receipts_select`, `UNIQUE(payment_id)`,
+  `receipt_number` como `GENERATED ALWAYS AS IDENTITY`, y que ningún otro
+  RPC/policy toca `receipts` en todo el schema) no encontró **ningún**
+  hallazgo — 0 BLOCKER/HIGH/MEDIUM/LOW, deliverable excepcionalmente
+  limpio pese a la interrupción de sesión durante su implementación.
+- **Deuda no bloqueante registrada**: ninguna nueva en este incremento.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora tras integrar el trabajo parcial, y re-verificada por el
+  reviewer): `pnpm typecheck && pnpm lint && pnpm test -- --run && pnpm
+  build` — todos PASS. 97 archivos / 792 tests (0 fallos), 0 errores de
+  lint (mismos 4 warnings preexistentes, no relacionados). Build emite el
+  chunk `RentalPaymentsPage` ampliado (26.05 kB) correctamente. El
+  reviewer además corrió `habitex-design-review` sobre el CSS/presentación
+  nuevos: sin hallazgos (clase `.receiptSummary` byte-idéntica a
+  `.allocationSummary` ya existente, sin primitivas nuevas).
+- **Human gates**: ninguno — verdict FAST PATH sin ambigüedad pendiente.
+  Sin cambios de schema/RLS/grants/migrations/dependencias/arquitectura
+  (confirmado por `git status`/`git diff --stat`, y por el reviewer: sin
+  archivo nuevo bajo `supabase/migrations/`,
+  `package.json`/`pnpm-lock.yaml` sin cambios).
+- **Seguridad verificada** (vía MCP read-only, por el reviewer):
+  re-confirmó en vivo el cuerpo completo de `issue_receipt`, la policy
+  única `receipts_select` (sin `INSERT`/`UPDATE`/`DELETE`), el
+  `UNIQUE(payment_id)`, `receipt_number` como identity column, y que
+  `file_id` nunca es poblado por ningún camino de escritura desplegado.
+
+### Incremento anterior: INC-014 — Payment allocation
 
 **INC-014 — Payment allocation** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
 sección INC-014) — asignar un pago `CONFIRMED` a uno o más cargos de la
@@ -2019,69 +2267,53 @@ explícito) cuando se lleguen a ejecutar.
 ## Último checkpoint
 
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit — INC-014 review-fix,
-  commit separado, no amend de `22db1bc`)_
+  actualización de `PROGRESS.md`, en el mismo commit — INC-015)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: review-fix de 2 rondas sobre
-  `RentalPaymentsPage.tsx`/`.test.tsx` únicamente (ningún otro archivo) —
-  gateo en vivo de `useManagementGate` en el submit de allocation (1er
-  MEDIUM), mensaje de error obsoleto persistente en vez de ser tapado por
-  "Pago aplicado completamente" (2do MEDIUM), y la limpieza de ese mensaje
-  al iniciar un intento nuevo sin cerrar la sección (3er MEDIUM, detectado
-  por la re-revisión como introducido por la propia ronda 1 y corregido de
-  inmediato en la ronda 2), más esta actualización de `PROGRESS.md`.
+- **Contenido del checkpoint**: extensión de `features/payments/`
+  existente (domain/infrastructure/application/presentation) con
+  `Receipt`, `getReceiptForPayment`/`issueReceipt`,
+  `usePaymentReceipt`/`useIssueReceipt`, y la UI de recibo en
+  `PaymentCard` — sin nueva feature, sin nueva ruta. Namespace i18n
+  `payments` extendido (es/es-CO). Corrección de
+  `HABITEX_COMPLETION_PLAN.md` (sección INC-015: dependencia real de
+  INC-014, allocation parcial suficiente, "anular recibos" retirado del
+  alcance), más esta actualización de `PROGRESS.md`.
 - **Fecha**: 2026-09-28
 - **Estado**: commiteado localmente, **pendiente de push** — push/merge
   nunca son automáticos en este workflow.
-- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations/
-  dependencias; ningún archivo fuera de `features/payments/presentation/
-  RentalPaymentsPage.{tsx,test.tsx}`; el LOW original de la revisión de
-  INC-014 sigue sin tocar, por decisión humana explícita.
+- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
+  (verdict FAST PATH: BACKEND READY); ningún flujo de archivo/PDF; ninguna
+  edición/anulación/reemisión de recibo; ningún efecto sobre
+  `charges`/`payment_allocations`/`payments`.
 
-Checkpoint anterior de INC-014 (implementación original, retenido sin
-push a pedido del usuario hasta resolver los 2 MEDIUM): `22db1bc`.
-Checkpoint anterior a ese, ya pusheado: INC-013 completo (`2bc3a3f`
-backend gate, `a6e167f` frontend) — ver "Registro de checkpoints".
+Checkpoint anterior, ya pusheado: INC-014 completo (`22db1bc`
+implementación, `c3c6a1a` review-fix) — ver "Registro de checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado del review-fix de INC-014 (2 rondas),
-ejecutado de forma independiente por la sesión orquestadora tras cada
-ronda, y re-verificado por `habitex-reviewer` (contexto independiente)
-tras la ronda 1 (confirmó ambos MEDIUM originales resueltos, detectó el
-3er MEDIUM introducido por esa misma ronda). La ronda 2 (fix de 4 líneas
-de prop-threading + 1 test) se verificó por lectura directa del diff por
-la sesión orquestadora, sin una 3ra ronda de `habitex-reviewer`, dado el
-tamaño y claridad mecánica del cambio:
+Medido sobre el resultado integrado de INC-015, ejecutado de forma
+independiente por la sesión orquestadora (incluyendo la corrección de 1
+error trivial de lint dejado por la implementación parcial interrumpida
+por rate limit — ver detalle en "Último incremento ejecutado") y
+re-verificado por `habitex-reviewer` (contexto independiente, incluyendo
+re-verificación en vivo vía Supabase MCP read-only del cuerpo completo de
+`issue_receipt`, sin cambios respecto a lo investigado):
 
 | Check | Resultado |
 |---|---|
-| `pnpm typecheck` | PASS (en cada etapa: implementación original, ronda 1, ronda 2) |
-| `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS en cada etapa — 754/754 (original) → 758/758 (ronda 1) → 759/759 (ronda 2, final), 95 archivos |
-| `pnpm build` | PASS en cada etapa — emite el chunk `RentalPaymentsPage` correctamente (22.35 kB final) |
+| `pnpm typecheck` | PASS |
+| `pnpm lint` | PASS — 0 errores (1 error trivial corregido por la sesión orquestadora antes de esta validación — ver detalle abajo), 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
+| `pnpm test -- --run` | PASS — 792/792, 97 archivos |
+| `pnpm build` | PASS — emite el chunk `RentalPaymentsPage` ampliado (26.05 kB) correctamente |
 
 ## Siguiente acción recomendada
 
-Con INC-014 completo, un pago `CONFIRMED` puede asignarse (total o
-parcialmente) a uno o más cargos de la misma relación, y el balance/
-estado financiero derivado (`charge_balances`) refleja pagos reales por
-primera vez — de punta a punta, sin deuda bloqueante. Deuda no bloqueante
-registrada (2 MEDIUM + 1 LOW, ver arriba): el botón de envío de
-allocation no queda re-gateado en vivo si el acceso de gestión expira con
-la sección ya abierta; el estado "aplicado completamente" puede
-reemplazar un mensaje de error de carrera concurrente recién mostrado;
-cobertura de test end-to-end parcial (2 de 5) para los nuevos códigos de
-error de allocation — ninguno bloqueante, todos triviales de corregir si
-se retoma este archivo.
+Con INC-015 completo, un pago `CONFIRMED` con al menos una allocation
+(parcial o total) puede emitir un recibo — de punta a punta, sin deuda
+bloqueante ni findings registrados (0 BLOCKER/HIGH/MEDIUM/LOW).
 
 Candidatos sin dependencias técnicas pendientes:
 
-- **INC-015** — Receipt issuance (depende solo de INC-013, ya completo —
-  `issue_receipt(p_payment_id)` no depende de que exista una allocation,
-  confirmado por su firma; con INC-014 ya completo, un recibo podría
-  eventualmente reflejar información de allocation real si el producto lo
-  pide, aunque la firma del RPC no lo exige).
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
 - **INC-017** — Corregir doc drift (sin dependencias).
@@ -2124,4 +2356,5 @@ git, no aquí._
 | 2026-09-28 | `2bc3a3f` | `chore/agentic-foundation` | INC-013 backend gate: migration `20260928131439_reject_payment.sql` (`reject_payment(uuid)`, espejo exacto de las convenciones de `confirm_payment` — `SECURITY DEFINER`, mismo `search_path` hardening, misma función de autorización `can_manage_administration`, mismo row-locking `for update`, mismo patrón `REVOKE`/`GRANT`) autorada, aplicada contra el proyecto real vía `supabase db push --yes` ejecutado por el usuario, verificada post-apply de forma independiente vía Supabase MCP read-only (definición desplegada, autorización, concurrencia, grants, RLS, historial de migration, advisors — 0 hallazgos nuevos relevantes). **Pusheado**. |
 | 2026-09-28 | `a6e167f` | `chore/agentic-foundation` | INC-013 frontend — Payments: report & confirm/reject: nuevo `features/payments/` (`PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, nunca INSERT/UPDATE/DELETE directo; asimetría de autorización replicada exactamente — reportar/leer sin `useManagementGate`, confirmar/rechazar con él; confirmación de dos pasos para rechazar; subida-luego-registro de comprobante sin re-subida en reintento, reutilizando `FilePurpose.PAYMENT_PROOF`/bucket `'documents'` de INC-010; UX financiera explícita de que un pago `CONFIRMED` no fue aplicado a un cargo). Ruta `/rentals/:id/payments`, acción "Pagos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado. **INC-013 completo (backend + frontend) — Pusheado**. |
 | 2026-09-28 | `22db1bc` | `chore/agentic-foundation` | INC-014 — Payment allocation: extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, nunca INSERT/UPDATE/DELETE directo contra `payment_allocations`; `PaymentErrorCode` extendido con los 4 errores con nombre del trigger `validate_payment_allocation` + `23505`/`23514`; `summarizePaymentAllocations` puro; cargos elegibles filtrados por relación/`balance > 0`/no-ya-asignado-por-este-pago (reutiliza `useCharges`/`chargeQueryKeys` de `features/charges/`, cross-feature invalidation explícitamente autorizada); cargo ya asignado se oculta (nunca deshabilitado); pago totalmente aplicado muestra "Pago aplicado completamente" sin acción; máximo aplicable = `min(restante, balance)` como guard de UX, backend sigue siendo la autoridad. Research verdict: BACKEND READY — NO MIGRATION REQUIRED. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles (0 BLOCKER/HIGH) — 2 MEDIUM (submit no re-gateado en vivo; estado "aplicado" puede tapar un error de carrera concurrente) + 1 LOW (cobertura end-to-end parcial de códigos de error) no bloqueantes registrados. **Implementación retenida sin push a pedido del usuario hasta resolver los 2 MEDIUM — ver fila siguiente**. |
-| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-014 review-fix (no un nuevo incremento, 2 rondas sobre `RentalPaymentsPage.tsx`/`.test.tsx` únicamente): Ronda 1 resuelve los 2 MEDIUM de `22db1bc` — `managementGate` enhebrado como prop viva hasta `PaymentAllocationAmountForm` (gateo en vivo del submit de allocation) y `staleAllocationError` elevado a `PaymentAllocationSummary` (mensaje de carrera obsoleto ya no tapado por "Pago aplicado completamente"). Re-revisión enfocada (`habitex-reviewer`, contexto independiente): ambos MEDIUM **RESUELTOS** con tests que ejercitan el escenario real, pero detecta un 3er MEDIUM nuevo introducido por la ronda 1 (mensaje obsoleto no se limpiaba al iniciar un segundo intento sin cerrar la sección). Ronda 2 (mismo día, fix quirúrgico): nuevo callback `onNewAttempt` limpia el mensaje al inicio de cada intento nuevo, sin tocar el fix de la ronda 1. Verificada por lectura directa del diff por la sesión orquestadora (sin 3ra ronda de reviewer, dado el tamaño mecánico del cambio). LOW original sin tocar, por decisión humana. Validación completa PASS en cada etapa — 759/759 tests finales. **INC-014 completo (backend ya pusheado en `2bc3a3f`; frontend `22db1bc` + este review-fix) — local, pendiente de push**. |
+| 2026-09-28 | `c3c6a1a` | `chore/agentic-foundation` | INC-014 review-fix (no un nuevo incremento, 2 rondas sobre `RentalPaymentsPage.tsx`/`.test.tsx` únicamente): Ronda 1 resuelve los 2 MEDIUM de `22db1bc` — `managementGate` enhebrado como prop viva hasta `PaymentAllocationAmountForm` (gateo en vivo del submit de allocation) y `staleAllocationError` elevado a `PaymentAllocationSummary` (mensaje de carrera obsoleto ya no tapado por "Pago aplicado completamente"). Re-revisión enfocada (`habitex-reviewer`, contexto independiente): ambos MEDIUM **RESUELTOS** con tests que ejercitan el escenario real, pero detecta un 3er MEDIUM nuevo introducido por la ronda 1 (mensaje obsoleto no se limpiaba al iniciar un segundo intento sin cerrar la sección). Ronda 2 (mismo día, fix quirúrgico): nuevo callback `onNewAttempt` limpia el mensaje al inicio de cada intento nuevo, sin tocar el fix de la ronda 1. Verificada por lectura directa del diff por la sesión orquestadora (sin 3ra ronda de reviewer, dado el tamaño mecánico del cambio). LOW original sin tocar, por decisión humana. Validación completa PASS en cada etapa — 759/759 tests finales. **INC-014 completo (backend ya pusheado en `2bc3a3f`; frontend `22db1bc` + este review-fix) — Pusheado**. |
+| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-015 — Receipt issuance (FAST PATH: research+plan+implementación en el mismo ciclo): extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `getReceiptForPayment`/`issueReceipt` sobre `issue_receipt`, nunca INSERT/UPDATE/DELETE directo contra `receipts` (único RPC que escribe esa tabla en todo el schema); `PaymentErrorCode` extendido con `payment_has_no_allocations`/`receipt_already_issued` (`23505`). **Resuelve la contradicción de documentación de INC-013/014**: `issue_receipt` SÍ requiere ≥1 allocation (verificado leyendo el cuerpo completo del RPC, no solo la firma) — `HABITEX_COMPLETION_PLAN.md` corregido (INC-015 depende de INC-014; allocation parcial es suficiente, no se exige completa; "anular recibos" retirado del alcance, sin RPC/policy que lo permita). Elegibilidad correcta por `allocations.length > 0` (nunca `remainingAmount === 0`); recibo ya emitido siempre visible sin gate; manejo de carrera `receipt_already_issued` sin enmascarar el fallo real (mismo principio ya corregido dos veces para `staleAllocationError` de INC-014); sin efecto financiero (`useIssueReceipt` invalida solo su propia query); sin flujo de archivo/PDF (`file_id` nunca seteado por ningún camino desplegado). Implementado en 1 ronda de `habitex-implementer` — interrumpida a mitad de camino por un rate limit de sesión, retomada e integrada directamente por la sesión orquestadora tras el reset (1 error trivial de lint corregido). 0 fix cycles — **0 BLOCKER/HIGH/MEDIUM/LOW**, deliverable excepcionalmente limpio. **INC-015 completo — local, pendiente de push**. |
