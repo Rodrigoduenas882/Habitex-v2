@@ -22,7 +22,42 @@
     "reportedAt": "Reportado el {{date}}",
     "proofDownload": "Descargar comprobante",
     "downloadError": "No pudimos descargar este archivo. Intenta de nuevo.",
-    "confirmedNotApplied": "Este pago fue confirmado, pero todavía no se ha aplicado a un cargo específico.",
+    "allocations": {
+      "allocatedAmount": "Aplicado: {{amount}}",
+      "remainingAmount": "Pendiente por aplicar: {{amount}}",
+      "fullyApplied": "Pago aplicado completamente",
+      "trigger": "Aplicar a cargos",
+      "cancel": "Cancelar",
+      "loadError": "No pudimos cargar el detalle de aplicaciones de este pago.",
+      "chargesLoadError": "No pudimos cargar los cargos de este arriendo. Intenta de nuevo.",
+      "noEligibleCharges": "No hay cargos elegibles para aplicar este pago.",
+      "chargeSelect": {
+        "label": "Cargo",
+        "placeholder": "Selecciona un cargo",
+        "option": "{{description}} · Vence el {{dueDate}} · Saldo: {{balance}}"
+      },
+      "form": {
+        "availableFromPayment": "Disponible del pago: {{amount}}",
+        "pendingFromCharge": "Pendiente del cargo: {{amount}}",
+        "maximumApplicable": "Máximo aplicable: {{amount}}",
+        "amount": { "label": "Valor a aplicar" },
+        "submit": "Aplicar",
+        "submitting": "Aplicando…",
+        "validation": {
+          "amountInvalid": "Ingresa un valor válido para aplicar.",
+          "amountExceedsMaximum": "El valor no puede superar el máximo aplicable a este cargo."
+        }
+      },
+      "errors": {
+        "payment_not_confirmed": "Este pago ya no está confirmado. Actualiza la página para ver su estado actual.",
+        "allocation_scope_mismatch": "Este cargo no pertenece al mismo arriendo que este pago.",
+        "allocation_exceeds_payment": "Ese valor ya no está disponible en este pago. Actualizando…",
+        "allocation_exceeds_charge": "Ese valor ya no está disponible para este cargo. Actualizando…",
+        "duplicate_allocation": "Este pago ya se aplicó a este cargo.",
+        "forbidden": "No tienes permiso para aplicar este pago a un cargo.",
+        "unknown": "No pudimos aplicar este pago al cargo seleccionado. Intenta de nuevo."
+      }
+    },
     "actions": {
       "confirm": {
         "cta": "Confirmar pago",

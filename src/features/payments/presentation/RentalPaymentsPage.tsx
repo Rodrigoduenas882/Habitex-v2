@@ -7,6 +7,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useActiveAdministration } from '@/features/administration/application/useActiveAdministration'
 import { useManagementGate, type ManagementGateResult } from '@/features/administration/application/useManagementGate'
 import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
+// Cross-feature import, explicitly human-authorized for this increment (see
+// this file's own module doc comment on the allocation section below) -
+// reused exactly as exported, never modified.
+import { useCharges } from '@/features/charges/application/useCharges'
 import { fileRepository } from '@/features/documents/composition'
 import type { FileMetadata } from '@/features/documents/domain/file.types'
 import { useRentals } from '@/features/rentals/application/useRentals'
@@ -23,13 +27,21 @@ import { Skeleton } from '@/shared/ui/Skeleton'
 import { Textarea } from '@/shared/ui/Textarea'
 import styles from './RentalPaymentsPage.module.css'
 import {
+  PAYMENT_ALLOCATION_FORM_DEFAULTS,
+  paymentAllocationFormSchema,
+  type PaymentAllocationFormValues,
+} from './payment-allocation-form'
+import {
   PAYMENT_REPORT_FORM_DEFAULTS,
   paymentReportFormSchema,
   toReportPaymentInput,
   type PaymentReportFormValues,
 } from './payment-report-form'
+import { summarizePaymentAllocations } from '../application/payment-allocation-summary'
 import { paymentQueryKeys } from '../application/payment-query-keys'
+import { useAllocatePayment } from '../application/useAllocatePayment'
 import { useConfirmPayment } from '../application/useConfirmPayment'
+import { usePaymentAllocations } from '../application/usePaymentAllocations'
 import { usePaymentProofUpload } from '../application/usePaymentProofUpload'
 import { usePayments } from '../application/usePayments'
 import { useRejectPayment } from '../application/useRejectPayment'
@@ -126,6 +138,41 @@ function rejectActionErrorMessage(t: PaymentsT, error: unknown): string {
     }
   }
   return t('card.actions.reject.errors.unknown')
+}
+
+/**
+ * Maps a caught allocate_payment error to its specific copy - every
+ * PaymentErrorCode allocate_payment can actually raise gets its own key
+ * (see PaymentErrorCode's own doc comment for the exact mapping), including
+ * 'allocation_exceeds_payment'/'allocation_exceeds_charge', whose copy is
+ * deliberately framed as a stale/concurrent-state message ("ese valor ya no
+ * está disponible... actualizando") rather than a plain failure - see this
+ * file's own handleAllocationStaleState for the accompanying refetch.
+ * 'invalid_amount' never has its own key here - the client-side form guard
+ * already prevents a non-positive amount from ever reaching the RPC, so a
+ * raw 23514 check_violation falls into the 'unknown' fallback like any other
+ * unreachable-in-practice code.
+ */
+function allocatePaymentErrorMessage(t: PaymentsT, error: unknown): string {
+  if (error instanceof PaymentRepositoryError) {
+    switch (error.code) {
+      case 'payment_not_confirmed':
+        return t('card.allocations.errors.payment_not_confirmed')
+      case 'allocation_scope_mismatch':
+        return t('card.allocations.errors.allocation_scope_mismatch')
+      case 'allocation_exceeds_payment':
+        return t('card.allocations.errors.allocation_exceeds_payment')
+      case 'allocation_exceeds_charge':
+        return t('card.allocations.errors.allocation_exceeds_charge')
+      case 'duplicate_allocation':
+        return t('card.allocations.errors.duplicate_allocation')
+      case 'forbidden':
+        return t('card.allocations.errors.forbidden')
+      default:
+        return t('card.allocations.errors.unknown')
+    }
+  }
+  return t('card.allocations.errors.unknown')
 }
 
 /**
@@ -264,6 +311,318 @@ function RejectPaymentAction({ disabled, blockReasonText, isPending, errorMessag
   )
 }
 
+interface PaymentAllocationAmountFormProps {
+  administrationId: string
+  relationshipId: string
+  paymentId: string
+  chargeId: string
+  paymentRemainingAmount: number
+  chargeBalance: number
+  onAllocated: () => void
+  onStaleAllocationState: () => void
+}
+
+/**
+ * The amount-entry step of "Aplicar a cargos", mounted by its parent
+ * (PaymentAllocationSection) with `key={chargeId}` - a fresh useForm/schema
+ * instance per selected charge, since `maximum` (this form's own dynamic
+ * validation bound, min(paymentRemainingAmount, chargeBalance)) changes
+ * whenever the selected charge changes, unlike every other schema-factory
+ * parameter in this codebase (e.g. rentalTermsFormSchema(t) - t never
+ * changes during a form's lifetime). Remounting on selection change is the
+ * simplest correct way to guarantee validation always uses the right bound,
+ * and it also naturally clears the amount field for a newly-selected charge.
+ *
+ * Not gated by useManagementGate itself - the trigger button one level up
+ * (PaymentAllocationSummary) already is, so reaching this form implies the
+ * gate already allowed it.
+ */
+function PaymentAllocationAmountForm({
+  administrationId,
+  relationshipId,
+  paymentId,
+  chargeId,
+  paymentRemainingAmount,
+  chargeBalance,
+  onAllocated,
+  onStaleAllocationState,
+}: PaymentAllocationAmountFormProps) {
+  const { t } = useTranslation('payments')
+  const allocatePayment = useAllocatePayment()
+  const maximum = Math.min(paymentRemainingAmount, chargeBalance)
+
+  const schema = paymentAllocationFormSchema(t, maximum)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<PaymentAllocationFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: PAYMENT_ALLOCATION_FORM_DEFAULTS,
+  })
+
+  const onSubmit = handleSubmit((values) => {
+    allocatePayment.mutate(
+      {
+        administrationId,
+        rentalRelationshipId: relationshipId,
+        paymentId,
+        chargeId,
+        amount: Number(values.amount),
+      },
+      {
+        onSuccess: onAllocated,
+        // On a stale/concurrent ALLOCATION_EXCEEDS_PAYMENT/
+        // ALLOCATION_EXCEEDS_CHARGE (another allocation won a race since
+        // `maximum` was computed), useAllocatePayment's own onSuccess
+        // invalidation never runs - this refetches both queries directly so
+        // the UI's numbers catch up, same handleStaleState principle as
+        // PaymentCard's own confirm/reject actions above.
+        onError: (error) => {
+          if (
+            error instanceof PaymentRepositoryError &&
+            (error.code === 'allocation_exceeds_payment' || error.code === 'allocation_exceeds_charge')
+          ) {
+            onStaleAllocationState()
+          }
+        },
+      },
+    )
+  })
+
+  const errorMessage = allocatePayment.isError ? allocatePaymentErrorMessage(t, allocatePayment.error) : null
+
+  return (
+    <form
+      onSubmit={(event) => {
+        void onSubmit(event)
+      }}
+      noValidate
+      className={styles['form']}
+    >
+      <p className="text-caption text-muted">
+        {t('card.allocations.form.availableFromPayment', { amount: formatAmount(paymentRemainingAmount) })}
+      </p>
+      <p className="text-caption text-muted">
+        {t('card.allocations.form.pendingFromCharge', { amount: formatAmount(chargeBalance) })}
+      </p>
+      <p className="text-caption text-muted">
+        {t('card.allocations.form.maximumApplicable', { amount: formatAmount(maximum) })}
+      </p>
+      <Input
+        type="number"
+        min={0}
+        max={maximum}
+        step="any"
+        label={t('card.allocations.form.amount.label')}
+        error={errors.amount?.message}
+        disabled={allocatePayment.isPending}
+        {...register('amount')}
+      />
+      <Button
+        type="submit"
+        size="sm"
+        loading={allocatePayment.isPending}
+        disabled={allocatePayment.isPending}
+        className={styles['submit']}
+      >
+        {allocatePayment.isPending ? t('card.allocations.form.submitting') : t('card.allocations.form.submit')}
+      </Button>
+      {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+    </form>
+  )
+}
+
+interface PaymentAllocationSectionProps {
+  administrationId: string
+  relationshipId: string
+  payment: Payment
+  remainingAmount: number
+  allocatedChargeIds: Set<string>
+  onClose: () => void
+  onStaleAllocationState: () => void
+}
+
+/**
+ * The inline "Aplicar a cargos" workflow, only mounted while its parent
+ * (PaymentAllocationSummary) has it open - useCharges only fires once this
+ * section actually renders, never eagerly for every CONFIRMED payment on the
+ * page. Eligible charges are this relationship's own charges (useCharges is
+ * already scoped by relationshipId, but filtered explicitly here too so a
+ * scope mismatch would break loud instead of silently) with balance > 0,
+ * excluding any charge this payment has already allocated to - there is no
+ * "increase an existing allocation" RPC path (see AllocatePaymentInput's own
+ * doc comment), so a partially-or-fully-allocated-by-this-payment charge is
+ * hidden entirely rather than shown disabled.
+ */
+function PaymentAllocationSection({
+  administrationId,
+  relationshipId,
+  payment,
+  remainingAmount,
+  allocatedChargeIds,
+  onClose,
+  onStaleAllocationState,
+}: PaymentAllocationSectionProps) {
+  const { t } = useTranslation('payments')
+  const chargesQuery = useCharges(administrationId, relationshipId)
+  const [selectedChargeId, setSelectedChargeId] = useState('')
+
+  const eligibleCharges = (chargesQuery.data ?? []).filter(
+    (charge) => charge.rentalRelationshipId === relationshipId && charge.balance > 0 && !allocatedChargeIds.has(charge.id),
+  )
+  const selectedCharge = eligibleCharges.find((charge) => charge.id === selectedChargeId) ?? null
+
+  return (
+    <div className={styles['allocationSection']}>
+      {chargesQuery.isLoading ? (
+        <Skeleton height={80} radius="md" />
+      ) : chargesQuery.isError ? (
+        <p className="text-caption text-muted">{t('card.allocations.chargesLoadError')}</p>
+      ) : eligibleCharges.length === 0 ? (
+        <p className="text-caption text-muted">{t('card.allocations.noEligibleCharges')}</p>
+      ) : (
+        <>
+          <Select
+            label={t('card.allocations.chargeSelect.label')}
+            value={selectedChargeId}
+            onChange={(event) => {
+              setSelectedChargeId(event.target.value)
+            }}
+          >
+            <option value="">{t('card.allocations.chargeSelect.placeholder')}</option>
+            {eligibleCharges.map((charge) => (
+              <option key={charge.id} value={charge.id}>
+                {t('card.allocations.chargeSelect.option', {
+                  description: charge.description,
+                  dueDate: formatDate(charge.dueDate),
+                  balance: formatAmount(charge.balance),
+                })}
+              </option>
+            ))}
+          </Select>
+          {selectedCharge ? (
+            <PaymentAllocationAmountForm
+              key={selectedCharge.id}
+              administrationId={administrationId}
+              relationshipId={relationshipId}
+              paymentId={payment.id}
+              chargeId={selectedCharge.id}
+              paymentRemainingAmount={remainingAmount}
+              chargeBalance={selectedCharge.balance}
+              onAllocated={() => {
+                setSelectedChargeId('')
+              }}
+              onStaleAllocationState={() => {
+                // This section owns the charges query - refetch it directly
+                // here, and bubble up to the parent (PaymentAllocationSummary)
+                // for its own usePaymentAllocations refetch, so a stale
+                // ALLOCATION_EXCEEDS_PAYMENT/ALLOCATION_EXCEEDS_CHARGE
+                // refreshes both halves of this feature's stale-state data.
+                void chargesQuery.refetch()
+                onStaleAllocationState()
+              }}
+            />
+          ) : null}
+        </>
+      )}
+      <Button type="button" variant="secondary" size="sm" className={styles['cancelAction']} onClick={onClose}>
+        {t('card.allocations.cancel')}
+      </Button>
+    </div>
+  )
+}
+
+interface PaymentAllocationSummaryProps {
+  payment: Payment
+  administrationId: string
+  relationshipId: string
+  managementGate: ManagementGateResult
+}
+
+/**
+ * Only rendered for status === 'CONFIRMED' (see PaymentCard below). Owns its
+ * own usePaymentAllocations instance - same per-row-independent-hook-
+ * instance pattern as useConfirmPayment/useRejectPayment in PaymentCard -
+ * and computes allocatedAmount/remainingAmount via
+ * summarizePaymentAllocations. Reading this summary (the allocated/
+ * remaining amounts, and the "fully applied" message) never depends on
+ * useManagementGate - only opening/submitting the inline "Aplicar a cargos"
+ * section does, the same read/write authorization asymmetry as report/
+ * confirm/reject elsewhere in this file (payment_allocations_select only
+ * requires can_view_relationship(), while allocate_payment requires
+ * can_manage_administration()).
+ */
+function PaymentAllocationSummary({ payment, administrationId, relationshipId, managementGate }: PaymentAllocationSummaryProps) {
+  const { t } = useTranslation(['payments', 'administration'])
+  const allocationsQuery = usePaymentAllocations(administrationId, payment.id)
+  const [isOpen, setIsOpen] = useState(false)
+
+  if (allocationsQuery.isLoading) {
+    return (
+      <div className={styles['allocationSummary']}>
+        <Skeleton height={16} width={200} />
+      </div>
+    )
+  }
+
+  if (allocationsQuery.isError) {
+    return (
+      <div className={styles['allocationSummary']}>
+        <p className="text-caption text-muted">{t('card.allocations.loadError')}</p>
+      </div>
+    )
+  }
+
+  const allocations = allocationsQuery.data ?? []
+  const { allocatedAmount, remainingAmount } = summarizePaymentAllocations(payment, allocations)
+
+  return (
+    <div className={styles['allocationSummary']}>
+      <p className={cx('text-body-sm', 'tabular-nums')}>
+        {t('card.allocations.allocatedAmount', { amount: formatAmount(allocatedAmount) })}
+      </p>
+      <p className={cx('text-body-sm', 'tabular-nums')}>
+        {t('card.allocations.remainingAmount', { amount: formatAmount(remainingAmount) })}
+      </p>
+      {remainingAmount === 0 ? (
+        <Alert tone="success">{t('card.allocations.fullyApplied')}</Alert>
+      ) : isOpen ? (
+        <PaymentAllocationSection
+          administrationId={administrationId}
+          relationshipId={relationshipId}
+          payment={payment}
+          remainingAmount={remainingAmount}
+          allocatedChargeIds={new Set(allocations.map((allocation) => allocation.chargeId))}
+          onClose={() => {
+            setIsOpen(false)
+          }}
+          onStaleAllocationState={() => {
+            void allocationsQuery.refetch()
+          }}
+        />
+      ) : (
+        <div className={styles['actionsRow']}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={managementGate.blocked}
+            aria-disabled={managementGate.blocked ? 'true' : undefined}
+            onClick={() => {
+              setIsOpen(true)
+            }}
+          >
+            {t('card.allocations.trigger')}
+          </Button>
+          {managementGate.blocked ? (
+            <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
+          ) : null}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface PaymentCardProps {
   payment: Payment
   administrationId: string
@@ -281,11 +640,11 @@ interface PaymentCardProps {
  * mutation in this codebase follows, e.g. ContractCard's own markShared/
  * terminate).
  *
- * CONFIRMED renders an explicit disclaimer that the payment has not been
- * applied to any charge - this feature has zero knowledge of
- * charges/charge_balances/payment_allocations, and must never imply
- * otherwise (named acceptance criterion - see this feature's own scope
- * notes).
+ * CONFIRMED renders PaymentAllocationSummary (allocated/remaining amounts,
+ * and either "Aplicar a cargos" or "Pago aplicado completamente") instead of
+ * a blanket "not yet applied" disclaimer - this feature now has allocation
+ * knowledge (INC-014), so the old always-true disclaimer from before this
+ * increment would be actively misleading once allocations exist.
  */
 function PaymentCard({ payment, administrationId, relationshipId, managementGate }: PaymentCardProps) {
   const { t } = useTranslation(['payments', 'administration'])
@@ -335,7 +694,14 @@ function PaymentCard({ payment, administrationId, relationshipId, managementGate
       <p className="text-caption text-muted">{t('card.reportedAt', { date: formatDateTime(payment.reportedAt) })}</p>
       {payment.proofFileId ? <PaymentProofDownloadButton proofFileId={payment.proofFileId} /> : null}
 
-      {payment.status === 'CONFIRMED' ? <Alert tone="info">{t('card.confirmedNotApplied')}</Alert> : null}
+      {payment.status === 'CONFIRMED' ? (
+        <PaymentAllocationSummary
+          payment={payment}
+          administrationId={administrationId}
+          relationshipId={relationshipId}
+          managementGate={managementGate}
+        />
+      ) : null}
 
       {payment.status === 'REPORTED' ? (
         <div className={styles['actionsRow']}>
@@ -600,10 +966,13 @@ function RentalPaymentsView({ administrationId, relationshipId }: RentalPayments
 /**
  * /rentals/:id/payments - a narrow, single-purpose page (same principle as
  * RentalContractsPage/RentalChargesPage, explicitly not a general rental
- * detail view) for reporting payments and confirming/rejecting them
- * (report_payment / confirm_payment / reject_payment). No payment
- * allocations, no receipt issuance, no edit/delete of a payment - see this
- * feature's own scope notes.
+ * detail view) for reporting payments, confirming/rejecting them
+ * (report_payment / confirm_payment / reject_payment), and applying a
+ * CONFIRMED payment against its rental relationship's charges
+ * (allocate_payment - see PaymentAllocationSummary/PaymentAllocationSection
+ * above). No allocation edit/delete/reversal (no such RPC exists), no
+ * receipt issuance, no edit/delete of a payment itself - see this feature's
+ * own scope notes.
  */
 export default function RentalPaymentsPage() {
   const { t } = useTranslation('rentals')

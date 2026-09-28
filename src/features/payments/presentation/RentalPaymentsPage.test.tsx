@@ -1,11 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
+import type { Charge } from '@/features/charges/domain/charge.types'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
-import type { Payment } from '../domain/payment.types'
+import { PaymentRepositoryError, type Payment, type PaymentAllocation } from '../domain/payment.types'
 import RentalPaymentsPage from './RentalPaymentsPage'
 
 const { listAccessibleAdministrations } = vi.hoisted(() => ({
@@ -13,12 +14,16 @@ const { listAccessibleAdministrations } = vi.hoisted(() => ({
 }))
 const { getSubscription } = vi.hoisted(() => ({ getSubscription: vi.fn() }))
 const { listByAdministration } = vi.hoisted(() => ({ listByAdministration: vi.fn() }))
-const { listByRelationship, reportPayment, confirmPayment, rejectPayment } = vi.hoisted(() => ({
-  listByRelationship: vi.fn(),
-  reportPayment: vi.fn(),
-  confirmPayment: vi.fn(),
-  rejectPayment: vi.fn(),
-}))
+const { listByRelationship, reportPayment, confirmPayment, rejectPayment, listAllocationsForPayment, allocatePayment } =
+  vi.hoisted(() => ({
+    listByRelationship: vi.fn(),
+    reportPayment: vi.fn(),
+    confirmPayment: vi.fn(),
+    rejectPayment: vi.fn(),
+    listAllocationsForPayment: vi.fn(),
+    allocatePayment: vi.fn(),
+  }))
+const { listChargesByRelationship } = vi.hoisted(() => ({ listChargesByRelationship: vi.fn() }))
 const { uploadFile, getFileById, downloadFile } = vi.hoisted(() => ({
   uploadFile: vi.fn(),
   getFileById: vi.fn(),
@@ -51,6 +56,19 @@ vi.mock('../infrastructure/supabase-payment.repository', () => ({
     reportPayment,
     confirmPayment,
     rejectPayment,
+    listAllocationsForPayment,
+    allocatePayment,
+  },
+}))
+
+// Cross-feature mock for useCharges' own adapter (used by the inline
+// allocation section's eligible-charges list) - mirrors this file's own
+// supabase-payment.repository mock, never touching features/charges' real
+// code.
+vi.mock('@/features/charges/infrastructure/supabase-charge.repository', () => ({
+  supabaseChargeRepository: {
+    listByRelationship: listChargesByRelationship,
+    generateRentCharges: vi.fn(),
   },
 }))
 
@@ -101,6 +119,41 @@ function makePayment(overrides: Partial<Payment> = {}): Payment {
   }
 }
 
+function makeCharge(overrides: Partial<Charge> = {}): Charge {
+  return {
+    id: 'charge-1',
+    administrationId: 'admin-1',
+    rentalRelationshipId: 'rel-1',
+    chargeType: 'RENT',
+    origin: 'SYSTEM',
+    description: 'Renta de enero',
+    periodStart: '2026-01-01',
+    periodEnd: '2026-01-31',
+    dueDate: '2026-01-05',
+    amount: 500_000,
+    currency: 'COP',
+    sourceType: null,
+    sourceId: null,
+    createdAt: '2026-01-01T00:00:00Z',
+    paidAmount: 0,
+    balance: 500_000,
+    financialStatus: 'PENDING',
+    ...overrides,
+  }
+}
+
+function makeAllocation(overrides: Partial<PaymentAllocation> = {}): PaymentAllocation {
+  return {
+    id: 'allocation-1',
+    administrationId: 'admin-1',
+    paymentId: 'payment-1',
+    chargeId: 'charge-1',
+    amount: 100_000,
+    createdAt: '2026-01-06T00:00:00Z',
+    ...overrides,
+  }
+}
+
 const UNLIMITED_SUBSCRIPTION = {
   id: 'sub-1',
   administrationId: 'admin-1',
@@ -138,6 +191,13 @@ describe('RentalPaymentsPage', () => {
     window.localStorage.clear()
     getSubscription.mockResolvedValue(UNLIMITED_SUBSCRIPTION)
     getFileById.mockResolvedValue(null)
+    // Default to "no allocations yet"/"no charges yet" - usePaymentAllocations
+    // only ever fires for a CONFIRMED payment and useCharges only once the
+    // inline allocation section opens, so most tests never depend on these,
+    // but a CONFIRMED payment appearing anywhere (including via a refetch
+    // after confirmPayment succeeds) must never see rejected/undefined data.
+    listAllocationsForPayment.mockResolvedValue([])
+    listChargesByRelationship.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -342,31 +402,268 @@ describe('RentalPaymentsPage', () => {
     })
   })
 
-  describe('confirmed disclaimer', () => {
-    it('shows the not-yet-applied disclaimer for a CONFIRMED payment', async () => {
-      resolveOneAdministration()
-      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
-      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', confirmedAt: '2026-01-06T00:00:00Z' })])
-      renderPage()
-
-      expect(
-        await screen.findByText('Este pago fue confirmado, pero todavía no se ha aplicado a un cargo específico.'),
-      ).toBeInTheDocument()
-    })
-
+  describe('payment allocation', () => {
     for (const status of ['REPORTED', 'REJECTED', 'CANCELLED'] as const) {
-      it(`does not show the confirmed-not-applied disclaimer for a ${status} payment`, async () => {
+      it(`shows no allocation action or allocated/remaining display for a ${status} payment`, async () => {
         resolveOneAdministration()
         listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
         listByRelationship.mockResolvedValueOnce([makePayment({ status })])
         renderPage()
 
         await screen.findByText('Pagos')
-        expect(
-          screen.queryByText('Este pago fue confirmado, pero todavía no se ha aplicado a un cargo específico.'),
-        ).not.toBeInTheDocument()
+        expect(screen.queryByText(/^Aplicado:/)).not.toBeInTheDocument()
+        expect(screen.queryByText(/^Pendiente por aplicar:/)).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Aplicar a cargos' })).not.toBeInTheDocument()
+        expect(screen.queryByText('Pago aplicado completamente')).not.toBeInTheDocument()
       })
     }
+
+    it('shows the allocated/remaining amounts and an enabled "Aplicar a cargos" for a CONFIRMED payment with a remaining balance', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 100_000 })])
+      renderPage()
+
+      expect(await screen.findByText('Aplicado: $100.000')).toBeInTheDocument()
+      expect(screen.getByText('Pendiente por aplicar: $400.000')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Aplicar a cargos' })).toBeEnabled()
+    })
+
+    it('disables "Aplicar a cargos" and shows the management-access reason when the gate denies, without hiding the amounts', async () => {
+      resolveOneAdministration()
+      getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, status: 'EXPIRED' })
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      renderPage()
+
+      expect(await screen.findByText('Aplicado: $0')).toBeInTheDocument()
+      expect(screen.getByText('Pendiente por aplicar: $500.000')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Aplicar a cargos' })).toBeDisabled()
+      expect(
+        await screen.findAllByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+      ).not.toHaveLength(0)
+    })
+
+    it('shows "Pago aplicado completamente" and no "Aplicar a cargos" for a fully-allocated CONFIRMED payment', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 500_000 })])
+      renderPage()
+
+      expect(await screen.findByText('Pago aplicado completamente')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Aplicar a cargos' })).not.toBeInTheDocument()
+    })
+
+    it('excludes a fully-paid charge and a charge already allocated by this payment, but includes an eligible same-relationship charge', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ chargeId: 'charge-allocated', amount: 50_000 })])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-paid', description: 'Cargo pagado', balance: 0, financialStatus: 'PAID' }),
+        makeCharge({ id: 'charge-allocated', description: 'Cargo ya aplicado', balance: 450_000 }),
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 200_000 }),
+      ])
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+
+      const select = await screen.findByLabelText('Cargo')
+      const optionLabels = within(select)
+        .getAllByRole('option')
+        .map((option) => option.textContent)
+
+      expect(optionLabels.some((label) => label.includes('Cargo elegible'))).toBe(true)
+      expect(optionLabels.some((label) => label.includes('Cargo pagado'))).toBe(false)
+      expect(optionLabels.some((label) => label.includes('Cargo ya aplicado'))).toBe(false)
+    })
+
+    it('shows an empty-state message when there are no eligible charges', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      listChargesByRelationship.mockResolvedValueOnce([makeCharge({ balance: 0, financialStatus: 'PAID' })])
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+
+      expect(await screen.findByText('No hay cargos elegibles para aplicar este pago.')).toBeInTheDocument()
+    })
+
+    it('shows the maximum applicable amount as min(paymentRemaining, charge.balance)', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      // remaining = 500_000 - 400_000 = 100_000, below the charge's own 300_000 balance
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 400_000 })])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 300_000 }),
+      ])
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-eligible')
+
+      expect(await screen.findByText('Máximo aplicable: $100.000')).toBeInTheDocument()
+    })
+
+    it('rejects an amount <= 0 client-side without calling allocatePayment', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 300_000 }),
+      ])
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-eligible')
+      await user.type(await screen.findByLabelText('Valor a aplicar'), '0')
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+      expect(await screen.findByText('Ingresa un valor válido para aplicar.')).toBeInTheDocument()
+      expect(allocatePayment).not.toHaveBeenCalled()
+    })
+
+    it('rejects an amount above the maximum client-side without calling allocatePayment', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 300_000 }),
+      ])
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-eligible')
+      await user.type(await screen.findByLabelText('Valor a aplicar'), '999999')
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+      expect(await screen.findByText('El valor no puede superar el máximo aplicable a este cargo.')).toBeInTheDocument()
+      expect(allocatePayment).not.toHaveBeenCalled()
+    })
+
+    it('allocates successfully, invalidating both the allocations and charges queries so the UI reflects fresh data', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 150_000 })])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 300_000 }),
+      ])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({
+          id: 'charge-eligible',
+          description: 'Cargo elegible',
+          balance: 150_000,
+          paidAmount: 150_000,
+          financialStatus: 'PARTIAL',
+        }),
+      ])
+      allocatePayment.mockResolvedValueOnce(makeAllocation({ amount: 150_000 }))
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-eligible')
+      await user.type(await screen.findByLabelText('Valor a aplicar'), '150000')
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+      await waitFor(() => {
+        expect(allocatePayment).toHaveBeenCalledWith({ paymentId: 'payment-1', chargeId: 'charge-eligible', amount: 150000 })
+      })
+      await waitFor(() => {
+        expect(listAllocationsForPayment).toHaveBeenCalledTimes(2)
+      })
+      await waitFor(() => {
+        expect(listChargesByRelationship).toHaveBeenCalledTimes(2)
+      })
+      expect(await screen.findByText('Aplicado: $150.000')).toBeInTheDocument()
+      expect(screen.getByText('Pendiente por aplicar: $350.000')).toBeInTheDocument()
+    })
+
+    it('shows a friendly stale-state message and refetches allocations/charges on ALLOCATION_EXCEEDS_PAYMENT/ALLOCATION_EXCEEDS_CHARGE', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      // A concurrent allocation took most (not all) of the remaining amount
+      // between this client's `maximum` computation and its own submit -
+      // remainingAmount stays > 0 after the refetch, so the section (and its
+      // error message) stays mounted instead of switching to "fully applied".
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 450_000 })])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 300_000 }),
+      ])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 50_000 }),
+      ])
+      allocatePayment.mockRejectedValueOnce(new PaymentRepositoryError('allocation_exceeds_payment'))
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-eligible')
+      await user.type(await screen.findByLabelText('Valor a aplicar'), '100000')
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+      expect(await screen.findByText('Ese valor ya no está disponible en este pago. Actualizando…')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(listAllocationsForPayment).toHaveBeenCalledTimes(2)
+      })
+      await waitFor(() => {
+        expect(listChargesByRelationship).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    it('maps a forbidden allocate_payment error to its own copy', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ status: 'CONFIRMED', amount: 500_000 })])
+      listAllocationsForPayment.mockResolvedValueOnce([])
+      listChargesByRelationship.mockResolvedValueOnce([
+        makeCharge({ id: 'charge-eligible', description: 'Cargo elegible', balance: 300_000 }),
+      ])
+      allocatePayment.mockRejectedValueOnce(new PaymentRepositoryError('forbidden'))
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Aplicar a cargos' }))
+      await user.selectOptions(await screen.findByLabelText('Cargo'), 'charge-eligible')
+      await user.type(await screen.findByLabelText('Valor a aplicar'), '100000')
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+      expect(await screen.findByText('No tienes permiso para aplicar este pago a un cargo.')).toBeInTheDocument()
+    })
+
+    it('never renders receipt-related copy or an allocation edit/delete/reversal control', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([
+        makePayment({ id: 'payment-a', status: 'CONFIRMED', amount: 500_000 }),
+        makePayment({ id: 'payment-b', status: 'REPORTED' }),
+      ])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ paymentId: 'payment-a', amount: 200_000 })])
+      renderPage()
+
+      await screen.findByText('Aplicado: $200.000')
+      expect(screen.queryByText(/recibo/i)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /eliminar/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /revertir/i })).not.toBeInTheDocument()
+    })
   })
 
   describe('lifecycle actions', () => {

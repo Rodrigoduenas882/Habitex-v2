@@ -4,8 +4,14 @@
  * (features/charges/application/charge-query-keys.ts) - a payment always
  * belongs to exactly one rental relationship, so its list key nests under
  * that relationship's own path.
+ *
+ * `allocations` additionally nests under the payment's own id, scoped by
+ * administrationId per ARCHITECTURE.md §6 tenant-scoping - a payment's
+ * allocations are a sub-resource of that one payment.
  */
 export const paymentQueryKeys = {
   list: (administrationId: string, rentalRelationshipId: string) =>
     ['administration', administrationId, 'rentals', rentalRelationshipId, 'payments'] as const,
+  allocations: (administrationId: string, paymentId: string) =>
+    ['administration', administrationId, 'payments', paymentId, 'allocations'] as const,
 }

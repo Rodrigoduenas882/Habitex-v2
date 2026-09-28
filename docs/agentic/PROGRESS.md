@@ -77,19 +77,29 @@ frontend). Backend: migration `20260928131439_reject_payment.sql`
 (`reject_payment` RPC) autorada, aplicada por el usuario vía `supabase db
 push --yes`, verificada de forma independiente vía Supabase MCP
 read-only, y checkpointed/pusheado (`2bc3a3f`) — `report_payment`/
-`confirm_payment` ya estaban desplegados de incrementos previos. Frontend
-(este checkpoint): nuevo `features/payments/`, implementado en 2
+`confirm_payment` ya estaban desplegados de incrementos previos. Frontend:
+nuevo `features/payments/`, implementado en 2 subtareas secuenciales
+(domain/infrastructure/application, luego presentation/routing/i18n),
+validado e independientemente revisado (0 BLOCKER/HIGH/MEDIUM; 1 LOW no
+bloqueante registrado). Checkpoint `a6e167f` pusheado a
+`origin/chore/agentic-foundation`. Ver detalle en "Incremento anterior:
+INC-013" más abajo.
+
+**INC-014 — Payment allocation**: **completo** (frontend-only, sin
+cambios de backend — `allocate_payment` y su trigger
+`validate_payment_allocation` ya estaban completamente soportados,
+research verdict: BACKEND READY — NO MIGRATION REQUIRED), extiende
+`features/payments/` (sin nueva feature/ruta), implementado en 2
 subtareas secuenciales (domain/infrastructure/application, luego
-presentation/routing/i18n), validado e independientemente revisado (0
-BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado). Checkpoint local
-pendiente de push. Ver detalle en "Último incremento ejecutado" más
-abajo.
+presentation/i18n), validado e independientemente revisado (0
+BLOCKER/HIGH; 2 MEDIUM + 1 LOW no bloqueantes registrados). Checkpoint
+local pendiente de push. Ver detalle en "Último incremento ejecutado"
+más abajo.
 
 ## Estado
 
-`INC-013 completo (backend + frontend), checkpoint frontend local
-pendiente de push. INC-001/003/004/006/008/009/010/011/012/013-backend
-pusheados`.
+`INC-014 completo, checkpoint local pendiente de push.
+INC-001/003/004/006/008/009/010/011/012/013 pusheados`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -288,7 +298,65 @@ pusheados`.
   independiente, re-verificó en vivo vía Supabase MCP read-only las 3
   RPCs, la policy única `payments_select`, y el esquema completo contra el
   tipo de dominio: 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante). Checkpoint
-  frontend local pendiente de push (ver "Último incremento ejecutado").
+  frontend pusheado (`a6e167f`). Nota: la disclaimer de "no aplicado a un
+  cargo" que este incremento mostraba para `CONFIRMED` fue reemplazada por
+  INC-014 con el resumen de allocation real (`allocatedAmount`/
+  `remainingAmount`), ya que ese incremento agrega el conocimiento de
+  allocation que INC-013 deliberadamente no tenía.
+- INC-014 (frontend-only, sin backend gate — `allocate_payment` y su
+  trigger `validate_payment_allocation` ya estaban completamente
+  soportados; RESEARCH GATE resuelto sin escalar, verdict BACKEND READY —
+  NO MIGRATION REQUIRED): extiende `features/payments/` (sin nueva
+  feature/ruta — decisión humana explícita), implementado en 2 subtareas
+  secuenciales (domain/infrastructure/application primero, presentation/
+  i18n después). `PaymentRepository` gana `listAllocationsForPayment`/
+  `allocatePayment` (6 métodos en total), nunca un INSERT/UPDATE/DELETE
+  directo contra `public.payment_allocations` — el único write es
+  `allocate_payment` vía RPC. `PaymentErrorCode` extendido con
+  `payment_not_confirmed`/`allocation_scope_mismatch`/
+  `allocation_exceeds_payment`/`allocation_exceeds_charge`/
+  `duplicate_allocation` (mapeando `PAYMENT_NOT_CONFIRMED`/
+  `ALLOCATION_SCOPE_MISMATCH`/`ALLOCATION_EXCEEDS_PAYMENT`/
+  `ALLOCATION_EXCEEDS_CHARGE` del trigger desplegado, más los códigos
+  Postgres crudos `23505`→`duplicate_allocation` y `23514`→`invalid_amount`
+  reutilizado); `PAYMENT_OR_CHARGE_NOT_FOUND` plegado en `unknown` por
+  inalcanzable (mismo principio que `ACCOUNT_REQUIRED`/
+  `RENTAL_RELATIONSHIP_NOT_FOUND`). 3 decisiones humanas de producto
+  resueltas antes de implementar: (1) un cargo ya asignado por este mismo
+  pago se **oculta** completamente del selector de cargos elegibles (nunca
+  se muestra deshabilitado — no existe operación de "aumentar allocation"
+  en el backend, un segundo intento sobre el mismo par payment/charge
+  siempre falla con `UNIQUE(payment_id, charge_id)`); (2) un pago
+  `CONFIRMED` con `remainingAmount = 0` muestra "Pago aplicado
+  completamente" y oculta la acción "Aplicar a cargos"; (3) invalidación
+  cross-feature explícitamente autorizada — `useAllocatePayment` invalida
+  `paymentQueryKeys.allocations(...)` y, vía el `chargeQueryKeys.list(...)`
+  ya exportado por `features/charges/` (importado, nunca reimplementado ni
+  esa feature modificada), la lista de cargos de la relación. Cargos
+  elegibles filtrados por exactamente 3 condiciones verificadas en código
+  (misma `rentalRelationshipId`, `balance > 0`, no ya asignado por este
+  pago) — reutiliza `useCharges`/`Charge` de `features/charges/` sin
+  duplicar lectura. Máximo aplicable = `min(paymentRemainingAmount,
+  charge.balance)`, mostrado explícitamente y usado como cota dinámica del
+  schema Zod del formulario (guard de UX, nunca la autoridad real — el
+  trigger desplegado sigue siendo quien decide, con sus propios locks
+  `FOR UPDATE` sobre payment y charge, verificados en vivo por el
+  reviewer). `summarizePaymentAllocations` es una función pura
+  (`allocatedAmount`/`remainingAmount`), no un hook, con 3 tests directos
+  propios. Financiero: nunca se muta `charges`/`payments` localmente, el
+  estado deja de ser `PENDING`/`PARTIAL`/`PAID`/`OVERDUE` client-side —
+  siempre se lee de `charge_balances` vía `useCharges` ya existente,
+  refrescada por la invalidación tras una allocation exitosa. Lectura
+  (montos aplicados/restantes, estado "aplicado completamente") nunca
+  gateada por `useManagementGate`; solo la acción "Aplicar a cargos" (abrir
+  + enviar) lo está — asimetría replicada exactamente igual que
+  report/confirm/reject de INC-013. Implementado (2 rondas), validado
+  (754/754 tests, build con chunk `RentalPaymentsPage` ampliado) y
+  revisado por `habitex-reviewer` (contexto independiente, re-verificó en
+  vivo vía Supabase MCP read-only el trigger completo, la policy única de
+  `payment_allocations`, y el esquema campo por campo: 0 BLOCKER/HIGH; 2
+  MEDIUM + 1 LOW no bloqueantes registrados, ver detalle en "Último
+  incremento ejecutado"). Checkpoint local pendiente de push.
 
 ## Subtareas
 
@@ -318,19 +386,226 @@ pusheados`.
 | INC-011 — Contract management (`features/contracts/`: `ContractRepository` sobre las 3 RPCs + 2 UPDATE guardados, SHA-256 real, `terms_snapshot`, subida-luego-registro sin re-subida en reintento, ruta `/rentals/:id/contracts`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 1 MEDIUM **resuelto** en review-fix del 2026-09-25), checkpoints `f1d6ae1` + `6cb0f71` pusheados |
 | INC-012 — Charges (`features/charges/`: `ChargeRepository` con `listByRelationship`/`generateRentCharges`, `charge_balances` como fuente de verdad de balance/estado financiero, ruta `/rentals/:id/charges`) | done — implementado (1 ronda), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados), checkpoint `0ed26b3` pusheado |
 | INC-013 — backend gate (`reject_payment(uuid)`, migration `20260928131439_reject_payment.sql`) | done — aplicada en producción vía `supabase db push --yes` ejecutado por el usuario, verificada vía MCP read-only, commiteada y pusheada (`2bc3a3f`) |
-| INC-013 — Payments: report & confirm/reject (`features/payments/`: `PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, asimetría de autorización, subida-luego-registro de comprobante sin re-subida en reintento, confirmación de dos pasos para rechazar, ruta `/rentals/:id/payments`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado), checkpoint local pendiente de push |
+| INC-013 — Payments: report & confirm/reject (`features/payments/`: `PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, asimetría de autorización, subida-luego-registro de comprobante sin re-subida en reintento, confirmación de dos pasos para rechazar, ruta `/rentals/:id/payments`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado), checkpoint `a6e167f` pusheado |
+| INC-014 — Payment allocation (`features/payments/`: `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, resumen de allocation por pago, cargos elegibles filtrados por relación/balance/no-ya-asignado, invalidación cross-feature autorizada hacia `chargeQueryKeys` de `features/charges/`) | done — implementado (2 subtareas secuenciales), validado, revisado (0 fix cycles — 0 BLOCKER/HIGH; 2 MEDIUM + 1 LOW no bloqueantes registrados), checkpoint local pendiente de push |
 
 ## Blockers
 
 Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006 (`1b1dc3a`),
 INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`, `e29eed4`),
-INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`) e INC-013 backend
-(`2bc3a3f`) ya están en `origin/chore/agentic-foundation` — HEAD y origin
-sincronizados. El nuevo checkpoint frontend de INC-013 (ver "Último
-incremento ejecutado") sigue pendiente de revisión humana antes de push.
+INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`) e INC-013 (`2bc3a3f`
+backend, `a6e167f` frontend) ya están en `origin/chore/agentic-foundation`
+— HEAD y origin sincronizados. El nuevo checkpoint de INC-014 (ver
+"Último incremento ejecutado") sigue pendiente de revisión humana antes
+de push.
 
 ## Último incremento ejecutado
+
+**INC-014 — Payment allocation** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
+sección INC-014) — asignar un pago `CONFIRMED` a uno o más cargos de la
+misma relación, el punto exacto donde un pago confirmado empieza a
+afectar el balance de un cargo.
+
+- **RESEARCH/RECONCILIATION GATE**: resuelto sin escalar (turno separado,
+  research-only, aprobado explícitamente por el usuario antes de
+  implementar). Hallazgo clave: el RPC `allocate_payment` en sí mismo es
+  casi vacío (solo autorización + INSERT) — toda la validación de negocio
+  real vive en un trigger `BEFORE INSERT` separado,
+  `payment_allocations_validate` → `validate_payment_allocation()`, que
+  bloquea (`FOR UPDATE`) tanto la fila de `payments` como la de `charges`
+  antes de validar, y expone `PAYMENT_OR_CHARGE_NOT_FOUND`/
+  `PAYMENT_NOT_CONFIRMED`/`ALLOCATION_SCOPE_MISMATCH`/
+  `ALLOCATION_EXCEEDS_PAYMENT`/`ALLOCATION_EXCEEDS_CHARGE`. Confirmado en
+  vivo: `payment_allocations` tiene una sola policy RLS (`SELECT`,
+  `can_view_relationship` vía el pago dueño), sin `INSERT`/`UPDATE`/
+  `DELETE` — RPC-write-only; `UNIQUE(payment_id, charge_id)` bloquea una
+  segunda allocation al mismo par (falla con `23505` crudo, sin excepción
+  con nombre — no existe una operación de "aumentar" una allocation
+  existente); `CHECK(amount > 0)` bloquea un monto no positivo (`23514`
+  crudo). `charge_balances` sigue siendo la única vista agregada — no
+  existe un equivalente del lado del pago, así que "monto ya asignado por
+  este pago" requiere una lectura nueva contra `payment_allocations`.
+  Concurrencia real y correcta gracias a los dos `FOR UPDATE` del trigger
+  (no en el propio cuerpo del RPC). Relación/administración consistency
+  verificada: un pago de la Relación A nunca puede asignarse a un cargo de
+  la Relación B, ni siquiera dentro de la misma administración
+  (`ALLOCATION_SCOPE_MISMATCH`). **Veredicto: BACKEND READY — NO
+  MIGRATION REQUIRED.**
+- **Decisiones humanas explícitas** (resueltas antes de implementar, ver
+  mensaje "HUMAN PRODUCT DECISIONS — INC-014"): (1) un cargo ya asignado
+  por el mismo pago se **oculta** del selector de cargos elegibles, nunca
+  se muestra deshabilitado, y no se implementa edición de allocation; (2)
+  un pago `CONFIRMED` con `remainingAmount = 0` muestra "Pago aplicado
+  completamente" (i18n propio, sin implicar que el pago "se acaba de
+  confirmar") y oculta "Aplicar a cargos"; (3) `features/payments`
+  explícitamente autorizado a invalidar la query de cargos existente de
+  `features/charges/` tras una allocation exitosa, reutilizando su
+  `chargeQueryKeys` público — sin crear una abstracción financiera
+  compartida solo para evitar esa dependencia; (4) monto máximo aplicable
+  = `min(pago restante, balance del cargo)`, mostrado explícitamente,
+  usado como guard de UX en el input — pero el backend sigue siendo la
+  autoridad real, así que `ALLOCATION_EXCEEDS_PAYMENT`/
+  `ALLOCATION_EXCEEDS_CHARGE` se mapean y manejan igual (estado
+  obsoleto/concurrente puede invalidar el máximo calculado del lado del
+  cliente).
+- **Qué se agregó** (2 subtareas secuenciales — domain/infrastructure/
+  application primero, presentation/i18n después, ya que la segunda
+  depende de los tipos/hooks/helper de la primera):
+  - Extiende `features/payments/` — **sin nueva feature, sin nueva ruta**,
+    decisión humana explícita (allocation es payment-centric).
+  - `PaymentRepository` gana `listAllocationsForPayment` (un `SELECT`
+    directo filtrado por `payment_id`, sin agregación server-side — no
+    existe un `payment_balances` equivalente a `charge_balances`) y
+    `allocatePayment` (envuelve `allocate_payment`, fila única igual que
+    `report_payment`/`confirm_payment`/`reject_payment`, sin el helper
+    `firstRow` de contracts). **Nunca un INSERT/UPDATE/DELETE directo**
+    contra `payment_allocations` — verificado por grep y por el reviewer
+    contra la RLS real en vivo.
+  - `PaymentErrorCode` extendido (mismo tipo, no uno nuevo, por ser el
+    4to write del mismo agregado) con `payment_not_confirmed`/
+    `allocation_scope_mismatch`/`allocation_exceeds_payment`/
+    `allocation_exceeds_charge`/`duplicate_allocation` — mapeando las 4
+    excepciones con nombre del trigger más `23505`→`duplicate_allocation`
+    y `23514`→`invalid_amount` (reutilizado, misma clase de falla que
+    `report_payment`'s propio `INVALID_AMOUNT`). `PAYMENT_OR_CHARGE_NOT_FOUND`
+    plegado en `unknown` — inalcanzable en el flujo real (ambos ids
+    siempre vienen de filas ya cargadas, sin ningún camino de eliminación
+    para ninguna de las dos tablas), mismo principio que `ACCOUNT_REQUIRED`/
+    `RENTAL_RELATIONSHIP_NOT_FOUND` ya establecido.
+  - `summarizePaymentAllocations(payment, allocations)`: función pura
+    (`allocatedAmount`/`remainingAmount`), no un hook, para que la
+    presentación y sus tests la usen directamente sin mockear React
+    Query.
+  - `useAllocatePayment` invalida **exactamente** dos query keys al
+    tener éxito: `paymentQueryKeys.allocations(administrationId,
+    paymentId)` (nueva) y `chargeQueryKeys.list(administrationId,
+    rentalRelationshipId)` — importado tal cual desde
+    `features/charges/application/charge-query-keys` (nunca
+    reimplementado, esa feature nunca modificada) — cross-feature
+    invalidation explícitamente autorizada por decisión humana #3.
+  - `PaymentCard` extendido solo para `status === 'CONFIRMED'`: muestra
+    monto del pago/monto ya aplicado/monto restante siempre (nunca
+    gateado — misma asimetría lectura-vs-escritura ya establecida en
+    INC-013); si `remainingAmount === 0` muestra "Pago aplicado
+    completamente" sin ninguna acción; si `remainingAmount > 0` muestra
+    "Aplicar a cargos" gateado por `useManagementGate` (`allocate_payment`
+    usa `can_manage_administration`, misma autoridad que confirmar/
+    rechazar). Sección inline al abrir la acción (sin ruta nueva, sin
+    Modal — solo `Button`/`Select`/`Input`/`Alert`, mismo principio que
+    `TerminateContractAction`/`RejectPaymentAction`).
+  - Cargos elegibles: reutiliza `useCharges`/`Charge` de
+    `features/charges/` sin duplicar lectura, filtrados por exactamente 3
+    condiciones verificadas en código — misma `rentalRelationshipId`,
+    `balance > 0`, no ya asignado por **este** pago (un cargo pagado
+    parcialmente por **otro** pago sigue siendo elegible mientras su
+    `balance` siga siendo positivo, verificado explícitamente por el
+    reviewer). Un cargo ya asignado por este pago se **oculta** del
+    selector, nunca se muestra deshabilitado (decisión humana #1).
+  - Formulario de allocation: RHF + Zod, mismo patrón de
+    `rentalTermsFormSchema`/`payment-report-form.ts` (campo numérico como
+    string, `Number()` solo al mapear), cota dinámica `maximum =
+    min(paymentRemainingAmount, charge.balance)` inyectada en el schema
+    como parámetro. Muestra explícitamente disponible del pago/pendiente
+    del cargo/máximo aplicable.
+  - **Financiero**: nunca se muta `charges`/`payments` localmente ni se
+    fuerza `PAID`/`PARTIAL`/`PENDING`/`OVERDUE` del lado del cliente —
+    siempre se lee de `charge_balances` vía el `useCharges` ya existente,
+    refrescado por la invalidación cross-feature tras una allocation
+    exitosa. El backend (vista + trigger) sigue siendo la única autoridad
+    financiera.
+  - Sin UI de editar/eliminar/revertir una allocation en ningún lugar (no
+    existe esa capacidad en el backend). Sin allocation automática/
+    matching automático. Sin ninguna referencia a recibos/`issue_receipt`
+    (INC-015, fuera de alcance). Sin cambios a `features/charges/`, solo
+    se importa su `useCharges`/`Charge`/`chargeQueryKeys` ya exportados.
+  - i18n: namespace `payments` existente extendido (sin namespace nuevo)
+    con las claves de montos aplicado/restante, "aplicado completamente",
+    el trigger/formulario de allocation, y copy por cada uno de los 5
+    `PaymentErrorCode` nuevos + `forbidden`/`unknown` reutilizados —
+    verificado por el reviewer que las 7 keys existen sin typos y
+    coinciden 1:1 con el switch de mapeo de error.
+- **Tests**: 754/754 en la suite completa (22 nuevos en la subtarea de
+  domain/infrastructure/application — repository/hook/helper — más 18
+  netos en la subtarea de presentation, dentro de
+  `RentalPaymentsPage.test.tsx`). Cobertura explícita de exactamente lo
+  pedido: mapeo de dominio de `PaymentAllocation`; filtro de
+  `listAllocationsForPayment`; forma exacta de los argumentos del RPC
+  `allocate_payment`; ausencia de escritura cruda; mapeo de cada uno de
+  `PAYMENT_NOT_CONFIRMED`/`ALLOCATION_SCOPE_MISMATCH`/
+  `ALLOCATION_EXCEEDS_PAYMENT`/`ALLOCATION_EXCEEDS_CHARGE`/`23505`/`23514`;
+  cálculo de monto asignado/restante (`summarizePaymentAllocations`, 3
+  tests directos); ausencia de acción de allocation en
+  `REPORTED`/`REJECTED`/`CANCELLED`; acción visible cuando el management
+  gate permite; lectura de historial nunca bloqueada por gestión vencida;
+  estado "aplicado completamente" sin acción; exclusión de cargo con
+  `balance <= 0`; exclusión de cargo ya asignado por este pago; cargo de
+  la misma relación con balance positivo sí aparece; máximo exacto =
+  `min(restante del pago, balance del cargo)`; monto `<= 0` rechazado
+  client-side; monto > máximo rechazado/constreñido client-side; éxito
+  invalida ambas queries; error de allocation-exceeds concurrente muestra
+  copy amigable y refresca; sin copy de recibo; sin control de editar/
+  eliminar/revertir en ningún lugar.
+- **Fix loop**: 0 ciclos (0 BLOCKER/HIGH) — `habitex-reviewer` (contexto
+  independiente, re-verificó en vivo vía Supabase MCP read-only el cuerpo
+  completo de `allocate_payment` Y del trigger `validate_payment_allocation`
+  — hallazgo que el research previo ya había anticipado pero que el
+  reviewer re-confirmó de forma independiente, no solo aceptó — la policy
+  única de `payment_allocations`, y el esquema campo por campo).
+- **Deuda no bloqueante registrada** (2 MEDIUM + 1 LOW del reviewer, sin
+  fix loop por estar debajo del umbral BLOCKER/HIGH exigido por este
+  incremento):
+  - MEDIUM: el botón de envío del formulario de allocation no está
+    gateado en vivo por `useManagementGate` una vez que la sección ya
+    está abierta (el gate solo se chequea al hacer click en "Aplicar a
+    cargos") — a diferencia de Confirmar/Rechazar, que permanecen
+    gateados en vivo incluso durante su propio estado de confirmación.
+    Si el acceso de gestión expira mientras el formulario ya está
+    abierto, el usuario puede intentar enviar y solo se entera por un
+    error `FORBIDDEN` genérico tras el round-trip — no es un hueco de
+    seguridad (el RPC/trigger siguen siendo la autoridad real), pero es
+    una inconsistencia real con el patrón ya establecido en este mismo
+    archivo. Corrección sugerida: propagar `managementGate.blocked` hasta
+    el botón de envío.
+  - MEDIUM: el estado de éxito "Pago aplicado completamente" puede
+    reemplazar silenciosamente un mensaje de error recién mostrado al
+    usuario si un error de allocation-exceeds concurrente coincide con un
+    refetch que revela `remainingAmount === 0` (otra allocation ganó la
+    carrera) — el estado final es correcto, pero el tono "success" puede
+    dar una falsa sensación de que el propio envío del usuario tuvo
+    éxito. Corrección sugerida: copy/tono agnóstico sobre quién completó
+    la allocation, o mantener visible el mensaje de estado obsoleto antes
+    de colapsar al estado final.
+  - LOW: solo 2 de los 5 `PaymentErrorCode` nuevos (`forbidden`,
+    `allocation_exceeds_payment`) se ejercitan end-to-end a nivel de
+    componente — los otros 3 están cubiertos a nivel de repository
+    (subtarea anterior) y el reviewer verificó en vivo que las 7 keys de
+    i18n correspondientes existen sin typos, por lo que el riesgo
+    residual es bajo.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora y re-verificada por el reviewer): `pnpm typecheck && pnpm
+  lint && pnpm test -- --run && pnpm build` — todos PASS. 95 archivos /
+  754 tests (0 fallos), 0 errores de lint (mismos 4 warnings
+  preexistentes, no relacionados). Build emite el chunk
+  `RentalPaymentsPage` ampliado (21.81 kB) correctamente. El reviewer
+  además corrió `habitex-design-review` sobre el CSS/presentación nuevos:
+  sin hallazgos (tokens existentes, sin valores hardcodeados, sin
+  primitivas nuevas).
+- **Human gates**: solo el RESEARCH/RECONCILIATION GATE (ya resuelto y
+  aprobado explícitamente por el usuario antes de implementar). Sin
+  cambios de schema/RLS/grants/migrations/dependencias/arquitectura en el
+  frontend (confirmado por `git status`/`git diff --stat`, y por el
+  reviewer: sin archivo nuevo bajo `supabase/migrations/`,
+  `package.json`/`pnpm-lock.yaml` sin cambios).
+- **Seguridad verificada** (vía MCP read-only, por el reviewer):
+  re-confirmó en vivo el cuerpo completo de `allocate_payment` y de su
+  trigger `validate_payment_allocation` (incluidos los 2 `FOR UPDATE`),
+  la policy única `payment_allocations_select` (sin `INSERT`/`UPDATE`/
+  `DELETE`), el `UNIQUE(payment_id, charge_id)`, el `CHECK(amount > 0)`, y
+  que `charge_balances` sigue calculando `paid_amount`/`balance`/
+  `financial_status` exactamente igual que antes de este incremento.
+
+### Incremento anterior: INC-013 — Payments: report & confirm/reject
 
 **INC-013 — Payments: report & confirm/reject** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
 sección INC-013) — reportar un pago sobre una relación activa y
@@ -1690,59 +1965,64 @@ explícito) cuando se lleguen a ejecutar.
 ## Último checkpoint
 
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit — INC-013 frontend)_
+  actualización de `PROGRESS.md`, en el mismo commit — INC-014)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: nuevo `features/payments/` completo
-  (domain/infrastructure/application/presentation/composition), nuevo
-  namespace i18n `payments` (es/es-CO), acción "Pagos" nueva en
-  `RentalListCard`, nueva ruta `/rentals/:id/payments`, más esta
-  actualización de `PROGRESS.md`.
+- **Contenido del checkpoint**: extensión de `features/payments/`
+  existente (domain/infrastructure/application/presentation) con
+  `PaymentAllocation`, `listAllocationsForPayment`/`allocatePayment`,
+  `usePaymentAllocations`/`useAllocatePayment`,
+  `summarizePaymentAllocations`, y la UI de allocation en `PaymentCard` —
+  sin nueva feature, sin nueva ruta. Namespace i18n `payments` extendido
+  (es/es-CO), más esta actualización de `PROGRESS.md`.
 - **Fecha**: 2026-09-28
 - **Estado**: commiteado localmente, **pendiente de push** — push/merge
   nunca son automáticos en este workflow.
 - **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
-  en este checkpoint (el gate de backend de INC-013, `reject_payment`, ya
-  se resolvió y pusheó por separado en `2bc3a3f`); ninguna allocation;
-  ningún recibo; ninguna mutación de cargos; ninguna transición a
-  `CANCELLED`.
+  (research verdict: BACKEND READY — NO MIGRATION REQUIRED); ninguna
+  edición/eliminación/reversión de allocation; ningún recibo; ninguna
+  allocation automática; ningún cambio a `features/charges/` más allá de
+  importar su `chargeQueryKeys`/`useCharges`/`Charge` ya exportados.
 
-Checkpoint anterior, ya pusheado: INC-012 completo (`0ed26b3` Charges) +
-INC-013 backend gate (`2bc3a3f` `reject_payment`) — ver "Registro de
-checkpoints".
+Checkpoint anterior, ya pusheado: INC-013 completo (`2bc3a3f` backend
+gate, `a6e167f` frontend) — ver "Registro de checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado de INC-013 frontend, ejecutado de
-forma independiente por la sesión orquestadora y re-verificado por el
-reviewer (incluyendo re-verificación en vivo vía Supabase MCP read-only
-de las 3 definiciones completas de RPC y de la policy única
-`payments_select`, sin cambios respecto a lo investigado):
+Medido sobre el resultado integrado de INC-014, ejecutado de forma
+independiente por la sesión orquestadora y re-verificado por el reviewer
+(incluyendo re-verificación en vivo vía Supabase MCP read-only del cuerpo
+completo de `allocate_payment` y de su trigger
+`validate_payment_allocation`, la policy única `payment_allocations_select`,
+y `charge_balances` sin cambios respecto a lo investigado):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 721/721, 92 archivos |
-| `pnpm build` | PASS — emite los chunks `RentalPaymentsPage-*.js`/`.css` correctamente |
+| `pnpm test -- --run` | PASS — 754/754, 95 archivos |
+| `pnpm build` | PASS — emite el chunk `RentalPaymentsPage` ampliado (21.81 kB) correctamente |
 
 ## Siguiente acción recomendada
 
-Con INC-013 completo (backend + frontend), una relación
-`ACTIVE`/`ENDING`/`ENDED` puede reportar un pago, y un usuario con
-gestión vigente puede confirmarlo o rechazarlo — de punta a punta, sin
-deuda bloqueante. Deuda no bloqueante registrada (1 LOW, ver arriba): una
-key de error de payments reutiliza el namespace `rentals` en vez de tener
-su propia key — trivial de corregir si se retoma este archivo.
+Con INC-014 completo, un pago `CONFIRMED` puede asignarse (total o
+parcialmente) a uno o más cargos de la misma relación, y el balance/
+estado financiero derivado (`charge_balances`) refleja pagos reales por
+primera vez — de punta a punta, sin deuda bloqueante. Deuda no bloqueante
+registrada (2 MEDIUM + 1 LOW, ver arriba): el botón de envío de
+allocation no queda re-gateado en vivo si el acceso de gestión expira con
+la sección ya abierta; el estado "aplicado completamente" puede
+reemplazar un mensaje de error de carrera concurrente recién mostrado;
+cobertura de test end-to-end parcial (2 de 5) para los nuevos códigos de
+error de allocation — ninguno bloqueante, todos triviales de corregir si
+se retoma este archivo.
 
 Candidatos sin dependencias técnicas pendientes:
 
-- **INC-014** — Payment allocation (depende de INC-013, ya completo, y de
-  INC-012, ya completo — ambos cargos y pagos confirmados ya existen
-  realmente). `allocate_payment(p_payment_id, p_charge_id, p_amount)` ya
-  desplegado.
 - **INC-015** — Receipt issuance (depende solo de INC-013, ya completo —
   `issue_receipt(p_payment_id)` no depende de que exista una allocation,
-  confirmado por su firma).
+  confirmado por su firma; con INC-014 ya completo, un recibo podría
+  eventualmente reflejar información de allocation real si el producto lo
+  pide, aunque la firma del RPC no lo exige).
 - **INC-005** — Fix dead Dashboard CTAs (sin dependencias).
 - **INC-007** — Tenant invitation & claim (depende de INC-001).
 - **INC-017** — Corregir doc drift (sin dependencias).
@@ -1783,4 +2063,5 @@ git, no aquí._
 | 2026-09-25 | `6cb0f71` | `chore/agentic-foundation` | INC-011 review-fix (no un nuevo incremento): resuelve el MEDIUM de `f1d6ae1` — nuevo componente local `TerminateContractAction` en `RentalContractsPage.tsx` reimplementa el patrón de confirmación inline de dos pasos de `LifecycleConfirmAction` (INC-009) para "Terminar contrato" (`SIGNED`→`TERMINATED`), sin Modal/Dialog nuevo, sin cambio a `ContractRepository`/Supabase/RLS/migrations. 6 tests nuevos. Revisión enfocada independiente (`habitex-reviewer`, contexto separado del fix): 0 BLOCKER/HIGH/MEDIUM/LOW nuevos, MEDIUM original **RESUELTO**. Validación completa PASS — 614/614 tests. **INC-011 completo — Pusheado** (junto con `f1d6ae1`). |
 | 2026-09-25 | `0ed26b3` | `chore/agentic-foundation` | INC-012 — Charges: nuevo `features/charges/` (`ChargeRepository` con `listByRelationship` — dos `SELECT` separados contra `charges`/`charge_balances`, mezclados por id, financiero siempre desde la vista — y `generateRentCharges`, que envuelve `generate_rent_charges` llamado solo con `p_relationship_id`, sin lógica de periodos/monto en el frontend). Ruta `/rentals/:id/charges`, acción "Cargos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`, sin creación manual de cargos, sin UI de editar/eliminar/anular, sin UI de pagos (decisiones humanas explícitas). Sin backend gate — `generate_rent_charges` y `charge_balances` ya estaban completamente soportados. 1 ronda de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH; 2 LOW no bloqueantes registrados. **Pusheado** (junto con `2bc3a3f`). |
 | 2026-09-28 | `2bc3a3f` | `chore/agentic-foundation` | INC-013 backend gate: migration `20260928131439_reject_payment.sql` (`reject_payment(uuid)`, espejo exacto de las convenciones de `confirm_payment` — `SECURITY DEFINER`, mismo `search_path` hardening, misma función de autorización `can_manage_administration`, mismo row-locking `for update`, mismo patrón `REVOKE`/`GRANT`) autorada, aplicada contra el proyecto real vía `supabase db push --yes` ejecutado por el usuario, verificada post-apply de forma independiente vía Supabase MCP read-only (definición desplegada, autorización, concurrencia, grants, RLS, historial de migration, advisors — 0 hallazgos nuevos relevantes). **Pusheado**. |
-| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-013 frontend — Payments: report & confirm/reject: nuevo `features/payments/` (`PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, nunca INSERT/UPDATE/DELETE directo; asimetría de autorización replicada exactamente — reportar/leer sin `useManagementGate`, confirmar/rechazar con él; confirmación de dos pasos para rechazar; subida-luego-registro de comprobante sin re-subida en reintento, reutilizando `FilePurpose.PAYMENT_PROOF`/bucket `'documents'` de INC-010; UX financiera explícita de que un pago `CONFIRMED` no fue aplicado a un cargo). Ruta `/rentals/:id/payments`, acción "Pagos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado. **INC-013 completo (backend + frontend) — frontend local, pendiente de push**. |
+| 2026-09-28 | `a6e167f` | `chore/agentic-foundation` | INC-013 frontend — Payments: report & confirm/reject: nuevo `features/payments/` (`PaymentRepository` sobre `report_payment`/`confirm_payment`/`reject_payment`, nunca INSERT/UPDATE/DELETE directo; asimetría de autorización replicada exactamente — reportar/leer sin `useManagementGate`, confirmar/rechazar con él; confirmación de dos pasos para rechazar; subida-luego-registro de comprobante sin re-subida en reintento, reutilizando `FilePurpose.PAYMENT_PROOF`/bucket `'documents'` de INC-010; UX financiera explícita de que un pago `CONFIRMED` no fue aplicado a un cargo). Ruta `/rentals/:id/payments`, acción "Pagos" en la lista solo para `ACTIVE`/`ENDING`/`ENDED`. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles — 0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado. **INC-013 completo (backend + frontend) — Pusheado**. |
+| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-014 — Payment allocation: extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, nunca INSERT/UPDATE/DELETE directo contra `payment_allocations`; `PaymentErrorCode` extendido con los 4 errores con nombre del trigger `validate_payment_allocation` + `23505`/`23514`; `summarizePaymentAllocations` puro; cargos elegibles filtrados por relación/`balance > 0`/no-ya-asignado-por-este-pago (reutiliza `useCharges`/`chargeQueryKeys` de `features/charges/`, cross-feature invalidation explícitamente autorizada); cargo ya asignado se oculta (nunca deshabilitado); pago totalmente aplicado muestra "Pago aplicado completamente" sin acción; máximo aplicable = `min(restante, balance)` como guard de UX, backend sigue siendo la autoridad. Research verdict: BACKEND READY — NO MIGRATION REQUIRED. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles (0 BLOCKER/HIGH) — 2 MEDIUM (submit no re-gateado en vivo; estado "aplicado" puede tapar un error de carrera concurrente) + 1 LOW (cobertura end-to-end parcial de códigos de error) no bloqueantes registrados. **INC-014 completo — local, pendiente de push**. |

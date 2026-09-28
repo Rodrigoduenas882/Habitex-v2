@@ -8,6 +8,7 @@ const { order, eq, from, rpc } = vi.hoisted(() => {
 
   const from = vi.fn((table: string) => {
     if (table === 'payments') return { select }
+    if (table === 'payment_allocations') return { select }
     throw new Error(`supabase-payment.repository.test: unexpected table "${table}"`)
   })
   const rpc = vi.fn()
@@ -71,6 +72,24 @@ const PAYMENT_DOMAIN_REPORTED = {
   rejectionReason: null,
   createdAt: '2026-01-05T10:00:00Z',
   updatedAt: '2026-01-05T10:00:00Z',
+}
+
+const PAYMENT_ALLOCATION_ROW = {
+  id: 'allocation-1',
+  administration_id: 'admin-1',
+  payment_id: 'payment-1',
+  charge_id: 'charge-1',
+  amount: 500_000,
+  created_at: '2026-01-06T10:00:00Z',
+}
+
+const PAYMENT_ALLOCATION_DOMAIN = {
+  id: 'allocation-1',
+  administrationId: 'admin-1',
+  paymentId: 'payment-1',
+  chargeId: 'charge-1',
+  amount: 500_000,
+  createdAt: '2026-01-06T10:00:00Z',
 }
 
 describe('supabasePaymentRepository.listByRelationship', () => {
@@ -368,6 +387,147 @@ describe('supabasePaymentRepository.rejectPayment', () => {
     rpc.mockResolvedValueOnce({ data: null, error: null })
 
     const error = await supabasePaymentRepository.rejectPayment('payment-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('unknown')
+  })
+})
+
+describe('supabasePaymentRepository.listAllocationsForPayment', () => {
+  it('issues a single SELECT against payment_allocations, scoped by payment_id, ordered oldest-first', async () => {
+    order.mockResolvedValueOnce({ data: [PAYMENT_ALLOCATION_ROW], error: null })
+
+    await supabasePaymentRepository.listAllocationsForPayment('payment-1')
+
+    expect(from).toHaveBeenCalledWith('payment_allocations')
+    expect(eq).toHaveBeenCalledWith('payment_id', 'payment-1')
+    expect(order).toHaveBeenCalledWith('created_at', { ascending: true })
+  })
+
+  it('maps a payment_allocations row into camelCase domain shape', async () => {
+    order.mockResolvedValueOnce({ data: [PAYMENT_ALLOCATION_ROW], error: null })
+
+    const result = await supabasePaymentRepository.listAllocationsForPayment('payment-1')
+
+    expect(result).toEqual([PAYMENT_ALLOCATION_DOMAIN])
+  })
+
+  it('wraps a Supabase failure in PaymentRepositoryError with code unknown', async () => {
+    order.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    const error = await supabasePaymentRepository.listAllocationsForPayment('payment-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('unknown')
+  })
+})
+
+describe('supabasePaymentRepository.allocatePayment', () => {
+  it('calls allocate_payment with exactly p_payment_id/p_charge_id/p_amount', async () => {
+    rpc.mockResolvedValueOnce({ data: PAYMENT_ALLOCATION_ROW, error: null })
+
+    await supabasePaymentRepository.allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
+
+    expect(rpc).toHaveBeenCalledWith('allocate_payment', {
+      p_payment_id: 'payment-1',
+      p_charge_id: 'charge-1',
+      p_amount: 500_000,
+    })
+    const [, args] = rpc.mock.calls[0] as [string, Record<string, unknown>]
+    expect(Object.keys(args)).toEqual(['p_payment_id', 'p_charge_id', 'p_amount'])
+  })
+
+  it('maps the returned single row to domain shape', async () => {
+    rpc.mockResolvedValueOnce({ data: PAYMENT_ALLOCATION_ROW, error: null })
+
+    const result = await supabasePaymentRepository.allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
+
+    expect(result).toEqual(PAYMENT_ALLOCATION_DOMAIN)
+  })
+
+  it('throws PaymentRepositoryError with code unknown when the RPC returns no row (defensive)', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null })
+
+    const error = await supabasePaymentRepository
+      .allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('unknown')
+  })
+
+  it('maps PAYMENT_NOT_CONFIRMED to code payment_not_confirmed', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'PAYMENT_NOT_CONFIRMED' } })
+
+    const error = await supabasePaymentRepository
+      .allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('payment_not_confirmed')
+  })
+
+  it('maps ALLOCATION_SCOPE_MISMATCH to code allocation_scope_mismatch', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'ALLOCATION_SCOPE_MISMATCH' } })
+
+    const error = await supabasePaymentRepository
+      .allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('allocation_scope_mismatch')
+  })
+
+  it('maps ALLOCATION_EXCEEDS_PAYMENT to code allocation_exceeds_payment', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'ALLOCATION_EXCEEDS_PAYMENT' } })
+
+    const error = await supabasePaymentRepository
+      .allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('allocation_exceeds_payment')
+  })
+
+  it('maps ALLOCATION_EXCEEDS_CHARGE to code allocation_exceeds_charge', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'ALLOCATION_EXCEEDS_CHARGE' } })
+
+    const error = await supabasePaymentRepository
+      .allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('allocation_exceeds_charge')
+  })
+
+  it('maps a raw Postgres unique_violation (23505) to code duplicate_allocation', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'duplicate key value violates unique constraint', code: '23505' } })
+
+    const error = await supabasePaymentRepository
+      .allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('duplicate_allocation')
+  })
+
+  it('maps a raw Postgres check_violation (23514) to code invalid_amount', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'new row violates check constraint', code: '23514' } })
+
+    const error = await supabasePaymentRepository
+      .allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: -1 })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('invalid_amount')
+  })
+
+  it('maps PAYMENT_OR_CHARGE_NOT_FOUND (unreachable in this app - both ids always come from already-loaded rows with no delete path) to code unknown', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'PAYMENT_OR_CHARGE_NOT_FOUND' } })
+
+    const error = await supabasePaymentRepository
+      .allocatePayment({ paymentId: 'payment-1', chargeId: 'charge-1', amount: 500_000 })
+      .catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(PaymentRepositoryError)
     expect((error as PaymentRepositoryError).code).toBe('unknown')
