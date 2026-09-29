@@ -4,23 +4,26 @@ import '@/infrastructure/i18n/i18n'
 import { AttentionPanel } from './AttentionPanel'
 
 describe('AttentionPanel', () => {
-  it('lists each item with its translated title and its own data (subtitle/meta)', () => {
+  it('renders one item per REPORTED payment, with real amount/date and never a contract/document item', () => {
     render(
       <AttentionPanel
         items={[
-          { id: '1', kind: 'payment', subtitle: 'Apartamento 302', meta: '$950.000' },
-          { id: '2', kind: 'document', subtitle: 'Habitación 2', meta: 'Cédula del inquilino' },
+          { id: '1', kind: 'payment', subtitle: '5 ene 2026', meta: '$950.000' },
+          { id: '2', kind: 'payment', subtitle: '12 ene 2026', meta: '$500.000' },
         ]}
       />,
     )
 
-    expect(screen.getByText('Pago pendiente')).toBeInTheDocument()
-    expect(screen.getByText('Apartamento 302')).toBeInTheDocument()
+    expect(screen.getAllByText('Pago pendiente')).toHaveLength(2)
+    expect(screen.getByText('5 ene 2026')).toBeInTheDocument()
     expect(screen.getByText('$950.000')).toBeInTheDocument()
-    expect(screen.getByText('Documento pendiente')).toBeInTheDocument()
+    expect(screen.getByText('12 ene 2026')).toBeInTheDocument()
+    expect(screen.getByText('$500.000')).toBeInTheDocument()
+    expect(screen.queryByText('Contrato por vencer')).not.toBeInTheDocument()
+    expect(screen.queryByText('Documento pendiente')).not.toBeInTheDocument()
   })
 
-  it('shows a calm empty state instead of an empty list when there is nothing pending', () => {
+  it('shows a calm empty state instead of an empty list when there are no reported payments', () => {
     render(<AttentionPanel items={[]} />)
 
     expect(screen.getByText('Todo al día')).toBeInTheDocument()

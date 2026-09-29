@@ -17,4 +17,12 @@ export const rentalQueryKeys = {
    */
   termsExistence: (administrationId: string) =>
     ['administration', administrationId, 'rentals', 'terms-existence'] as const,
+  /**
+   * rental_relationship_subjects links, administration-wide - not nested
+   * under a single relationship's own path (unlike `terms`/
+   * `termsExistence`) because Dashboard occupancy needs every link for the
+   * administration in one read, not one relationship's.
+   */
+  subjectLinks: (administrationId: string) =>
+    ['administration', administrationId, 'rental-subject-links'] as const,
 }

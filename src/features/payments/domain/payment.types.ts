@@ -198,6 +198,12 @@ export interface Receipt {
  * (no RPC, no RLS INSERT/UPDATE/DELETE policy besides the one this RPC uses
  * SECURITY DEFINER to bypass), so this port never issues a raw INSERT/UPDATE/
  * DELETE against it either.
+ *
+ * listReportedByAdministration is the Dashboard's own read - administration-
+ * wide (not scoped to a single relationship) and filtered server-side to
+ * status = 'REPORTED' only (never fetched-then-filtered client-side), since
+ * the attention panel this feeds only ever wants that one status. Ordered
+ * reported_at desc, same convention as listByRelationship.
  */
 export interface PaymentRepository {
   listByRelationship(rentalRelationshipId: string): Promise<Payment[]>
@@ -208,4 +214,5 @@ export interface PaymentRepository {
   allocatePayment(input: AllocatePaymentInput): Promise<PaymentAllocation>
   getReceiptForPayment(paymentId: string): Promise<Receipt | null>
   issueReceipt(paymentId: string): Promise<Receipt>
+  listReportedByAdministration(administrationId: string): Promise<Payment[]>
 }

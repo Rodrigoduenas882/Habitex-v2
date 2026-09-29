@@ -92,8 +92,22 @@ export class ChargeRepositoryError extends Error {
  *   same principle as end_rental's omitted p_actual_end_date. Idempotent
  *   (unique index + ON CONFLICT DO NOTHING) - a zero-row result is a normal,
  *   successful outcome ("nothing new to generate"), not an error.
+ *
+ * - listByAdministration: the Dashboard's own read - administration-wide
+ *   (not scoped to a single relationship) and bounded by a `[from,
+ *   toExclusive)` due_date window (`from`/`toExclusive` are plain
+ *   'YYYY-MM-DD' strings). Two SELECTs, same merge principle as
+ *   listByRelationship: the `charges` query applies both the
+ *   administration_id scope and the due_date range; `charge_balances` has no
+ *   due_date column, so it is fetched administration-wide (unfiltered by
+ *   date) in parallel and merged by charge id in the adapter - the merge
+ *   step only ever looks up a balance for a charge id present in the
+ *   already-date-filtered charges result, so unrelated balance rows are
+ *   simply never referenced. Never re-derives paid/balance/status locally -
+ *   same rule as listByRelationship.
  */
 export interface ChargeRepository {
   listByRelationship(rentalRelationshipId: string): Promise<Charge[]>
   generateRentCharges(rentalRelationshipId: string): Promise<{ createdCount: number }>
+  listByAdministration(administrationId: string, range: { from: string; toExclusive: string }): Promise<Charge[]>
 }

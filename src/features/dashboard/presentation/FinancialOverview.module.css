@@ -41,10 +41,6 @@
   background: var(--color-primary);
 }
 
-.legendDotExpenses {
-  background: var(--color-muted);
-}
-
 .chart {
   display: flex;
   align-items: flex-end;
@@ -82,11 +78,6 @@
 
 .barIncome {
   background: var(--color-primary);
-}
-
-.barExpenses {
-  background: var(--color-muted);
-  opacity: 0.55;
 }
 
 .monthLabel {

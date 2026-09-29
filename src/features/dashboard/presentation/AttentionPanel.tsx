@@ -1,31 +1,23 @@
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cx } from '@/shared/lib/cx'
 import { Card } from '@/shared/ui/Card'
 import { EmptyState } from '@/shared/ui/EmptyState'
-import { IconBadge, type IconBadgeTone } from '@/shared/ui/IconBadge'
-import {
-  ArrowRightIcon,
-  CheckIcon,
-  FileTextIcon,
-  KeyIcon,
-  WalletIcon,
-  type IconProps,
-} from '@/shared/ui/icons'
+import { IconBadge } from '@/shared/ui/IconBadge'
+import { ArrowRightIcon, CheckIcon, WalletIcon } from '@/shared/ui/icons'
 import styles from './AttentionPanel.module.css'
-import type { AttentionItem } from './dashboard-mock-data'
 
-const KIND_META: Record<
-  AttentionItem['kind'],
-  {
-    icon: (props: IconProps) => ReactNode
-    tone: IconBadgeTone
-    titleKey: 'attention.paymentPending' | 'attention.contractExpiring' | 'attention.documentPending'
-  }
-> = {
-  payment: { icon: WalletIcon, tone: 'warning', titleKey: 'attention.paymentPending' },
-  contract: { icon: KeyIcon, tone: 'warning', titleKey: 'attention.contractExpiring' },
-  document: { icon: FileTextIcon, tone: 'neutral', titleKey: 'attention.documentPending' },
+/**
+ * Only a REPORTED payment awaiting owner confirmation has a real, direct,
+ * unambiguous backend signal today - the old mock's 'contract'/'document'
+ * kinds have no analog in the current schema (confirmed by prior research),
+ * so this type only ever carries 'payment' now, rather than keeping dead
+ * kind branches that structurally can never appear.
+ */
+export interface AttentionItem {
+  id: string
+  kind: 'payment'
+  subtitle: string
+  meta: string
 }
 
 export interface AttentionPanelProps {
@@ -47,28 +39,22 @@ export function AttentionPanel({ items }: AttentionPanelProps) {
         />
       ) : (
         <div className={styles['list']}>
-          {items.map((item) => {
-            const { icon: Icon, tone, titleKey } = KIND_META[item.kind]
-
-            return (
-              <div key={item.id} className={styles['row']}>
-                <IconBadge icon={<Icon size={16} />} tone={tone} size={32} radius="md" />
-                <div className={styles['body']}>
-                  <div className={styles['titleRow']}>
-                    <p className={cx('text-body-sm', styles['itemTitle'])}>{t(titleKey)}</p>
-                    <p className={cx('text-body-sm', 'tabular-nums', styles['meta'])}>
-                      {item.meta}
-                    </p>
-                  </div>
-                  <p className="text-caption">{item.subtitle}</p>
+          {items.map((item) => (
+            <div key={item.id} className={styles['row']}>
+              <IconBadge icon={<WalletIcon size={16} />} tone="warning" size={32} radius="md" />
+              <div className={styles['body']}>
+                <div className={styles['titleRow']}>
+                  <p className={cx('text-body-sm', styles['itemTitle'])}>{t('attention.paymentPending')}</p>
+                  <p className={cx('text-body-sm', 'tabular-nums', styles['meta'])}>{item.meta}</p>
                 </div>
-                <button type="button" className={styles['action']}>
-                  {t('attention.view')}
-                  <ArrowRightIcon size={14} className={styles['actionArrow']} />
-                </button>
+                <p className="text-caption">{item.subtitle}</p>
               </div>
-            )
-          })}
+              <button type="button" className={styles['action']}>
+                {t('attention.view')}
+                <ArrowRightIcon size={14} className={styles['actionArrow']} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </Card>

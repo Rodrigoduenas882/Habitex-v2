@@ -8,6 +8,13 @@ export type RentalSubjectType = 'FULL_PROPERTY' | 'ROOM' | 'PARKING'
  * nullable FKs (property_id/room_id/parking_id, exactly one populated per
  * subjectType, confirmed against the deployed schema).
  *
+ * `propertyId`/`roomId`/`parkingId` are those same raw FKs, exposed
+ * verbatim (already selected by the repository for the label-resolution
+ * join below, just not previously mapped onto this domain type) - needed to
+ * cross-reference a subject back to the property/room it belongs to (e.g.
+ * Dashboard occupancy matching a FULL_PROPERTY subject to its Property by
+ * propertyId, or a ROOM subject to its Room by roomId).
+ *
  * `label` is a display string resolved from the real referenced asset
  * (properties.name / rooms.name / parkings.identifier) - a legitimate join
  * result, not a fabricated field. If the referenced asset row is somehow
@@ -19,7 +26,21 @@ export interface RentalSubject {
   id: string
   administrationId: string
   subjectType: RentalSubjectType
+  propertyId: string | null
+  roomId: string | null
+  parkingId: string | null
   label: string
+}
+
+/**
+ * A minimal rental_relationship_subjects row - only the 2 FK columns
+ * Dashboard occupancy needs (which relationship a given rental_subject is
+ * linked to). Deliberately does not carry id/administrationId/subjectRole/
+ * createdAt - nothing here needs them.
+ */
+export interface RentalRelationshipSubjectLink {
+  rentalRelationshipId: string
+  rentalSubjectId: string
 }
 
 /** Wraps a failed Supabase call so nothing above infrastructure/ ever sees a raw PostgrestError. */
@@ -37,7 +58,19 @@ export class RentalSubjectRepositoryError extends Error {
  * options. No getById, no create: subjects are created as a side effect of
  * create_full_property_asset/create_room_asset/create_parking_asset, never
  * by this repository directly.
+ *
+ * listRelationshipLinksByAdministration is the first-ever frontend read of
+ * public.rental_relationship_subjects (INC-016 research gate, same framing
+ * as INC-014's first read of a previously-untouched table) - confirmed via
+ * the Supabase MCP (read-only) against the deployed schema before this
+ * method was written, not assumed. It is read-only and this port
+ * deliberately adds no write path for this table (report_payment-style
+ * writes to rental_relationship_subjects are out of scope for INC-016 -
+ * Dashboard only ever reads). RLS (can_view_relationship(rental_relationship_id))
+ * remains the actual security authority regardless of the administration_id
+ * filter expressed here.
  */
 export interface RentalSubjectRepository {
   listByAdministration(administrationId: string, subjectType: RentalSubjectType): Promise<RentalSubject[]>
+  listRelationshipLinksByAdministration(administrationId: string): Promise<RentalRelationshipSubjectLink[]>
 }

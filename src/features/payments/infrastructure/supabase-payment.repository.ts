@@ -348,6 +348,26 @@ export const supabasePaymentRepository: PaymentRepository = {
     return data ? toReceipt(data) : null
   },
 
+  async listReportedByAdministration(administrationId: string): Promise<Payment[]> {
+    // Server-side status filter (never fetched-then-filtered client-side) -
+    // this read exists specifically for the Dashboard's attention panel,
+    // which only ever wants REPORTED payments. Newest report first, same
+    // ordering convention as listByRelationship. RLS (payments_select,
+    // can_view_relationship) remains the real authority for scope.
+    const { data, error } = await supabaseClient
+      .from('payments')
+      .select(PAYMENT_COLUMNS)
+      .eq('administration_id', administrationId)
+      .eq('status', 'REPORTED')
+      .order('reported_at', { ascending: false })
+
+    if (error) {
+      throw toPaymentRepositoryError(error)
+    }
+
+    return (data as PaymentRow[]).map(toPayment)
+  },
+
   async issueReceipt(paymentId: string): Promise<Receipt> {
     // can_manage_administration(), the payment-CONFIRMED check and the
     // at-least-one-allocation check all happen inside the RPC - no direct

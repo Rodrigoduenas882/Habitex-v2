@@ -2,24 +2,25 @@ import { useTranslation } from 'react-i18next'
 import { cx } from '@/shared/lib/cx'
 import { Card } from '@/shared/ui/Card'
 import styles from './FinancialOverview.module.css'
-import type { FinancialMonth } from './dashboard-mock-data'
+import type { DashboardFinancialMonth } from '../application/useDashboardFinancials'
 
 export interface FinancialOverviewProps {
-  months: readonly FinancialMonth[]
+  months: readonly DashboardFinancialMonth[]
 }
 
 const formatCurrency = (value: number) => `$${new Intl.NumberFormat('es-CO').format(value)}`
 
 /**
- * Lightweight CSS-only bar comparison - no charting library for this
- * iteration. Bar heights are data-driven (inline style), everything else
- * (color, radius, spacing) comes from tokens.
+ * Lightweight CSS-only bar chart - no charting library for this iteration.
+ * Bar heights are data-driven (inline style), everything else (color,
+ * radius, spacing) comes from tokens. Income-only: there is no "expenses"
+ * concept anywhere in the deployed schema (see useDashboardFinancials' own
+ * doc comment), so this no longer renders a second bar/legend/total.
  */
 export function FinancialOverview({ months }: FinancialOverviewProps) {
   const { t } = useTranslation('dashboard')
-  const maxValue = Math.max(...months.flatMap((month) => [month.income, month.expenses]), 1)
+  const maxValue = Math.max(...months.map((month) => month.income), 1)
   const totalIncome = months.reduce((sum, month) => sum + month.income, 0)
-  const totalExpenses = months.reduce((sum, month) => sum + month.expenses, 0)
 
   return (
     <Card>
@@ -38,13 +39,6 @@ export function FinancialOverview({ months }: FinancialOverviewProps) {
             {formatCurrency(totalIncome)}
           </span>
         </div>
-        <div className={styles['summaryItem']}>
-          <span className={cx(styles['legendDot'], styles['legendDotExpenses'])} aria-hidden="true" />
-          <span className="text-caption">{t('financialOverview.expenses')}</span>
-          <span className={cx('text-body', 'tabular-nums', styles['summaryValue'])}>
-            {formatCurrency(totalExpenses)}
-          </span>
-        </div>
       </div>
 
       <div className={styles['chart']}>
@@ -54,10 +48,6 @@ export function FinancialOverview({ months }: FinancialOverviewProps) {
               <span
                 className={cx(styles['bar'], styles['barIncome'])}
                 style={{ height: `${String((month.income / maxValue) * 100)}%` }}
-              />
-              <span
-                className={cx(styles['bar'], styles['barExpenses'])}
-                style={{ height: `${String((month.expenses / maxValue) * 100)}%` }}
               />
             </div>
             <span className={cx('text-caption', styles['monthLabel'])}>{month.label}</span>

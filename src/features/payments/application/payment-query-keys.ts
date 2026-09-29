@@ -19,4 +19,12 @@ export const paymentQueryKeys = {
     ['administration', administrationId, 'payments', paymentId, 'allocations'] as const,
   receipt: (administrationId: string, paymentId: string) =>
     ['administration', administrationId, 'payments', paymentId, 'receipt'] as const,
+  /**
+   * Administration-wide REPORTED-only payments - not nested under a single
+   * relationship's own path (unlike `list`) because Dashboard's attention
+   * panel needs every REPORTED payment across the administration, not one
+   * relationship's.
+   */
+  reportedByAdministration: (administrationId: string) =>
+    ['administration', administrationId, 'payments', 'reported'] as const,
 }

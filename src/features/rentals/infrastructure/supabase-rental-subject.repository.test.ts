@@ -1,17 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
 import { RentalSubjectRepositoryError } from '../domain/rental-subject.types'
 
-const { from, subjectsEqType, subjectsEqAdmin, subjectsSelect, assetIn } = vi.hoisted(() => {
+const { from, subjectsEqType, subjectsEqAdmin, subjectsSelect, assetIn, linksEq, linksSelect } = vi.hoisted(() => {
   const assetIn = vi.fn()
   const assetSelect = vi.fn((_columns: string) => ({ in: assetIn }))
   const subjectsEqType = vi.fn()
   const subjectsEqAdmin = vi.fn((_column: string, _value: string) => ({ eq: subjectsEqType }))
   const subjectsSelect = vi.fn((_columns: string) => ({ eq: subjectsEqAdmin }))
+  const linksEq = vi.fn()
+  const linksSelect = vi.fn((_columns: string) => ({ eq: linksEq }))
   const from = vi.fn((table: string) => {
     if (table === 'rental_subjects') return { select: subjectsSelect }
+    if (table === 'rental_relationship_subjects') return { select: linksSelect }
     return { select: assetSelect }
   })
-  return { from, subjectsEqType, subjectsEqAdmin, subjectsSelect, assetIn }
+  return { from, subjectsEqType, subjectsEqAdmin, subjectsSelect, assetIn, linksEq, linksSelect }
 })
 
 vi.mock('@/infrastructure/supabase/client', () => ({
@@ -36,7 +39,15 @@ describe('supabaseRentalSubjectRepository.listByAdministration', () => {
     expect(from).toHaveBeenCalledWith('properties')
     expect(assetIn).toHaveBeenCalledWith('id', ['prop-1'])
     expect(result).toEqual([
-      { id: 'subj-1', administrationId: 'admin-1', subjectType: 'FULL_PROPERTY', label: 'la florida' },
+      {
+        id: 'subj-1',
+        administrationId: 'admin-1',
+        subjectType: 'FULL_PROPERTY',
+        propertyId: 'prop-1',
+        roomId: null,
+        parkingId: null,
+        label: 'la florida',
+      },
     ])
   })
 
@@ -51,7 +62,17 @@ describe('supabaseRentalSubjectRepository.listByAdministration', () => {
 
     expect(from).toHaveBeenCalledWith('rooms')
     expect(assetIn).toHaveBeenCalledWith('id', ['room-1'])
-    expect(result).toEqual([{ id: 'subj-2', administrationId: 'admin-1', subjectType: 'ROOM', label: 'Habitación 2' }])
+    expect(result).toEqual([
+      {
+        id: 'subj-2',
+        administrationId: 'admin-1',
+        subjectType: 'ROOM',
+        propertyId: null,
+        roomId: 'room-1',
+        parkingId: null,
+        label: 'Habitación 2',
+      },
+    ])
   })
 
   it('PARKING: queries parkings and resolves label from the real parking identifier', async () => {
@@ -64,7 +85,17 @@ describe('supabaseRentalSubjectRepository.listByAdministration', () => {
     const result = await supabaseRentalSubjectRepository.listByAdministration('admin-1', 'PARKING')
 
     expect(from).toHaveBeenCalledWith('parkings')
-    expect(result).toEqual([{ id: 'subj-3', administrationId: 'admin-1', subjectType: 'PARKING', label: 'P-12' }])
+    expect(result).toEqual([
+      {
+        id: 'subj-3',
+        administrationId: 'admin-1',
+        subjectType: 'PARKING',
+        propertyId: null,
+        roomId: null,
+        parkingId: 'park-1',
+        label: 'P-12',
+      },
+    ])
   })
 
   it('returns [] without querying the asset table when there are zero subjects', async () => {
@@ -99,7 +130,15 @@ describe('supabaseRentalSubjectRepository.listByAdministration', () => {
     const result = await supabaseRentalSubjectRepository.listByAdministration('admin-1', 'FULL_PROPERTY')
 
     expect(result).toEqual([
-      { id: 'subj-4', administrationId: 'admin-1', subjectType: 'FULL_PROPERTY', label: 'subj-4' },
+      {
+        id: 'subj-4',
+        administrationId: 'admin-1',
+        subjectType: 'FULL_PROPERTY',
+        propertyId: 'prop-missing',
+        roomId: null,
+        parkingId: null,
+        label: 'subj-4',
+      },
     ])
   })
 
@@ -120,6 +159,46 @@ describe('supabaseRentalSubjectRepository.listByAdministration', () => {
 
     await expect(
       supabaseRentalSubjectRepository.listByAdministration('admin-1', 'FULL_PROPERTY'),
+    ).rejects.toBeInstanceOf(RentalSubjectRepositoryError)
+  })
+})
+
+describe('supabaseRentalSubjectRepository.listRelationshipLinksByAdministration', () => {
+  it('queries rental_relationship_subjects scoped by administration_id, selecting only the 2 needed columns', async () => {
+    linksEq.mockResolvedValueOnce({
+      data: [
+        { rental_relationship_id: 'rel-1', rental_subject_id: 'subj-1' },
+        { rental_relationship_id: 'rel-2', rental_subject_id: 'subj-2' },
+      ],
+      error: null,
+    })
+
+    const result = await supabaseRentalSubjectRepository.listRelationshipLinksByAdministration('admin-1')
+
+    expect(from).toHaveBeenCalledWith('rental_relationship_subjects')
+    expect(linksEq).toHaveBeenCalledWith('administration_id', 'admin-1')
+    expect(result).toEqual([
+      { rentalRelationshipId: 'rel-1', rentalSubjectId: 'subj-1' },
+      { rentalRelationshipId: 'rel-2', rentalSubjectId: 'subj-2' },
+    ])
+  })
+
+  it('never selects every column with *', async () => {
+    linksEq.mockResolvedValueOnce({ data: [], error: null })
+
+    await supabaseRentalSubjectRepository.listRelationshipLinksByAdministration('admin-1')
+
+    for (const [columns] of linksSelect.mock.calls) {
+      expect(columns).not.toBe('*')
+      expect(columns).not.toContain('*')
+    }
+  })
+
+  it('wraps a Supabase failure in RentalSubjectRepositoryError', async () => {
+    linksEq.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    await expect(
+      supabaseRentalSubjectRepository.listRelationshipLinksByAdministration('admin-1'),
     ).rejects.toBeInstanceOf(RentalSubjectRepositoryError)
   })
 })

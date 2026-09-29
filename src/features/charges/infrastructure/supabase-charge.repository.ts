@@ -124,6 +124,44 @@ export const supabaseChargeRepository: ChargeRepository = {
     return (chargesResponse.data as ChargeRow[]).map((row) => toCharge(row, balanceByChargeId.get(row.id) ?? null))
   },
 
+  async listByAdministration(
+    administrationId: string,
+    range: { from: string; toExclusive: string },
+  ): Promise<Charge[]> {
+    // Same two-SELECT merge principle as listByRelationship, scoped
+    // administration-wide instead of by relationship. charge_balances has no
+    // due_date column, so it is fetched administration-wide (unfiltered by
+    // date) in parallel rather than chained after the charges query - see
+    // ChargeRepository's own doc comment for why that's safe: the merge
+    // below only looks up a balance for a charge id already present in the
+    // date-filtered charges result, so balances outside the range are simply
+    // never referenced. RLS (charges_select) remains the real authority.
+    const [chargesResponse, balancesResponse] = await Promise.all([
+      supabaseClient
+        .from('charges')
+        .select(CHARGE_COLUMNS)
+        .eq('administration_id', administrationId)
+        .gte('due_date', range.from)
+        .lt('due_date', range.toExclusive)
+        .order('due_date', { ascending: true }),
+      supabaseClient.from('charge_balances').select(CHARGE_BALANCE_COLUMNS).eq('administration_id', administrationId),
+    ])
+
+    if (chargesResponse.error) {
+      throw toChargeRepositoryError(chargesResponse.error)
+    }
+
+    if (balancesResponse.error) {
+      throw toChargeRepositoryError(balancesResponse.error)
+    }
+
+    const balanceByChargeId = new Map(
+      (balancesResponse.data as ChargeBalanceRow[]).map((row) => [row.charge_id, row] as const),
+    )
+
+    return (chargesResponse.data as ChargeRow[]).map((row) => toCharge(row, balanceByChargeId.get(row.id) ?? null))
+  },
+
   async generateRentCharges(rentalRelationshipId: string): Promise<{ createdCount: number }> {
     // can_manage_administration()/status/billing-configuration checks all
     // happen inside the RPC (SECURITY DEFINER). Called with only

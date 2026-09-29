@@ -4,7 +4,9 @@ import { PaymentRepositoryError } from '../domain/payment.types'
 const { order, eq, maybeSingle, from, rpc } = vi.hoisted(() => {
   const order = vi.fn()
   const maybeSingle = vi.fn()
-  const eq = vi.fn((_column: string, _value: string) => ({ order, maybeSingle }))
+  // .eq() also chains to itself - listReportedByAdministration calls
+  // .eq('administration_id', ...).eq('status', ...).order(...).
+  const eq = vi.fn((_column: string, _value: string) => ({ order, maybeSingle, eq }))
   const select = vi.fn((_columns: string) => ({ eq }))
 
   const from = vi.fn((table: string) => {
@@ -672,6 +674,36 @@ describe('supabasePaymentRepository.issueReceipt', () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'SOMETHING_ELSE' } })
 
     const error = await supabasePaymentRepository.issueReceipt('payment-1').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('unknown')
+  })
+})
+
+describe('supabasePaymentRepository.listReportedByAdministration', () => {
+  it('issues a single SELECT against payments, scoped by administration_id + status REPORTED, ordered newest-report-first', async () => {
+    order.mockResolvedValueOnce({ data: [PAYMENT_ROW_REPORTED], error: null })
+
+    await supabasePaymentRepository.listReportedByAdministration('admin-1')
+
+    expect(from).toHaveBeenCalledWith('payments')
+    expect(eq).toHaveBeenCalledWith('administration_id', 'admin-1')
+    expect(eq).toHaveBeenCalledWith('status', 'REPORTED')
+    expect(order).toHaveBeenCalledWith('reported_at', { ascending: false })
+  })
+
+  it('maps a payments row into camelCase domain shape', async () => {
+    order.mockResolvedValueOnce({ data: [PAYMENT_ROW_REPORTED], error: null })
+
+    const result = await supabasePaymentRepository.listReportedByAdministration('admin-1')
+
+    expect(result).toEqual([PAYMENT_DOMAIN_REPORTED])
+  })
+
+  it('wraps a Supabase failure in PaymentRepositoryError with code unknown', async () => {
+    order.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    const error = await supabasePaymentRepository.listReportedByAdministration('admin-1').catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(PaymentRepositoryError)
     expect((error as PaymentRepositoryError).code).toBe('unknown')

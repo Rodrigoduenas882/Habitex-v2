@@ -8,4 +8,12 @@
 export const chargeQueryKeys = {
   list: (administrationId: string, rentalRelationshipId: string) =>
     ['administration', administrationId, 'rentals', rentalRelationshipId, 'charges'] as const,
+  /**
+   * Administration-wide, bounded by a `[from, toExclusive)` due_date range -
+   * not nested under a single relationship's own path (unlike `list`)
+   * because Dashboard financials need every RENT charge across the
+   * administration for a given month window, not one relationship's.
+   */
+  listByAdministration: (administrationId: string, range: { from: string; toExclusive: string }) =>
+    ['administration', administrationId, 'charges', 'range', range.from, range.toExclusive] as const,
 }

@@ -18,10 +18,16 @@ const ICON_BADGE_TONE: Record<KpiTone, IconBadgeTone> = {
 export interface KpiCardProps {
   icon: ReactNode
   label: string
-  value: string
+  /**
+   * Usually a formatted string, but deliberately ReactNode - a loading
+   * (Skeleton) or "no data" (em-dash) sub-state renders through this same
+   * prop instead of a separate loading/error prop, since the happy-path
+   * value/trend markup doesn't need to change shape for those states.
+   */
+  value: ReactNode
   tone: KpiTone
   /** Short optional context/variation line, e.g. "↑ 8,4% vs. mes anterior". */
-  trend?: string | undefined
+  trend?: ReactNode
   trendTone?: 'positive' | 'neutral' | undefined
 }
 
@@ -32,9 +38,9 @@ export function KpiCard({ icon, label, value, tone, trend, trendTone = 'neutral'
         <p className="text-caption">{label}</p>
         <IconBadge icon={icon} tone={ICON_BADGE_TONE[tone]} size={30} radius="md" />
       </div>
-      <p className={cx('text-h1', 'tabular-nums', styles['value'])}>{value}</p>
+      <div className={cx('text-h1', 'tabular-nums', styles['value'])}>{value}</div>
       {trend ? (
-        <p
+        <div
           className={cx(
             'text-caption',
             styles['trend'],
@@ -42,7 +48,7 @@ export function KpiCard({ icon, label, value, tone, trend, trendTone = 'neutral'
           )}
         >
           {trend}
-        </p>
+        </div>
       ) : null}
     </Card>
   )

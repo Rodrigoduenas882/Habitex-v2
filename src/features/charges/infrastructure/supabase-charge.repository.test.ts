@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ChargeRepositoryError } from '../domain/charge.types'
 
-const { chargesOrder, chargesEq, balancesEq, from, rpc } = vi.hoisted(() => {
+const { chargesOrder, chargesRangeOrder, chargesGte, chargesLt, chargesEq, balancesEq, from, rpc, chargesSelect, balancesSelect } = vi.hoisted(() => {
+  // listByRelationship's charges query chains .eq().order() - the same
+  // .eq() call also supports listByAdministration's .eq().gte().lt().order()
+  // chain by returning both `order` and `gte` on its result, since a real
+  // PostgREST query builder exposes every filter method on the same object
+  // regardless of which ones actually get called next.
   const chargesOrder = vi.fn()
-  const chargesEq = vi.fn((_column: string, _value: string) => ({ order: chargesOrder }))
+  const chargesRangeOrder = vi.fn()
+  const chargesLt = vi.fn((_column: string, _value: string) => ({ order: chargesRangeOrder }))
+  const chargesGte = vi.fn((_column: string, _value: string) => ({ lt: chargesLt }))
+  const chargesEq = vi.fn((_column: string, _value: string) => ({ order: chargesOrder, gte: chargesGte }))
   const chargesSelect = vi.fn((_columns: string) => ({ eq: chargesEq }))
 
+  // Same .eq() shape serves both listByRelationship (rental_relationship_id)
+  // and listByAdministration (administration_id) - charge_balances has no
+  // due_date column, so neither caller chains anything past .eq().
   const balancesEq = vi.fn()
   const balancesSelect = vi.fn((_columns: string) => ({ eq: balancesEq }))
 
@@ -16,7 +27,7 @@ const { chargesOrder, chargesEq, balancesEq, from, rpc } = vi.hoisted(() => {
   })
   const rpc = vi.fn()
 
-  return { chargesOrder, chargesEq, balancesEq, from, rpc }
+  return { chargesOrder, chargesRangeOrder, chargesGte, chargesLt, chargesEq, balancesEq, from, rpc, chargesSelect, balancesSelect }
 })
 
 vi.mock('@/infrastructure/supabase/client', () => ({
@@ -251,5 +262,84 @@ describe('supabaseChargeRepository.generateRentCharges', () => {
     await supabaseChargeRepository.generateRentCharges('rel-1')
 
     expect(from).not.toHaveBeenCalled()
+  })
+})
+
+describe('supabaseChargeRepository.listByAdministration', () => {
+  it('issues two separate SELECTs, charges scoped by administration_id + [from, toExclusive) due_date, charge_balances scoped by administration_id only', async () => {
+    chargesRangeOrder.mockResolvedValueOnce({ data: [CHARGE_ROW_RENT], error: null })
+    balancesEq.mockResolvedValueOnce({ data: [BALANCE_ROW_PARTIAL], error: null })
+
+    await supabaseChargeRepository.listByAdministration('admin-1', { from: '2026-01-01', toExclusive: '2026-02-01' })
+
+    expect(from).toHaveBeenCalledWith('charges')
+    expect(from).toHaveBeenCalledWith('charge_balances')
+    expect(chargesEq).toHaveBeenCalledWith('administration_id', 'admin-1')
+    expect(chargesGte).toHaveBeenCalledWith('due_date', '2026-01-01')
+    expect(chargesLt).toHaveBeenCalledWith('due_date', '2026-02-01')
+    expect(balancesEq).toHaveBeenCalledWith('administration_id', 'admin-1')
+  })
+
+  it('merges charges + charge_balances by id/charge_id, taking financial fields from the view - never computed locally', async () => {
+    chargesRangeOrder.mockResolvedValueOnce({ data: [CHARGE_ROW_RENT], error: null })
+    balancesEq.mockResolvedValueOnce({ data: [BALANCE_ROW_PARTIAL, BALANCE_ROW_PAID], error: null })
+
+    const result = await supabaseChargeRepository.listByAdministration('admin-1', {
+      from: '2026-01-01',
+      toExclusive: '2026-02-01',
+    })
+
+    // Only CHARGE_ROW_RENT came back from the date-filtered charges query -
+    // BALANCE_ROW_PAID (for charge-2, outside this range) is simply never
+    // looked up, even though it was part of the administration-wide
+    // charge_balances response.
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'charge-1',
+        paidAmount: 400_000,
+        balance: 600_000,
+        financialStatus: 'PARTIAL',
+      }),
+    ])
+  })
+
+  it('never selects every column with *', async () => {
+    chargesRangeOrder.mockResolvedValueOnce({ data: [], error: null })
+    balancesEq.mockResolvedValueOnce({ data: [], error: null })
+
+    await supabaseChargeRepository.listByAdministration('admin-1', { from: '2026-01-01', toExclusive: '2026-02-01' })
+
+    for (const [columns] of chargesSelect.mock.calls) {
+      expect(columns).not.toBe('*')
+      expect(columns).not.toContain('*')
+    }
+    for (const [columns] of balancesSelect.mock.calls) {
+      expect(columns).not.toBe('*')
+      expect(columns).not.toContain('*')
+    }
+  })
+
+  it('wraps a charges-query Supabase failure in ChargeRepositoryError with code unknown', async () => {
+    chargesRangeOrder.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+    balancesEq.mockResolvedValueOnce({ data: [], error: null })
+
+    const error = await supabaseChargeRepository
+      .listByAdministration('admin-1', { from: '2026-01-01', toExclusive: '2026-02-01' })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(ChargeRepositoryError)
+    expect((error as ChargeRepositoryError).code).toBe('unknown')
+  })
+
+  it('wraps a charge_balances-query Supabase failure in ChargeRepositoryError with code unknown', async () => {
+    chargesRangeOrder.mockResolvedValueOnce({ data: [CHARGE_ROW_RENT], error: null })
+    balancesEq.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    const error = await supabaseChargeRepository
+      .listByAdministration('admin-1', { from: '2026-01-01', toExclusive: '2026-02-01' })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(ChargeRepositoryError)
+    expect((error as ChargeRepositoryError).code).toBe('unknown')
   })
 })

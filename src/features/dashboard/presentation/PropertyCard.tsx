@@ -1,12 +1,35 @@
 import { useTranslation } from 'react-i18next'
 import { cx } from '@/shared/lib/cx'
-import { Badge } from '@/shared/ui/Badge'
+import { Badge, type BadgeTone } from '@/shared/ui/Badge'
 import { Card } from '@/shared/ui/Card'
+import type { Property } from '@/features/properties/domain/property.types'
 import styles from './PropertyCard.module.css'
-import type { PropertySummary } from './dashboard-mock-data'
+
+/** 'unknown' covers the occupancy cross-reference still loading/erroring -
+ * see PropertiesOverview's own derivePropertyDisplay doc comment. Rendered
+ * as a distinct, honest neutral state rather than guessing 'available'. */
+export type PropertyDisplayStatus = 'rented' | 'available' | 'unknown'
 
 export interface PropertyCardProps {
-  property: PropertySummary
+  property: Property
+  status: PropertyDisplayStatus
+  /** One short, real, already-translated secondary line - see PropertiesOverview. */
+  detail: string
+}
+
+const STATUS_TONE: Record<PropertyDisplayStatus, BadgeTone> = {
+  rented: 'success',
+  available: 'info',
+  unknown: 'neutral',
+}
+
+const STATUS_LABEL_KEY: Record<
+  PropertyDisplayStatus,
+  'properties.rented' | 'properties.available' | 'properties.statusUnknown'
+> = {
+  rented: 'properties.rented',
+  available: 'properties.available',
+  unknown: 'properties.statusUnknown',
 }
 
 /**
@@ -32,24 +55,30 @@ function PropertySkyline() {
   )
 }
 
-export function PropertyCard({ property }: PropertyCardProps) {
+/**
+ * Real Property card, decoupled from the mock PropertySummary shape.
+ * `location` is composed here from the real Property fields (address, city)
+ * since Property has no single pre-formatted location string - `status`/
+ * `detail` are computed by the caller (PropertiesOverview), since they
+ * depend on occupancy data cross-referenced from other features, not on
+ * Property alone.
+ */
+export function PropertyCard({ property, status, detail }: PropertyCardProps) {
   const { t } = useTranslation('dashboard')
-  const isRented = property.status === 'rented'
+  const location = `${property.address}, ${property.city}`
 
   return (
     <Card interactive className={styles['card']}>
       <div className={styles['image']}>
         <PropertySkyline />
         <span className={styles['badgeOverlay']}>
-          <Badge tone={isRented ? 'success' : 'info'}>
-            {t(isRented ? 'properties.rented' : 'properties.available')}
-          </Badge>
+          <Badge tone={STATUS_TONE[status]}>{t(STATUS_LABEL_KEY[status])}</Badge>
         </span>
       </div>
       <div className={styles['body']}>
         <p className={styles['name']}>{property.name}</p>
-        <p className="text-caption">{property.location}</p>
-        <p className={cx('text-caption', styles['detail'])}>{property.detail}</p>
+        <p className="text-caption">{location}</p>
+        <p className={cx('text-caption', styles['detail'])}>{detail}</p>
       </div>
     </Card>
   )

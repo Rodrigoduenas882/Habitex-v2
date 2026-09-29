@@ -6,4 +6,10 @@
  */
 export const roomQueryKeys = {
   list: (propertyId: string) => ['property', propertyId, 'rooms'] as const,
+  /**
+   * Administration-wide, per ARCHITECTURE.md §6 tenant-scoping - unlike
+   * `list` above (scoped by a single property), this reads every room the
+   * administration owns (e.g. for Dashboard occupancy).
+   */
+  byAdministration: (administrationId: string) => ['administration', administrationId, 'rooms'] as const,
 }

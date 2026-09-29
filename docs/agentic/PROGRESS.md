@@ -127,8 +127,8 @@ usuario). `QuickActions` ahora navega de verdad: `addProperty`→
 envían a la lista de rentals en vez de inventar un flujo global o un
 selector de relación). Sin rutas nuevas, sin cambio visual. Validado e
 independientemente revisado — **0 BLOCKER/HIGH/MEDIUM/LOW**. Checkpoint
-local pendiente de push. Ver detalle en "Último incremento ejecutado" más
-abajo.
+`701f79b` pusheado a `origin/chore/agentic-foundation`. Ver detalle en
+"Incremento anterior: INC-005 + INC-017" más abajo.
 
 **INC-017 — Corregir doc drift**: **completo** (documentación únicamente,
 sin cambio de runtime), mismo ciclo FAST PATH que INC-005. Corrige 2
@@ -146,13 +146,31 @@ archivos" que usan `supabaseClient`) quedó identificado pero
 deliberadamente sin tocar — fuera del alcance de las 2 afirmaciones que
 el usuario pidió corregir; registrado como candidato a un incremento
 futuro, no bloqueante. Validado e independientemente revisado — **0
-BLOCKER/HIGH/MEDIUM/LOW**. Checkpoint local pendiente de push. Ver
-detalle en "Último incremento ejecutado" más abajo.
+BLOCKER/HIGH/MEDIUM/LOW**. Checkpoint `701f79b` pusheado a
+`origin/chore/agentic-foundation`.
+
+**INC-016 — Dashboard con datos reales**: **completo** (frontend-only,
+sin backend — todas las lecturas nuevas son `SELECT`s administración-wide
+adicionales contra tablas/columnas ya desplegadas, cero migration/RLS/
+schema), FAST PATH con un gate de research resuelto DENTRO del mismo
+ciclo (2 rondas de preguntas al usuario para fijar la definición exacta
+de "properties"/"occupancy" — indefinidas en cualquier parte del código
+antes de este incremento — más verificación en vivo vía Supabase MCP de
+que el modelo persistido las soporta sin ambigüedad antes de continuar).
+`DashboardPage` ya no depende de `dashboard-mock-data.ts` (eliminado) —
+KPIs de ingreso/cartera del mes, ocupación real, conteo de propiedades,
+gráfico de 6 meses (solo ingreso real, sin "gastos" fabricados), panel de
+atención (pagos `REPORTED` reales) y lista de propiedades reales,
+implementado en 2 subtareas secuenciales (repositorios/hooks primero,
+presentación después). Validado e independientemente revisado — 0
+BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado (2 keys i18n muertas).
+Checkpoint local pendiente de push. Ver detalle en "Último incremento
+ejecutado" más abajo.
 
 ## Estado
 
-`INC-005 e INC-017 completos, checkpoint local pendiente de push.
-INC-001/003/004/006/008/009/010/011/012/013/014/015 pusheados`.
+`INC-016 completo, checkpoint local pendiente de push.
+INC-001/003/004/005/006/008/009/010/011/012/013/014/015/017 pusheados`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
   `59778fc`).
@@ -522,8 +540,82 @@ INC-001/003/004/006/008/009/010/011/012/013/014/015 pusheados`.
   reales sin diff en `router.tsx`, que los tests de navegación son
   aserciones reales end-to-end vía `MemoryRouter`+`Routes`, y grep propio
   confirmando las afirmaciones nuevas de `ARCHITECTURE.md`): **0
-  BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix. Checkpoint local pendiente
-  de push.
+  BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix. Checkpoint `701f79b`
+  pusheado.
+- INC-016 (frontend-only, sin backend — todas las lecturas nuevas son
+  `SELECT`s adicionales contra tablas/columnas/RLS ya desplegadas, cero
+  migration/schema/RLS): FAST PATH con un HUMAN GATE de research resuelto
+  **dentro del mismo ciclo**, no en un turno separado — la definición de
+  "properties"/"occupancy" estaba genuinamente indefinida en cualquier
+  parte del código (el propio `property.types.ts` la diería explícitamente
+  a "más adelante") y ningún frontend leía jamás `rental_relationship_subjects`.
+  2 rondas de `AskUserQuestion` fijaron la regla exacta: **properties** =
+  conteo simple de filas `Property`; **occupancy** = unidades rentables
+  ocupadas / unidades rentables totales × 100, donde una propiedad
+  `FULL_PROPERTY` aporta 1 unidad, una propiedad `BY_ROOMS` aporta su
+  conteo de Rooms habilitados (`is_enabled=true`), Parking se excluye
+  (0), y "ocupado" = existe un `rental_relationship_subjects` que enlaza
+  esa unidad a una `RentalRelationship` en estado `ACTIVE`/`ENDING`
+  (`DRAFT`/`CANCELLED`/`ENDED` nunca cuentan). Antes de continuar, se
+  verificó en vivo vía Supabase MCP que el modelo desplegado soporta esta
+  regla sin ambigüedad: `UNIQUE(property_id)`/`UNIQUE(room_id)` en
+  `rental_subjects` garantizan como máximo un subject por unidad (cero
+  riesgo de doble conteo), `rooms.administration_id` existe de verdad
+  (lectura administración-wide sin join a `properties`), y
+  `properties.rental_mode` es un único valor por fila (FULL_PROPERTY vs.
+  BY_ROOMS estructuralmente mutuamente excluyentes, nunca ambos para la
+  misma propiedad). **Qué se agregó**: extensiones aditivas de solo
+  lectura a 4 features existentes — `RoomRepository.listByAdministration`
+  (nuevo, `properties`), `RentalSubjectRepository.listRelationshipLinksByAdministration`
+  (primera lectura jamás de `rental_relationship_subjects`, `rentals`),
+  `ChargeRepository.listByAdministration` con rango de fechas
+  (`charges`), `PaymentRepository.listReportedByAdministration`
+  (`payments`) — ninguna requirió cambio de schema/RLS, todas son
+  `SELECT`s nuevos contra columnas/tablas ya desplegadas. Nuevo
+  `features/dashboard/domain/` (utilidad pura de límites de mes, sin
+  librería de fechas, aritmética `Date` en hora local, con test explícito
+  de cruce de año) y `features/dashboard/application/`
+  (`useDashboardOccupancy`/`useDashboardFinancials`/`useDashboardAttention`,
+  cada uno propaga `loading`/`error`/`ready` de **todas** sus queries
+  constituyentes — nunca un valor parcial/fabricado mientras algo sigue
+  pendiente o falló). `DashboardPage` ya no importa `dashboard-mock-data.ts`
+  (**eliminado** — nada en `src/` lo necesitaba ya). KPIs reales: ingreso
+  y cartera del mes (`charge_balances.paid_amount`/`balance`, filtrado a
+  `chargeType='RENT'` y al mes calendario actual por `dueDate` — nunca
+  re-derivado de `payments`/`payment_allocations` crudos, reutilizando la
+  misma vista ya blindada en INC-012/013/014, confirmando en vivo que
+  `paid_amount` solo suma allocations de pagos `CONFIRMED`), ocupación
+  real (`percentage: null` explícito cuando `totalUnits === 0`, nunca un
+  `0%` fabricado), conteo de propiedades. Gráfico de 6 meses adaptado a
+  **una sola serie real de ingreso** — sin "gastos", concepto que no
+  existe en ningún lugar del backend desplegado, nunca fabricado. Panel
+  de atención muestra únicamente pagos `REPORTED` reales (filtrado
+  server-side) — los kinds mock `contract`/`document` no tienen ninguna
+  señal real análoga en el schema actual y se retiraron del tipo
+  (`AttentionItem['kind']` ahora solo admite `'payment'` a nivel de
+  tipo, no solo en runtime). Lista de propiedades real con un hook
+  presentation-local (`usePropertyOccupancy`) que deriva el desglose
+  por-propiedad reutilizando exactamente la misma cadena de
+  cross-referencing que `useDashboardOccupancy` (mismas query keys →
+  TanStack Query deduplica, cero costo de red adicional) — decisión
+  documentada de no extender el hook agregado con un breakdown
+  por-propiedad dentro de este mismo subtask, para mantener esa capa
+  congelada mientras la presentación se integraba. Dashboard sigue
+  siendo estrictamente de solo lectura — verificado por grep
+  (`.mutate(`/`useMutation`/`.insert(`/`.update(`/`.delete(`/`.rpc(`): 0
+  resultados en todo `features/dashboard/`. Implementado en 2 subtareas
+  secuenciales (repositorios/hooks primero, presentación después),
+  validado (865/865 tests, build con chunk `DashboardPage` de 18.67 kB) y
+  revisado por `habitex-reviewer` (contexto independiente, re-verificó en
+  vivo vía Supabase MCP read-only los `UNIQUE`/CHECK de `rental_subjects`,
+  las RLS de `rooms`/`rental_relationship_subjects`, la definición
+  completa de `charge_balances`, y trazó ambas implementaciones de
+  ocupación línea por línea confirmando que son estructuralmente
+  paralelas, sin divergencia posible entre el KPI y la lista de
+  propiedades para los mismos datos): 0 BLOCKER/HIGH/MEDIUM; 1 LOW no
+  bloqueante registrado (2 keys i18n de `contract`/`document` quedaron
+  huérfanas en `dashboard.json`, inalcanzables a nivel de tipo, sin
+  impacto funcional). Checkpoint local pendiente de push.
 
 ## Subtareas
 
@@ -558,8 +650,9 @@ INC-001/003/004/006/008/009/010/011/012/013/014/015 pusheados`.
 | INC-014 review-fix (2 rondas: gateo en vivo de `useManagementGate` en el submit de allocation; mensaje de error obsoleto persistente en vez de ser tapado por "aplicado completamente"; ronda 2 corrige un 3er MEDIUM introducido por la ronda 1 — limpieza del mensaje obsoleto al iniciar un intento nuevo) | done — re-revisado (`habitex-reviewer`, contexto independiente): 2 MEDIUM originales **RESUELTOS**, 0 BLOCKER/HIGH/MEDIUM nuevos tras la ronda 2 (verificada por lectura directa del diff), 1 LOW original sin tocar por decisión humana, checkpoints `22db1bc` + `c3c6a1a` pusheados |
 | INC-015 — Receipt issuance (`features/payments/`: `PaymentRepository` gana `getReceiptForPayment`/`issueReceipt` sobre `issue_receipt`, elegibilidad correcta por `allocations.length > 0` sin exigir allocation completa, recibo ya emitido siempre visible sin gate, manejo de carrera `receipt_already_issued` sin enmascarar fallos, sin flujo de archivo/PDF, corrección de la dependencia INC-014 en `HABITEX_COMPLETION_PLAN.md`) | done — FAST PATH (research+plan+implementación en el mismo ciclo, 1 implementer, interrumpido por rate limit y retomado por la sesión orquestadora), validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW** — 0 ciclos de fix), checkpoint `65c8e08` pusheado |
 | Triage rápido del MVP restante (INC-005/007/016/017/018 — turno research-only, sin implementación) | done — clasificación de propósito/estado actual/faltante/dependencias/gate/tamaño/fast-path para cada uno, orden de ejecución recomendado, sin close-outs (ninguno ya satisfecho incidentalmente) |
-| INC-005 — Fix dead Dashboard CTAs (`QuickActions.tsx` navega de verdad: `addProperty`/`createRental`/`registerPayment`/`uploadDocument`) | done — FAST PATH combinado con INC-017 en 1 ciclo, validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW**), checkpoint local pendiente de push |
-| INC-017 — Corregir doc drift (`ARCHITECTURE.md` bloque de cita + §0.A, `session.types.ts`'s `SessionRepository`) | done — FAST PATH combinado con INC-005 en 1 ciclo, validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW**), checkpoint local pendiente de push |
+| INC-005 — Fix dead Dashboard CTAs (`QuickActions.tsx` navega de verdad: `addProperty`/`createRental`/`registerPayment`/`uploadDocument`) | done — FAST PATH combinado con INC-017 en 1 ciclo, validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW**), checkpoint `701f79b` pusheado |
+| INC-017 — Corregir doc drift (`ARCHITECTURE.md` bloque de cita + §0.A, `session.types.ts`'s `SessionRepository`) | done — FAST PATH combinado con INC-005 en 1 ciclo, validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW**), checkpoint `701f79b` pusheado |
+| INC-016 — Dashboard con datos reales (nuevo `features/dashboard/domain`+`application`, extensiones de lectura administración-wide en `properties`/`rentals`/`charges`/`payments`, `DashboardPage` sin `dashboard-mock-data.ts`) | done — FAST PATH con HUMAN GATE de research resuelto en el mismo ciclo (2 rondas de `AskUserQuestion` + verificación en vivo del modelo desplegado), 2 subtareas secuenciales, validado, revisado (0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante), checkpoint local pendiente de push |
 
 ## Blockers
 
@@ -567,15 +660,157 @@ Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
 `59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006 (`1b1dc3a`),
 INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`, `e29eed4`),
 INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`), INC-013 (`2bc3a3f`
-backend, `a6e167f` frontend), INC-014 (`22db1bc`, `c3c6a1a`) e INC-015
-(`65c8e08`) ya están en `origin/chore/agentic-foundation` — HEAD y origin
-sincronizados. El nuevo checkpoint combinado de INC-005+017 (ver "Último
-incremento ejecutado") sigue pendiente de revisión humana antes de push.
-Restante del MVP: INC-007 (LARGE, su propio ciclo), INC-016 (MEDIUM,
-research breve + implementación), INC-018 (HUMAN ACTION pura, toggle de
-Supabase Auth, fuera del alcance de este repo).
+backend, `a6e167f` frontend), INC-014 (`22db1bc`, `c3c6a1a`), INC-015
+(`65c8e08`) e INC-005+017 (`701f79b`) ya están en
+`origin/chore/agentic-foundation` — HEAD y origin sincronizados. El nuevo
+checkpoint de INC-016 (ver "Último incremento ejecutado") sigue pendiente
+de revisión humana antes de push. Restante del MVP: INC-007 (LARGE, su
+propio ciclo — nueva ruta pública, superficie de seguridad genuina),
+INC-018 (HUMAN ACTION pura, toggle de Supabase Auth, fuera del alcance de
+este repo).
 
 ## Último incremento ejecutado
+
+**INC-016 — Dashboard con datos reales** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
+sección INC-016) — reemplazar `dashboard-mock-data.ts` por lecturas
+reales de KPIs de ingreso/cartera del mes, ocupación, conteo de
+propiedades, gráfico de 6 meses, panel de atención y lista de propiedades.
+
+- **FAST PATH con HUMAN GATE de research resuelto en el mismo ciclo**:
+  investigación dirigida (un fork de research, sin auditoría de
+  repositorio completa) confirmó que "properties" y "occupancy" estaban
+  genuinamente indefinidos en cualquier parte del código — el propio
+  `property.types.ts` decía explícitamente "Occupancy belongs to
+  RentalRelationship and will be resolved separately, later" — y que
+  ningún frontend leía jamás `rental_relationship_subjects` (la única
+  tabla que enlaza una relación con su unidad rentable física). En vez de
+  adivinar, 2 rondas de `AskUserQuestion` (interrumpidas una vez por un
+  rechazo de herramienta durante un tick autónomo sin usuario presente
+  para responder, retomadas en el siguiente turno real) fijaron la regla
+  exacta: **properties** = conteo simple de filas `Property` (sin trabajo
+  nuevo); **occupancy** = unidades rentables ocupadas / unidades
+  rentables totales × 100, donde una propiedad `FULL_PROPERTY` aporta 1
+  unidad, una propiedad `BY_ROOMS` aporta su conteo de Rooms habilitados
+  (`is_enabled=true`, las deshabilitadas no cuentan), Parking se excluye
+  del todo (0), y "ocupado" = existe un `rental_relationship_subjects`
+  que enlaza esa unidad a una `RentalRelationship` en estado
+  `ACTIVE`/`ENDING` (`DRAFT`/`CANCELLED`/`ENDED` nunca cuentan). Antes de
+  implementar, se verificó en vivo vía Supabase MCP que el modelo
+  desplegado soporta esta regla sin ambigüedad ni cambio de backend:
+  `rental_subjects` tiene `UNIQUE(property_id)`/`UNIQUE(room_id)`
+  (parciales, `WHERE ... IS NOT NULL`) que garantizan como máximo un
+  subject por unidad (cero riesgo de doble conteo) más un CHECK que
+  obliga a que `subject_type` corresponda exactamente a su columna no
+  nula; `rooms.administration_id` existe de verdad en el schema
+  desplegado (lectura administración-wide directa, sin join a
+  `properties`, RLS vía `is_administration_member(administration_id)`);
+  `properties.rental_mode` es un único valor enum por fila, así que
+  FULL_PROPERTY y BY_ROOMS son estructuralmente mutuamente excluyentes —
+  ninguna propiedad puede contarse bajo ambas reglas nunca. **Veredicto:
+  BACKEND READY, sin migration/RLS/schema — FAST PATH continuado dentro
+  del mismo ciclo.**
+- **Qué se agregó**: extensiones aditivas de solo lectura a 4 features
+  existentes, ninguna requirió cambio de schema/RLS —
+  `RoomRepository.listByAdministration` (nuevo, `features/properties/`,
+  agrega `administrationId` al tipo `Room` que antes no lo mapeaba pese a
+  que la columna ya existía), `RentalSubjectRepository.listRelationshipLinksByAdministration`
+  (**primera lectura jamás realizada por el frontend de
+  `rental_relationship_subjects`**, `features/rentals/`, documentado
+  explícitamente como tal), `ChargeRepository.listByAdministration` con
+  rango de fechas `[from, toExclusive)` (`features/charges/`),
+  `PaymentRepository.listReportedByAdministration` filtrado
+  server-side a `status='REPORTED'` (`features/payments/`). Nuevo
+  `features/dashboard/domain/month-range.ts` (utilidad pura de límites de
+  mes calendario, sin librería de fechas — aritmética `Date` siempre en
+  hora local, nunca UTC, con test explícito de cruce de año verificado
+  por el reviewer) y `features/dashboard/application/`
+  (`useDashboardOccupancy`/`useDashboardFinancials`/`useDashboardAttention`,
+  cada uno propaga `loading`/`error`/`ready` de **todas** sus queries
+  constituyentes — nunca un valor parcial o fabricado mientras algo
+  sigue pendiente o falló). `DashboardPage` ya no importa
+  `dashboard-mock-data.ts` (**archivo eliminado** — nada en `src/`,
+  incluidos los tests, lo necesitaba ya). KPIs reales: ingreso y cartera
+  del mes desde `charge_balances.paid_amount`/`balance`, filtrado a
+  `chargeType='RENT'` y al mes calendario actual por `dueDate` — **nunca
+  re-derivado de `payments`/`payment_allocations` crudos**, reutilizando
+  la misma vista ya blindada en INC-012/013/014 (el reviewer confirmó en
+  vivo que `paid_amount` solo suma allocations de pagos `CONFIRMED`,
+  REPORTED/REJECTED/CANCELLED excluidos estructuralmente por la propia
+  vista); ocupación real con `percentage: null` explícito cuando
+  `totalUnits === 0` (nunca un `0%` fabricado); conteo simple de
+  propiedades. Gráfico de 6 meses adaptado a **una sola serie real de
+  ingreso** — sin "gastos", concepto que no existe en ningún lugar del
+  backend desplegado, nunca fabricado (título de la tarjeta ajustado de
+  "Ingresos vs. gastos" a "Ingresos del mes"). Panel de atención muestra
+  únicamente pagos `REPORTED` reales (filtrado server-side) — los kinds
+  mock `contract`/`document` no tienen ninguna señal real análoga en el
+  schema actual (confirmado por research: `Contract` no tiene fecha de
+  expiración, `FileMetadata` no tiene estado "pendiente") y se retiraron
+  del tipo a nivel de TypeScript, no solo en runtime
+  (`AttentionItem['kind']` ahora solo admite `'payment'`). Lista de
+  propiedades real: `PropertyCard` consume `Property` real
+  (`name`/`city`+`address` compuestos/`propertyType`) más un desglose
+  ocupado/total vía un hook presentation-local nuevo
+  (`usePropertyOccupancy`) que reutiliza exactamente la misma cadena de
+  cross-referencing que `useDashboardOccupancy` (mismas query keys →
+  TanStack Query deduplica, cero costo de red adicional) — decisión
+  documentada de no extender el hook agregado con un breakdown
+  por-propiedad dentro de este mismo ciclo, para mantener esa capa
+  congelada mientras la presentación se integraba (candidato a
+  refactor futuro si se retoma). Dashboard sigue siendo estrictamente de
+  solo lectura — grep del reviewer sobre todo `features/dashboard/`
+  (`.mutate(`/`useMutation`/`.insert(`/`.update(`/`.delete(`/`.rpc(`): 0
+  resultados.
+- **Tests**: 865/865 en la suite completa (68 nuevos entre ambas
+  subtareas — repositorios/hooks administración-wide, la utilidad de
+  límites de mes incluyendo el cruce de año, los 3 hooks de orquestación
+  del Dashboard, y la presentación reescrita). Cobertura explícita de
+  exactamente lo pedido: producción ya no importa `dashboardMockData`;
+  conteo real de propiedades; ocupación real (caso mixto FULL_PROPERTY +
+  BY_ROOMS parcialmente ocupado, nunca 100% ni 0% falsos); `percentage:
+  null` cuando cero unidades rentables; cartera/ingreso del mes con
+  valores exactos verificados; exclusión correcta de estados
+  REPORTED/REJECTED/CANCELLED como ingreso; sin doble conteo
+  FULL_PROPERTY+BY_ROOMS; comportamiento del límite de mes (incl. cruce
+  de año); estado vacío real (cero propiedades, cero pagos reportados);
+  loading/error distintos y nunca confundidos con cero real; lista de
+  propiedades real; comportamiento de QuickActions (INC-005) intacto; sin
+  mutación financiera alguna.
+- **Fix loop**: 0 ciclos — `habitex-reviewer` (contexto independiente,
+  re-verificó en vivo vía Supabase MCP read-only los `UNIQUE`/CHECK de
+  `rental_subjects`, las RLS de `rooms`/`rental_relationship_subjects`, la
+  definición completa de `charge_balances`, los enums `payment_status`/
+  `charge_type`, y trazó ambas implementaciones de ocupación línea por
+  línea confirmando que son estructuralmente paralelas — sin divergencia
+  posible entre el KPI agregado y el desglose por-propiedad para los
+  mismos datos) no encontró BLOCKER/HIGH/MEDIUM.
+- **Deuda no bloqueante registrada** (1 LOW del reviewer, sin fix loop
+  por estar debajo del umbral BLOCKER/HIGH/MEDIUM): 2 keys i18n
+  (`attention.contractExpiring`/`documentPending`) quedaron huérfanas en
+  `dashboard.json` (es/es-CO) tras retirar los kinds `contract`/`document`
+  del tipo — inalcanzables a nivel de TypeScript, sin impacto funcional,
+  triviales de eliminar si se retoma este archivo.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora tras integrar cada subtarea, y re-verificada por el
+  reviewer): `pnpm typecheck && pnpm lint && pnpm test -- --run && pnpm
+  build` — todos PASS. 108 archivos / 865 tests (0 fallos), 0 errores de
+  lint (mismos 4 warnings preexistentes, no relacionados). Build emite el
+  chunk `DashboardPage` (18.67 kB) correctamente.
+- **Human gates**: el único gate real de este incremento fue el de
+  research (properties/occupancy), resuelto dentro del mismo ciclo vía
+  decisión humana explícita — ver arriba. Sin cambios de schema/RLS/
+  grants/migrations/dependencias (confirmado por `git status`/`git diff
+  --stat`, y por el reviewer: sin archivo nuevo bajo
+  `supabase/migrations/`, `package.json`/`pnpm-lock.yaml` sin cambios,
+  sin diff en `router.tsx`/`AuthenticatedLayout.tsx`/
+  `SubscriptionStatusBanner.tsx`/`QuickActions.tsx`).
+- **Seguridad verificada** (vía MCP read-only, por el reviewer):
+  re-confirmó en vivo los `UNIQUE`/CHECK de `rental_subjects`, las RLS de
+  `rental_relationship_subjects`/`rooms`, la definición de
+  `charge_balances`, y los enums `payment_status`/`charge_type` — todos
+  coinciden exactamente con lo asumido por el código.
+
+### Incremento anterior: INC-005 + INC-017
 
 **INC-005 — Fix dead Dashboard CTAs** + **INC-017 — Corregir doc drift**
 (`docs/agentic/HABITEX_COMPLETION_PLAN.md`, secciones INC-005/INC-017) —
@@ -2451,55 +2686,53 @@ explícito) cuando se lleguen a ejecutar.
 ## Último checkpoint
 
 - **SHA**: _(pendiente — se crea inmediatamente después de esta
-  actualización de `PROGRESS.md`, en el mismo commit — INC-005 + INC-017
-  combinados)_
+  actualización de `PROGRESS.md`, en el mismo commit — INC-016)_
 - **Branch**: `chore/agentic-foundation`
-- **Contenido del checkpoint**: `QuickActions.tsx` navega de verdad
-  (INC-005); `ARCHITECTURE.md` + `session.types.ts` corregidos (INC-017);
-  colateral necesario en `DashboardPage.test.tsx` (wrapper de
-  `MemoryRouter`); más esta actualización de `PROGRESS.md`.
-- **Fecha**: 2026-09-28
+- **Contenido del checkpoint**: nuevo `features/dashboard/domain/` +
+  `features/dashboard/application/`; extensiones administración-wide de
+  solo lectura en `properties`/`rentals`/`charges`/`payments`;
+  `DashboardPage`/`KpiCard`/`FinancialOverview`/`AttentionPanel`/
+  `PropertiesOverview`/`PropertyCard` reescritos para consumir datos
+  reales; `dashboard-mock-data.ts` eliminado; más esta actualización de
+  `PROGRESS.md`.
+- **Fecha**: 2026-09-29
 - **Estado**: commiteado localmente, **pendiente de push** — push/merge
   nunca son automáticos en este workflow.
-- **No incluido**: ninguna ruta nueva; ningún flujo global de pagos/
-  documentos; ningún selector de relación; ningún cambio de CSS/visual;
-  ningún cambio de schema/RLS/migrations/dependencias; ARCHITECTURE.md §4
-  (residuo de doc drift separado, deliberadamente fuera de alcance).
+- **No incluido**: ningún cambio de Supabase/schema/RLS/grants/migrations
+  (verdict FAST PATH: BACKEND READY); ninguna mutación financiera desde
+  Dashboard; ningún "expenses" fabricado; ningún cambio a
+  `router.tsx`/`AuthenticatedLayout.tsx`/`SubscriptionStatusBanner.tsx`/
+  `QuickActions.tsx`.
 
-Checkpoint anterior, ya pusheado: INC-015 completo (`65c8e08`) — ver
-"Registro de checkpoints".
+Checkpoint anterior, ya pusheado: INC-005 + INC-017 completos (`701f79b`)
+— ver "Registro de checkpoints".
 
 ## Último resultado de validación
 
-Medido sobre el resultado integrado de INC-005+INC-017, ejecutado de
-forma independiente por la sesión orquestadora y re-verificado por
-`habitex-reviewer` (contexto independiente, incluyendo grep propio contra
-el código real para verificar cada afirmación nueva de `ARCHITECTURE.md`
-y confirmación de que `/properties/new`/`/rentals/new`/`/rentals` ya
-existían sin diff en `router.tsx`):
+Medido sobre el resultado integrado de INC-016 (2 subtareas), ejecutado
+de forma independiente por la sesión orquestadora tras cada subtarea, y
+re-verificado por `habitex-reviewer` (contexto independiente, incluyendo
+re-verificación en vivo vía Supabase MCP read-only de los `UNIQUE`/CHECK
+de `rental_subjects`, las RLS de `rooms`/`rental_relationship_subjects`,
+`charge_balances`, y los enums `payment_status`/`charge_type`):
 
 | Check | Resultado |
 |---|---|
 | `pnpm typecheck` | PASS |
 | `pnpm lint` | PASS — 0 errores, 4 warnings preexistentes (React Compiler + `watch()` de React Hook Form en `ParkingForm`/`AddFullPropertyForm`/`AddRoomRentalPropertyForm`/`AddRentalDraftForm`, no relacionados, no introducidos por este cambio) |
-| `pnpm test -- --run` | PASS — 797/797, 98 archivos |
-| `pnpm build` | PASS |
+| `pnpm test -- --run` | PASS — 865/865, 108 archivos |
+| `pnpm build` | PASS — emite el chunk `DashboardPage` (18.67 kB) correctamente |
 
 ## Siguiente acción recomendada
 
-Con INC-005 e INC-017 completos, el Dashboard ya no tiene CTAs muertos y
-la documentación de arquitectura ya no contradice el código real (salvo
-el residuo puntual de §4, registrado como deuda no bloqueante) — de punta
-a punta, sin deuda bloqueante ni findings registrados (0
-BLOCKER/HIGH/MEDIUM/LOW).
+Con INC-016 completo, el Dashboard muestra KPIs de ingreso/cartera del
+mes, ocupación real, conteo de propiedades, un gráfico de 6 meses (solo
+ingreso real), un panel de atención con pagos `REPORTED` reales, y una
+lista de propiedades reales — de punta a punta, sin deuda bloqueante (0
+BLOCKER/HIGH/MEDIUM; 1 LOW cosmético registrado).
 
-Restante del MVP (triage completo en turno separado, ver "Incremento
-anterior" más abajo para el detalle):
+Restante del MVP:
 
-- **INC-016** — Dashboard con datos reales (MEDIUM, sus 6 dependencias ya
-  completas — `DashboardPage.tsx` sigue 100% mock; research breve
-  recomendado antes de implementar, especialmente para el shape exacto de
-  los KPIs financieros).
 - **INC-007** — Tenant invitation & claim (LARGE, solo el lado de lectura
   existe hoy — `useTenantCandidates`; merece su propio ciclo de
   research+plan dado que introduce una ruta pública nueva, fuera de
@@ -2508,6 +2741,9 @@ anterior" más abajo para el detalle):
   pura, confirmado aún deshabilitado vía `get_advisors(security)` en
   vivo — toggle en el dashboard de Supabase Auth, sin camino de código
   posible desde este repo).
+
+Con INC-016 completo, **INC-007 es el único incremento de código restante
+del MVP** — INC-018 es una acción humana pura fuera de este repo.
 
 La priorización final sigue siendo del usuario, no del orchestrator (ver
 `SKILL.md` §"SELECT INCREMENT").
@@ -2546,4 +2782,5 @@ git, no aquí._
 | 2026-09-28 | `22db1bc` | `chore/agentic-foundation` | INC-014 — Payment allocation: extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `listAllocationsForPayment`/`allocatePayment` sobre `allocate_payment`, nunca INSERT/UPDATE/DELETE directo contra `payment_allocations`; `PaymentErrorCode` extendido con los 4 errores con nombre del trigger `validate_payment_allocation` + `23505`/`23514`; `summarizePaymentAllocations` puro; cargos elegibles filtrados por relación/`balance > 0`/no-ya-asignado-por-este-pago (reutiliza `useCharges`/`chargeQueryKeys` de `features/charges/`, cross-feature invalidation explícitamente autorizada); cargo ya asignado se oculta (nunca deshabilitado); pago totalmente aplicado muestra "Pago aplicado completamente" sin acción; máximo aplicable = `min(restante, balance)` como guard de UX, backend sigue siendo la autoridad. Research verdict: BACKEND READY — NO MIGRATION REQUIRED. 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles (0 BLOCKER/HIGH) — 2 MEDIUM (submit no re-gateado en vivo; estado "aplicado" puede tapar un error de carrera concurrente) + 1 LOW (cobertura end-to-end parcial de códigos de error) no bloqueantes registrados. **Implementación retenida sin push a pedido del usuario hasta resolver los 2 MEDIUM — ver fila siguiente**. |
 | 2026-09-28 | `c3c6a1a` | `chore/agentic-foundation` | INC-014 review-fix (no un nuevo incremento, 2 rondas sobre `RentalPaymentsPage.tsx`/`.test.tsx` únicamente): Ronda 1 resuelve los 2 MEDIUM de `22db1bc` — `managementGate` enhebrado como prop viva hasta `PaymentAllocationAmountForm` (gateo en vivo del submit de allocation) y `staleAllocationError` elevado a `PaymentAllocationSummary` (mensaje de carrera obsoleto ya no tapado por "Pago aplicado completamente"). Re-revisión enfocada (`habitex-reviewer`, contexto independiente): ambos MEDIUM **RESUELTOS** con tests que ejercitan el escenario real, pero detecta un 3er MEDIUM nuevo introducido por la ronda 1 (mensaje obsoleto no se limpiaba al iniciar un segundo intento sin cerrar la sección). Ronda 2 (mismo día, fix quirúrgico): nuevo callback `onNewAttempt` limpia el mensaje al inicio de cada intento nuevo, sin tocar el fix de la ronda 1. Verificada por lectura directa del diff por la sesión orquestadora (sin 3ra ronda de reviewer, dado el tamaño mecánico del cambio). LOW original sin tocar, por decisión humana. Validación completa PASS en cada etapa — 759/759 tests finales. **INC-014 completo (backend ya pusheado en `2bc3a3f`; frontend `22db1bc` + este review-fix) — Pusheado**. |
 | 2026-09-28 | `65c8e08` | `chore/agentic-foundation` | INC-015 — Receipt issuance (FAST PATH: research+plan+implementación en el mismo ciclo): extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `getReceiptForPayment`/`issueReceipt` sobre `issue_receipt`, nunca INSERT/UPDATE/DELETE directo contra `receipts` (único RPC que escribe esa tabla en todo el schema); `PaymentErrorCode` extendido con `payment_has_no_allocations`/`receipt_already_issued` (`23505`). **Resuelve la contradicción de documentación de INC-013/014**: `issue_receipt` SÍ requiere ≥1 allocation (verificado leyendo el cuerpo completo del RPC, no solo la firma) — `HABITEX_COMPLETION_PLAN.md` corregido (INC-015 depende de INC-014; allocation parcial es suficiente, no se exige completa; "anular recibos" retirado del alcance, sin RPC/policy que lo permita). Elegibilidad correcta por `allocations.length > 0` (nunca `remainingAmount === 0`); recibo ya emitido siempre visible sin gate; manejo de carrera `receipt_already_issued` sin enmascarar el fallo real (mismo principio ya corregido dos veces para `staleAllocationError` de INC-014); sin efecto financiero (`useIssueReceipt` invalida solo su propia query); sin flujo de archivo/PDF (`file_id` nunca seteado por ningún camino desplegado). Implementado en 1 ronda de `habitex-implementer` — interrumpida a mitad de camino por un rate limit de sesión, retomada e integrada directamente por la sesión orquestadora tras el reset (1 error trivial de lint corregido). 0 fix cycles — **0 BLOCKER/HIGH/MEDIUM/LOW**, deliverable excepcionalmente limpio. **Pusheado**. |
-| 2026-09-28 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-005 + INC-017 (FAST PATH combinado en 1 ciclo, autorizado explícitamente por el usuario, tras triage rápido del MVP restante INC-005/007/016/017/018 en turno separado research-only): **INC-005** — `QuickActions.tsx` navega de verdad vía `useNavigate()` + `ACTION_DESTINATION` (`addProperty`→`/properties/new`, `createRental`→`/rentals/new`, `registerPayment`/`uploadDocument`→`/rentals`, decisión humana explícita — sin ruta nueva, sin flujo global, sin selector de relación). **INC-017** — corrige 2 afirmaciones falsas verificadas: `ARCHITECTURE.md` (bloque de cita + §0.A) ya no dice que Auth es la única superficie de Supabase que toca `src/`; `session.types.ts`'s `SessionRepository` ya no dice que Account/Person/Administrations depende de un schema inexistente (ahora señala `features/administration/`) — cambio de comentario únicamente en ambos archivos. Colateral necesario: `DashboardPage.test.tsx` gana wrapper de `MemoryRouter`, sin cambiar aserciones. Residuo de doc drift en `ARCHITECTURE.md` §4 identificado pero deliberadamente sin tocar (fuera del alcance de las 2 afirmaciones pedidas) — registrado como candidato a incremento futuro. 1 ronda de `habitex-implementer`. 0 fix cycles — **0 BLOCKER/HIGH/MEDIUM/LOW**. **INC-005 e INC-017 completos — local, pendiente de push**. |
+| 2026-09-28 | `701f79b` | `chore/agentic-foundation` | INC-005 + INC-017 (FAST PATH combinado en 1 ciclo, autorizado explícitamente por el usuario, tras triage rápido del MVP restante INC-005/007/016/017/018 en turno separado research-only): **INC-005** — `QuickActions.tsx` navega de verdad vía `useNavigate()` + `ACTION_DESTINATION` (`addProperty`→`/properties/new`, `createRental`→`/rentals/new`, `registerPayment`/`uploadDocument`→`/rentals`, decisión humana explícita — sin ruta nueva, sin flujo global, sin selector de relación). **INC-017** — corrige 2 afirmaciones falsas verificadas: `ARCHITECTURE.md` (bloque de cita + §0.A) ya no dice que Auth es la única superficie de Supabase que toca `src/`; `session.types.ts`'s `SessionRepository` ya no dice que Account/Person/Administrations depende de un schema inexistente (ahora señala `features/administration/`) — cambio de comentario únicamente en ambos archivos. Colateral necesario: `DashboardPage.test.tsx` gana wrapper de `MemoryRouter`, sin cambiar aserciones. Residuo de doc drift en `ARCHITECTURE.md` §4 identificado pero deliberadamente sin tocar (fuera del alcance de las 2 afirmaciones pedidas) — registrado como candidato a incremento futuro. 1 ronda de `habitex-implementer`. 0 fix cycles — **0 BLOCKER/HIGH/MEDIUM/LOW**. **Pusheado**. |
+| 2026-09-29 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-016 — Dashboard con datos reales (FAST PATH con HUMAN GATE de research resuelto en el mismo ciclo — 2 rondas de `AskUserQuestion` fijaron la definición exacta de "properties"/"occupancy", indefinida en cualquier parte del código, verificada en vivo vía Supabase MCP contra `rental_subjects`'s `UNIQUE(property_id)`/`UNIQUE(room_id)` antes de continuar): nuevo `features/dashboard/domain/`+`application/` (`useDashboardOccupancy`/`useDashboardFinancials`/`useDashboardAttention`, `month-range.ts` sin librería de fechas), extensiones administración-wide de solo lectura en `properties`(`RoomRepository.listByAdministration`)/`rentals`(`RentalSubjectRepository.listRelationshipLinksByAdministration`, primera lectura jamás de `rental_relationship_subjects`)/`charges`(`ChargeRepository.listByAdministration` con rango de fechas)/`payments`(`PaymentRepository.listReportedByAdministration`) — ninguna requirió schema/RLS. `DashboardPage`/`KpiCard`/`FinancialOverview`/`AttentionPanel`/`PropertiesOverview`/`PropertyCard` reescritos para datos reales; `dashboard-mock-data.ts` **eliminado**. Ocupación: FULL_PROPERTY=1 unidad, BY_ROOMS=Rooms habilitados, Parking excluido, ocupado=ACTIVE/ENDING vía `rental_relationship_subjects`, `percentage: null` explícito si cero unidades (nunca `0%` fabricado). Financiero: ingreso/cartera del mes desde `charge_balances` (nunca re-derivado de payments/allocations crudos), filtrado a `chargeType='RENT'` y al mes calendario actual. Gráfico de 6 meses solo ingreso real (sin "gastos" fabricados). Panel de atención solo pagos `REPORTED` reales. Dashboard estrictamente de solo lectura (grep: 0 mutaciones). 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles (0 BLOCKER/HIGH/MEDIUM) — 1 LOW (2 keys i18n huérfanas) no bloqueante registrado. **INC-016 completo — local, pendiente de push**. |

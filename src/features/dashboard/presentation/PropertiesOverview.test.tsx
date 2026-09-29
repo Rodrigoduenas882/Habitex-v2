@@ -1,25 +1,31 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
+import type { Property } from '@/features/properties/domain/property.types'
 import { PropertiesOverview } from './PropertiesOverview'
-import type { PropertySummary } from './dashboard-mock-data'
+import type { PropertyOccupancyMap } from './usePropertyOccupancy'
 
-const properties: PropertySummary[] = [
-  {
+function makeProperty(overrides: Partial<Property> = {}): Property {
+  return {
     id: 'p1',
+    administrationId: 'admin-1',
+    propertyType: 'APARTMENT',
+    rentalMode: 'FULL_PROPERTY',
     name: 'Apartamento 302',
-    location: 'Chapinero, Bogotá',
-    status: 'rented',
-    detail: '3 habitaciones · 2 baños',
-  },
-  {
-    id: 'p2',
-    name: 'Casa 14',
-    location: 'Laureles, Medellín',
-    status: 'rented',
-    detail: '4 habitaciones · 3 baños',
-  },
-]
+    countryCode: 'CO',
+    city: 'Bogotá',
+    address: 'Calle 1 # 2-30',
+    hasAdministration: false,
+    administrationFee: null,
+    ...overrides,
+  }
+}
+
+const READY_EMPTY: PropertyOccupancyMap = { status: 'ready', byPropertyId: new Map() }
+
+const property1 = makeProperty({ id: 'p1', name: 'Apartamento 302', city: 'Bogotá', address: 'Calle 1 # 2-30' })
+const property2 = makeProperty({ id: 'p2', name: 'Casa 14', city: 'Medellín', address: 'Carrera 40 # 5-10' })
+const properties: Property[] = [property1, property2]
 
 /** jsdom never lays out real pixels, so scroll metrics stay 0 unless the
  * test asserts them explicitly - this simulates "the row has overflowing
@@ -33,21 +39,60 @@ function mockRowMetrics(
   Object.defineProperty(row, 'clientWidth', { value: metrics.clientWidth, configurable: true })
 }
 
-describe('PropertiesOverview carousel', () => {
+describe('PropertiesOverview', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('keeps every property card and the trailing add-property card', () => {
-    render(<PropertiesOverview properties={properties} />)
+  it('renders each real property with its name/location/type detail', () => {
+    render(<PropertiesOverview properties={properties} occupancy={READY_EMPTY} />)
 
     expect(screen.getByText('Apartamento 302')).toBeInTheDocument()
+    expect(screen.getByText('Calle 1 # 2-30, Bogotá')).toBeInTheDocument()
     expect(screen.getByText('Casa 14')).toBeInTheDocument()
+    expect(screen.getByText('Carrera 40 # 5-10, Medellín')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Agregar inmueble' })).toBeInTheDocument()
   })
 
+  it('shows "Arrendado" for a FULL_PROPERTY property tied to an occupied rental subject', () => {
+    const occupancy: PropertyOccupancyMap = {
+      status: 'ready',
+      byPropertyId: new Map([['p1', { isOccupied: true, occupiedRooms: 0, totalRooms: 0 }]]),
+    }
+    render(<PropertiesOverview properties={[property1]} occupancy={occupancy} />)
+
+    expect(screen.getByText('Arrendado')).toBeInTheDocument()
+    expect(screen.getByText('Apartamento')).toBeInTheDocument()
+  })
+
+  it('shows "Disponible" for a FULL_PROPERTY property with no matching occupied subject', () => {
+    render(<PropertiesOverview properties={[property1]} occupancy={READY_EMPTY} />)
+
+    expect(screen.getByText('Disponible')).toBeInTheDocument()
+  })
+
+  it('shows the occupied/total room detail for a BY_ROOMS property', () => {
+    const byRooms = makeProperty({ id: 'p3', name: 'Habitación 2', rentalMode: 'BY_ROOMS' })
+    const occupancy: PropertyOccupancyMap = {
+      status: 'ready',
+      byPropertyId: new Map([['p3', { isOccupied: false, occupiedRooms: 1, totalRooms: 3 }]]),
+    }
+    render(<PropertiesOverview properties={[byRooms]} occupancy={occupancy} />)
+
+    expect(screen.getByText('Arrendado')).toBeInTheDocument()
+    expect(screen.getByText('1 de 3 habitaciones ocupadas')).toBeInTheDocument()
+  })
+
+  it('shows the honest "Sin datos" status instead of guessing while occupancy is still loading', () => {
+    render(<PropertiesOverview properties={[property1]} occupancy={{ status: 'loading', byPropertyId: new Map() }} />)
+
+    expect(screen.getByText('Sin datos')).toBeInTheDocument()
+    expect(screen.queryByText('Arrendado')).not.toBeInTheDocument()
+    expect(screen.queryByText('Disponible')).not.toBeInTheDocument()
+  })
+
   it('sin overflow: shows no controls and reserves no side gutter', () => {
-    render(<PropertiesOverview properties={properties} />)
+    render(<PropertiesOverview properties={properties} occupancy={READY_EMPTY} />)
 
     expect(
       screen.queryByRole('button', { name: 'Ver inmuebles anteriores' }),
@@ -57,7 +102,7 @@ describe('PropertiesOverview carousel', () => {
   })
 
   it('inicio: shows only the "next" control, with the gutter reserved on both sides', () => {
-    render(<PropertiesOverview properties={properties} />)
+    render(<PropertiesOverview properties={properties} occupancy={READY_EMPTY} />)
     const row = screen.getByTestId('properties-row')
     row.scrollBy = vi.fn()
 
@@ -72,7 +117,7 @@ describe('PropertiesOverview carousel', () => {
   })
 
   it('posición intermedia: shows both controls', () => {
-    render(<PropertiesOverview properties={properties} />)
+    render(<PropertiesOverview properties={properties} occupancy={READY_EMPTY} />)
     const row = screen.getByTestId('properties-row')
     row.scrollBy = vi.fn()
 
@@ -85,7 +130,7 @@ describe('PropertiesOverview carousel', () => {
   })
 
   it('final: shows only the "previous" control', () => {
-    render(<PropertiesOverview properties={properties} />)
+    render(<PropertiesOverview properties={properties} occupancy={READY_EMPTY} />)
     const row = screen.getByTestId('properties-row')
     row.scrollBy = vi.fn()
 
@@ -98,7 +143,7 @@ describe('PropertiesOverview carousel', () => {
   })
 
   it('updates which controls are visible as the row scrolls across start/middle/end', () => {
-    render(<PropertiesOverview properties={properties} />)
+    render(<PropertiesOverview properties={properties} occupancy={READY_EMPTY} />)
     const row = screen.getByTestId('properties-row')
     row.scrollBy = vi.fn()
 
@@ -121,7 +166,7 @@ describe('PropertiesOverview carousel', () => {
   })
 
   it('scrolls by about one card (the first card\'s measured width) when a control is clicked', () => {
-    render(<PropertiesOverview properties={properties} />)
+    render(<PropertiesOverview properties={properties} occupancy={READY_EMPTY} />)
     const row = screen.getByTestId('properties-row')
     const scrollBySpy = vi.fn()
     row.scrollBy = scrollBySpy
@@ -150,7 +195,7 @@ describe('PropertiesOverview carousel', () => {
       })),
     )
 
-    render(<PropertiesOverview properties={properties} />)
+    render(<PropertiesOverview properties={properties} occupancy={READY_EMPTY} />)
     const row = screen.getByTestId('properties-row')
     const scrollBySpy = vi.fn()
     row.scrollBy = scrollBySpy
