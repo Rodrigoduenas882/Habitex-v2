@@ -111,6 +111,11 @@
     "optionParking": {
       "title": "Parqueadero",
       "description": "Arrienda un espacio de parqueo."
+    },
+    "success": {
+      "title": "¡Arriendo creado!",
+      "description": "El arriendo quedó en borrador. Puedes generar una invitación para que el inquilino cree su cuenta, o continuar sin generarla por ahora.",
+      "goToRentals": "Ir a arriendos"
     }
   },
   "form": {
@@ -162,6 +167,18 @@
     },
     "errors": {
       "createFailed": "No pudimos crear el arriendo. Intenta de nuevo."
+    }
+  },
+  "invitationStep": {
+    "generate": "Generar invitación para el inquilino",
+    "generating": "Generando invitación…",
+    "linkLabel": "Enlace de invitación",
+    "copyLink": "Copiar enlace",
+    "copied": "Copiado",
+    "errors": {
+      "tenant_not_linked": "Este inquilino no está vinculado a tu administración.",
+      "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",
+      "unknown": "No pudimos generar la invitación. Intenta de nuevo."
     }
   },
   "termsForm": {

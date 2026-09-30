@@ -12,6 +12,7 @@ const { listRentalSubjects } = vi.hoisted(() => ({ listRentalSubjects: vi.fn() }
 const { listTenantCandidates } = vi.hoisted(() => ({ listTenantCandidates: vi.fn() }))
 const { createDraft } = vi.hoisted(() => ({ createDraft: vi.fn() }))
 const { getSubscription } = vi.hoisted(() => ({ getSubscription: vi.fn() }))
+const { createInvitation } = vi.hoisted(() => ({ createInvitation: vi.fn() }))
 
 vi.mock('../infrastructure/supabase-rental-subject.repository', () => ({
   supabaseRentalSubjectRepository: { listByAdministration: listRentalSubjects },
@@ -28,6 +29,11 @@ vi.mock('../infrastructure/supabase-rental.repository', () => ({
 vi.mock('@/features/administration/infrastructure/supabase-subscription.repository', () => ({
   supabaseSubscriptionRepository: { getSubscription },
 }))
+
+vi.mock('@/features/invitations/infrastructure/supabase-invitation.repository', () => ({
+  supabaseInvitationRepository: { createInvitation, claim: vi.fn() },
+}))
+
 
 /** Grants management access, no capacity limit - the default most tests rely on. */
 const UNLIMITED_SUBSCRIPTION = {
@@ -425,7 +431,7 @@ describe('AddRentalDraftForm', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('navigates to /rentals only on real success', async () => {
+  it('shows the invitation step (not an immediate navigation) after a successful draft creation', async () => {
     listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
     listTenantCandidates.mockResolvedValueOnce([])
     createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
@@ -437,6 +443,102 @@ describe('AddRentalDraftForm', () => {
     await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
     await user.click(screen.getByRole('button', { name: 'Continuar' }))
 
+    expect(await screen.findByTestId('add-rental-invitation-step')).toBeInTheDocument()
+    expect(screen.queryByText('Rentals list page')).not.toBeInTheDocument()
+    expect(createInvitation).not.toHaveBeenCalled()
+  })
+
+  it('skipping the invitation and clicking "Ir a arriendos" still navigates to /rentals without ever calling useCreateInvitation', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
+    const user = userEvent.setup()
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    await user.selectOptions(screen.getByLabelText('Activo a arrendar'), 'subj-1')
+    await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    await screen.findByTestId('add-rental-invitation-step')
+
+    await user.click(screen.getByRole('button', { name: 'Ir a arriendos' }))
+
     expect(await screen.findByText('Rentals list page')).toBeInTheDocument()
+    expect(createInvitation).not.toHaveBeenCalled()
+  })
+
+  it('"Generar invitación" hashes a fresh token client-side and calls create_tenant_invitation with the hash (never the raw token)', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
+    createInvitation.mockResolvedValueOnce({
+      id: 'invitation-1',
+      administrationId: 'admin-1',
+      personId: 'person-5',
+      rentalRelationshipId: 'rel-5',
+      status: 'PENDING',
+      expiresAt: '2026-01-12T00:00:00Z',
+      createdAt: '2026-01-05T00:00:00Z',
+    })
+    const user = userEvent.setup()
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    await user.selectOptions(screen.getByLabelText('Activo a arrendar'), 'subj-1')
+    await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    await screen.findByTestId('add-rental-invitation-step')
+
+    await user.click(screen.getByRole('button', { name: 'Generar invitación para el inquilino' }))
+
+    await waitFor(() => {
+      expect(createInvitation).toHaveBeenCalledTimes(1)
+    })
+    const [[input]] = createInvitation.mock.calls as [
+      [{ administrationId: string; personId: string; rentalRelationshipId: string; tokenHash: string; expiresAt: string }],
+    ]
+    expect(input.administrationId).toBe('admin-1')
+    expect(input.personId).toBe('person-5')
+    expect(input.rentalRelationshipId).toBe('rel-5')
+    expect(input.tokenHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(input).not.toHaveProperty('rawToken')
+    expect(input).not.toHaveProperty('token')
+
+    const linkInput = await screen.findByLabelText('Enlace de invitación')
+    expect((linkInput as HTMLInputElement).value).toMatch(
+      new RegExp(`^${window.location.origin}/invitations/[0-9a-f-]{36}$`),
+    )
+  })
+
+  it('"Copiar enlace" copies the exact displayed invitation link to the clipboard, with copy-success feedback', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
+    createInvitation.mockResolvedValueOnce({
+      id: 'invitation-1',
+      administrationId: 'admin-1',
+      personId: 'person-5',
+      rentalRelationshipId: 'rel-5',
+      status: 'PENDING',
+      expiresAt: '2026-01-12T00:00:00Z',
+      createdAt: '2026-01-05T00:00:00Z',
+    })
+    const user = userEvent.setup()
+    const writeTextSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    await user.selectOptions(screen.getByLabelText('Activo a arrendar'), 'subj-1')
+    await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    await screen.findByTestId('add-rental-invitation-step')
+    await user.click(screen.getByRole('button', { name: 'Generar invitación para el inquilino' }))
+    const linkInput = await screen.findByLabelText('Enlace de invitación')
+    const linkValue = (linkInput as HTMLInputElement).value
+
+    await user.click(screen.getByRole('button', { name: 'Copiar enlace' }))
+
+    expect(writeTextSpy).toHaveBeenCalledWith(linkValue)
+    expect(await screen.findByRole('status')).toHaveTextContent('Copiado')
   })
 })

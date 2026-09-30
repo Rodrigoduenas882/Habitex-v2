@@ -24,6 +24,7 @@ const RentalContractsPage = lazy(() => import('@/features/contracts/presentation
 const RentalChargesPage = lazy(() => import('@/features/charges/presentation/RentalChargesPage'))
 const RentalPaymentsPage = lazy(() => import('@/features/payments/presentation/RentalPaymentsPage'))
 const LoginPage = lazy(() => import('@/features/auth/presentation/LoginPage'))
+const InvitationClaimPage = lazy(() => import('@/features/invitations/presentation/InvitationClaimPage'))
 const UiPreviewPage = lazy(() => import('../pages/ui-preview/UiPreviewPage'))
 const NotFoundPage = lazy(() => import('@/shared/components/NotFoundPage'))
 
@@ -77,6 +78,9 @@ export const router = createBrowserRouter([
       // Public on purpose: internal design-system tool, not authenticated
       // product surface. See UiPreviewPage's own doc comment.
       { path: 'ui-preview', element: withSuspense(<UiPreviewPage />) },
+      // Public on purpose: a brand-new tenant has no session/Account yet when
+      // first opening this link - must never be inside ProtectedRoute/RequiresAccount.
+      { path: 'invitations/:token', element: withSuspense(<InvitationClaimPage />) },
       { path: '*', element: withSuspense(<NotFoundPage />) },
     ],
   },

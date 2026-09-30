@@ -37,8 +37,8 @@ export class SessionAuthError extends Error {
 
 /**
  * Port for the auth session boundary. Only Supabase Auth itself is wrapped here
- * (getSession/signInWithPassword/onAuthStateChange/signOut) because that contract
- * is defined by the Supabase SDK we already depend on.
+ * (getSession/signInWithPassword/signUp/onAuthStateChange/signOut) because that
+ * contract is defined by the Supabase SDK we already depend on.
  *
  * The next layer of this flow - Account / Person / Administrations, resolved from
  * this session - is implemented separately, in `features/administration/`. This
@@ -48,6 +48,13 @@ export class SessionAuthError extends Error {
 export interface SessionRepository {
   getSession(): Promise<AuthSession>
   signInWithPassword(credentials: SessionCredentials): Promise<AuthSession>
+  /**
+   * Creates a new Supabase Auth user via auth.signUp. Verified operationally
+   * against this project: signUp returns an immediate session (no
+   * email-confirmation gate configured), so the returned AuthSession is
+   * populated on success, same as signInWithPassword.
+   */
+  signUp(credentials: SessionCredentials): Promise<AuthSession>
   onAuthStateChange(listener: AuthStateListener): () => void
   signOut(): Promise<void>
 }

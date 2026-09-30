@@ -167,9 +167,30 @@ BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante registrado (2 keys i18n muertas).
 Checkpoint local pendiente de push. Ver detalle en "Último incremento
 ejecutado" más abajo.
 
+**INC-007 — Tenant Invitation + Public Claim**: **completo** (frontend-only,
+sin cambios de backend — `create_tenant_invitation`/`claim_tenant_invitation`
+ya estaban completamente desplegados y soportados; research verdict:
+BACKEND READY, NO AUTO-MERGE por email ni documento en ningún punto del
+mecanismo desplegado — verificado leyendo el cuerpo completo de ambas RPCs
+y confirmando `UNIQUE(auth_user_id)`/`UNIQUE(person_id)` en `accounts` a
+nivel de base de datos). Nuevo `features/invitations/` (aggregate propio),
+extensión aditiva `SessionRepository.signUp`, nueva ruta pública
+`/invitations/:token` (fuera de `ProtectedRoute`/`RequiresAccount`),
+entry point único en `AddRentalDraftForm` ("Generar invitación para el
+inquilino", opcional, nunca forzado). Implementado en 2 subtareas
+secuenciales (domain/infrastructure/application, luego presentation/
+routing/i18n), validado (923/923 tests, build con chunk propio
+`InvitationClaimPage`) y revisado por `habitex-reviewer` (contexto
+independiente, re-verificó en vivo vía Supabase MCP read-only ambas RPCs,
+las policies de `secure_actions`, y las constraints de `accounts`: 0
+BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante — corregido directamente por la
+sesión orquestadora, ver detalle en "Último incremento ejecutado" más
+abajo). Checkpoint local pendiente de push.
+
 ## Estado
 
-`INC-016 completo, checkpoint local pendiente de push.
+`INC-007 completo, checkpoint local pendiente de push. INC-016 completo,
+checkpoint local pendiente de push.
 INC-001/003/004/005/006/008/009/010/011/012/013/014/015/017 pusheados`.
 
 - INC-001 (backend + frontend): **completo y pusheado** (`89d7e22`,
@@ -616,6 +637,81 @@ INC-001/003/004/005/006/008/009/010/011/012/013/014/015/017 pusheados`.
   bloqueante registrado (2 keys i18n de `contract`/`document` quedaron
   huérfanas en `dashboard.json`, inalcanzables a nivel de tipo, sin
   impacto funcional). Checkpoint local pendiente de push.
+- INC-007 (frontend-only, sin backend gate — `create_tenant_invitation`/
+  `claim_tenant_invitation` ya estaban completamente desplegados; RESEARCH
+  GATE con MANDATORY security check resuelto explícitamente antes de
+  cualquier implementación, verdict A — BACKEND READY, NO AUTO-MERGE por
+  email/documento): ciclo con 3 fases separadas explícitamente autorizadas
+  por el usuario. **Fase 1 (research-only)**: investigación de las 2 RPCs
+  desplegadas (`create_tenant_invitation`/`claim_tenant_invitation`) leyendo
+  sus cuerpos completos vía `pg_get_functiondef` (nunca solo la firma),
+  confirmando que la identidad se vincula exclusivamente por posesión de
+  token — cero comparación de `email`/`document_number` en cualquier punto
+  del mecanismo — y que `accounts` tiene `UNIQUE(auth_user_id)`/
+  `UNIQUE(person_id)` a nivel de base de datos, haciendo estructuralmente
+  imposible un merge accidental de Account↔Person incluso ante un bug de
+  aplicación. Asimetría de token confirmada: `create_tenant_invitation`
+  recibe el hash ya calculado (`p_token_hash`, nunca el token crudo);
+  `claim_tenant_invitation` recibe el token crudo y lo hashea server-side
+  él mismo. **Fase 2 (diagnóstico empírico, script temporal fuera del
+  código productivo)**: confirmó contra el proyecto real que
+  `supabase.auth.signUp()` entrega sesión inmediata sin gate de
+  confirmación de email — desbloqueando el signup inline sin depender de
+  email delivery (explícitamente fuera de alcance del MVP). Script borrado
+  tras usar, `git status` reverificado limpio. **Fase 3 (implementación,
+  FAST PATH)**: expiración de invitación fijada en 7 días por decisión
+  humana explícita (`AskUserQuestion`, sin definición previa en ningún
+  documento). Nuevo `features/invitations/` (aggregate propio, no plegado
+  en `rentals`/`auth`) — `InvitationRepository` envuelve exactamente las 2
+  RPCs, nunca un INSERT/UPDATE/SELECT directo contra `secure_actions`
+  (RLS de esa tabla no tiene ninguna policy SELECT para ningún rol —
+  solo accesible vía las 2 RPCs SECURITY DEFINER); `generateInvitationToken`
+  (`crypto.randomUUID()`) + `sha256Hex` (Web Crypto, sibling de string del
+  `computeSha256Hex(blob)` ya existente en `features/contracts/`, sin
+  modificarlo); mapeo de errores exhaustivo y exacto de los 2 RPCs
+  (`management_access_required`/`tenant_not_linked`/
+  `authentication_required`/`invalid_token`/`already_claimed`/`expired`/
+  `account_conflict`/`unknown`). Extensión aditiva
+  `SessionRepository.signUp` (mismo patrón que `signInWithPassword`, cero
+  cambio al flujo de login existente). Único entry point de creación:
+  `AddRentalDraftForm`, tras un `create_rental_draft` exitoso, ofrece
+  "Generar invitación para el inquilino" — opcional, nunca forzado ("Ir a
+  arriendos" siempre disponible sin generar nada); el token crudo vive
+  solo en estado local de ese componente (nunca `localStorage`/
+  `sessionStorage`/log/consola), el link se muestra con copia al
+  portapapeles. **Sin segundo entry point** (`RentalListCard` no se tocó,
+  verificado por grep). Nueva ruta pública `/invitations/:token` — hermano
+  plano de `ui-preview` en `router.tsx`, explícitamente fuera de
+  `ProtectedRoute`/`RequiresAccount` (un tenant nuevo no tiene sesión ni
+  Account la primera vez que abre el link). `InvitationClaimPage`:
+  visitante no autenticado ve un toggle inline "Ya tengo cuenta"/"Crear
+  cuenta" (nunca redirige a `/login`, que no tiene mecanismo de preservar
+  el token); visitante autenticado ve un botón explícito "Aceptar
+  invitación" — **sin auto-claim al montar la página en ningún caso**
+  (verificado con test de regresión que espera un tick adicional tras
+  montar en estado autenticado y confirma que `mutate` nunca se llama sin
+  el click). Claim exitoso invalida `administrationQueryKeys.account`
+  (para que `RequiresAccount` no se quede con el `null` cacheado) y navega
+  a `/`. Copy de error deliberadamente genérico y no-disclosing (colapsa
+  varios códigos de backend distintos en el mismo mensaje compartido, sin
+  reintroducir especificidad que permita enumerar tokens/cuentas ajenas).
+  Implementado en 2 subtareas secuenciales de `habitex-implementer`
+  (domain/infrastructure/application primero, presentation/routing/i18n
+  después), validado de forma independiente por la sesión orquestadora en
+  cada etapa (923/923 tests, 0 typecheck/lint, build con chunk propio
+  `InvitationClaimPage` de 5.26 kB) y revisado por `habitex-reviewer`
+  (contexto independiente, re-verificó en vivo vía Supabase MCP read-only
+  el cuerpo completo de ambas RPCs, las policies de `secure_actions`, y las
+  constraints de `accounts` — coincide exactamente con lo investigado en
+  research: **0 BLOCKER/HIGH/MEDIUM**; 1 LOW no bloqueante — feedback de
+  "Copiar enlace" sin `aria-live` y sin manejar un rechazo silencioso del
+  clipboard). El LOW se corrigió directamente por la sesión orquestadora
+  (mecánico y seguro: región `role="status" aria-live="polite"` separada
+  del texto del botón, `handleCopy` ahora maneja el rechazo de la promesa
+  de `navigator.clipboard.writeText`), revalidado (923/923 tests, 0
+  typecheck/lint, build limpio) sin necesidad de una nueva ronda de
+  revisión independiente (cambio mecánico, sin superficie de seguridad).
+  Checkpoint local pendiente de push.
 
 ## Subtareas
 
@@ -653,6 +749,7 @@ INC-001/003/004/005/006/008/009/010/011/012/013/014/015/017 pusheados`.
 | INC-005 — Fix dead Dashboard CTAs (`QuickActions.tsx` navega de verdad: `addProperty`/`createRental`/`registerPayment`/`uploadDocument`) | done — FAST PATH combinado con INC-017 en 1 ciclo, validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW**), checkpoint `701f79b` pusheado |
 | INC-017 — Corregir doc drift (`ARCHITECTURE.md` bloque de cita + §0.A, `session.types.ts`'s `SessionRepository`) | done — FAST PATH combinado con INC-005 en 1 ciclo, validado, revisado (**0 BLOCKER/HIGH/MEDIUM/LOW**), checkpoint `701f79b` pusheado |
 | INC-016 — Dashboard con datos reales (nuevo `features/dashboard/domain`+`application`, extensiones de lectura administración-wide en `properties`/`rentals`/`charges`/`payments`, `DashboardPage` sin `dashboard-mock-data.ts`) | done — FAST PATH con HUMAN GATE de research resuelto en el mismo ciclo (2 rondas de `AskUserQuestion` + verificación en vivo del modelo desplegado), 2 subtareas secuenciales, validado, revisado (0 BLOCKER/HIGH/MEDIUM; 1 LOW no bloqueante), checkpoint local pendiente de push |
+| INC-007 — Tenant Invitation + Public Claim (`features/invitations/`: `InvitationRepository` sobre `create_tenant_invitation`/`claim_tenant_invitation`, token crudo generado y hasheado client-side vía Web Crypto, extensión aditiva `SessionRepository.signUp`, ruta pública `/invitations/:token`, entry point único en `AddRentalDraftForm`) | done — ciclo en 3 fases (research-only con security gate MANDATORY, diagnóstico empírico de Supabase Auth signup, implementación FAST PATH en 2 subtareas secuenciales), validado, revisado (0 BLOCKER/HIGH/MEDIUM; 1 LOW corregido directamente por la sesión orquestadora), checkpoint local pendiente de push |
 
 ## Blockers
 
@@ -662,14 +759,185 @@ INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`, `e29eed4`),
 INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`), INC-013 (`2bc3a3f`
 backend, `a6e167f` frontend), INC-014 (`22db1bc`, `c3c6a1a`), INC-015
 (`65c8e08`) e INC-005+017 (`701f79b`) ya están en
-`origin/chore/agentic-foundation` — HEAD y origin sincronizados. El nuevo
-checkpoint de INC-016 (ver "Último incremento ejecutado") sigue pendiente
-de revisión humana antes de push. Restante del MVP: INC-007 (LARGE, su
-propio ciclo — nueva ruta pública, superficie de seguridad genuina),
-INC-018 (HUMAN ACTION pura, toggle de Supabase Auth, fuera del alcance de
-este repo).
+`origin/chore/agentic-foundation` — HEAD y origin sincronizados. Los
+nuevos checkpoints de INC-016 e INC-007 (ver "Último incremento
+ejecutado") siguen pendientes de revisión humana antes de push. Restante
+del MVP: **INC-018 únicamente** (HUMAN ACTION pura, toggle de Supabase
+Auth — `leaked_password_protection` deshabilitado, confirmado vía
+`get_advisors(security)` en vivo — fuera del alcance de este repo, sin
+camino de código posible). Con INC-007 completo, **no queda ningún
+incremento de código pendiente en el MVP**.
 
 ## Último incremento ejecutado
+
+**INC-007 — Tenant Invitation + Public Claim** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
+sección INC-007) — un administrador genera un enlace de invitación para el
+inquilino de un `rental_draft` recién creado; el inquilino invitado abre
+un link público, se autentica (login o signup inline) y vincula
+explícitamente su Account a la `Person` pre-existente vía
+`claim_tenant_invitation`.
+
+- **Fase 1 — research-only, con MANDATORY security gate**: investigación
+  dirigida de las 2 RPCs ya desplegadas
+  (`create_tenant_invitation`/`claim_tenant_invitation`) leyendo el cuerpo
+  completo de ambas vía `pg_get_functiondef` (nunca solo la firma), no
+  solo migration files históricos. Regla de producto explícita a preservar:
+  Person != Account, una Person puede existir antes que su Account, NUNCA
+  auto-merge por email, NUNCA auto-merge por documento, sin adivinar
+  identidad. **Verificación mandatoria de las 2 preguntas de seguridad**:
+  ¿auto-merge por email? **NO**. ¿auto-merge por documento? **NO**. Evidencia:
+  `claim_tenant_invitation` vincula exclusivamente por posesión de un token
+  (hash comparado server-side, `p_token` crudo nunca comparado contra
+  ningún campo de identidad), y `public.accounts` tiene
+  `UNIQUE(auth_user_id)` + `UNIQUE(person_id)` a nivel de base de datos —
+  un merge accidental es estructuralmente imposible incluso ante un bug de
+  aplicación futuro. `secure_actions` (la tabla que respalda las
+  invitaciones) tiene RLS con únicamente policies INSERT/UPDATE — cero
+  SELECT para cualquier rol, solo accesible vía las 2 RPCs `SECURITY
+  DEFINER`. Asimetría de token confirmada y documentada como contrato
+  vinculante para la implementación: `create_tenant_invitation` recibe
+  `p_token_hash` ya calculado (el token crudo nunca debe llegar a esta
+  llamada); `claim_tenant_invitation` recibe `p_token` crudo y lo hashea
+  él mismo server-side. **Veredicto: A — BACKEND READY, sin escalación a
+  HUMAN/SECURITY GATE** (ambas respuestas NO, sin ambigüedad). Un único
+  prerrequisito quedó señalado como no verificable vía MCP read-only: si
+  `supabase.auth.signUp()` exige confirmación de email antes de entregar
+  sesión (relevante porque el MVP declara explícitamente el envío de email
+  fuera de alcance — el admin solo copia un link manualmente).
+- **Fase 2 — diagnóstico empírico, turno separado**: script temporal
+  (`_inc007_auth_diagnostic.mjs`, fuera de `src/`, reutilizando la misma
+  publishable key pública que `infrastructure/supabase/client.ts`, nunca
+  `service_role`) ejecutó un único `signUp()` real contra el proyecto y
+  reportó únicamente `userCreated`/`sessionCreated`/`errorCode`/
+  `errorMessage` (nunca tokens/sesión completa/contraseña). Resultado:
+  `sessionCreated: true` — sesión inmediata, sin gate de confirmación de
+  email. Script borrado inmediatamente después, `git status` reverificado
+  limpio antes de continuar. Usuario de prueba dejado para borrado manual
+  posterior (nunca eliminado vía `service_role`, como se instruyó
+  explícitamente).
+- **Fase 3 — implementación, FAST PATH** (research ya resuelto, sin
+  reinvestigar salvo contradicción real): único parámetro sin definición
+  previa (duración de expiración del token) resuelto explícitamente por el
+  usuario vía `AskUserQuestion` — **7 días** — en vez de inventarlo, tras
+  confirmar por grep que ni `HABITEX_COMPLETION_PLAN.md` ni `PROGRESS.md`
+  lo definían. Nuevo `features/invitations/` (aggregate propio, no
+  plegado en `rentals`/`auth`):
+  - `domain/invitation.types.ts` — `TenantInvitation`, `InvitationErrorCode`
+    (8 valores, mapeo exhaustivo y exacto de los `raise exception` reales de
+    ambas RPCs — `EXPIRY_MUST_BE_FUTURE`/`INVALID_TOKEN_HASH`/
+    `RENTAL_ADMINISTRATION_MISMATCH`/`INVITATION_PERSON_REQUIRED` plegados
+    en `unknown` por inalcanzables desde este frontend, mismo principio ya
+    aplicado en incrementos previos de `payments`), `InvitationRepositoryError`.
+  - `domain/token.ts` — `generateInvitationToken()` (`crypto.randomUUID()`,
+    mismo precedente ya usado en `features/documents/domain/storage-path.ts`)
+    y `sha256Hex(value: string)` (Web Crypto, sibling de string del
+    `computeSha256Hex(blob)` ya existente en `features/contracts/domain/sha256.ts`,
+    escrito de cero, sin modificar ese archivo — sigue scoped a hash de
+    archivos).
+  - `infrastructure/supabase-invitation.repository.ts` — envuelve
+    exactamente las 2 RPCs, **cero** `.insert(`/`.update(`/`.select(`
+    directo contra `secure_actions`/`accounts`/`people` en todo el archivo
+    (confirmado por grep, tanto por el implementer como de forma
+    independiente por el reviewer). `createInvitation`'s tipo de entrada
+    (`CreateTenantInvitationInput`) solo tiene `tokenHash`, nunca un campo
+    capaz de portar el token crudo — estructuralmente imposible que el
+    crudo llegue a `create_tenant_invitation` (probado también por un test
+    que verifica el shape exacto de los argumentos del RPC).
+  - `application/useCreateInvitation.ts`/`useClaimInvitation.ts` — la
+    segunda invalida `administrationQueryKeys.account` (existente,
+    importado, nunca reimplementado) tras un claim exitoso, para que
+    `RequiresAccount` no se quede con el `null` cacheado de antes de que
+    existiera el Account.
+  - Extensión aditiva `SessionRepository.signUp` (`features/auth/`) —
+    mismo shape/mapeo de error que `signInWithPassword`, cero cambio al
+    flujo de login existente (verificado con la suite completa: 901/901
+    tests tras esta subtarea, sin regresión).
+  - `presentation/InvitationClaimPage.tsx` — nueva ruta pública
+    `/invitations/:token`, hermano plano de `ui-preview` en `router.tsx`,
+    explícitamente **fuera** de `ProtectedRoute`/`RequiresAccount` (un
+    tenant nuevo no tiene sesión ni Account la primera vez que abre el
+    link). Máquina de estados: sin token → copy genérico de link inválido;
+    sesión desconocida → `Skeleton` (mismo criterio fail-closed que
+    `ProtectedRoute` — nunca trata "desconocido" como autenticado); no
+    autenticado → toggle inline "Ya tengo cuenta"/"Crear cuenta" (nunca
+    redirige a `/login`, que no tiene mecanismo de preservar el token y
+    volver); autenticado → botón explícito "Aceptar invitación" — **sin
+    auto-claim al montar la página bajo ninguna circunstancia** (sin
+    `useEffect` en todo el archivo; el claim solo puede dispararse desde
+    el `onClick` del botón; test de regresión dedicado espera un tick
+    adicional tras montar ya autenticado y confirma que `mutate` nunca se
+    llamó). Claim exitoso navega a `/` (`replace: true`) tras invalidar el
+    account query. Error no-retriable (`already_claimed`/`expired`) oculta
+    el botón en vez de dejarlo habilitado para un reintento que nunca
+    puede tener éxito. Copy de error deliberadamente genérico — colapsa
+    varios códigos de backend distintos en un mismo mensaje compartido,
+    sin reintroducir especificidad que permita enumerar tokens o el estado
+    de cuentas ajenas.
+  - `AddRentalDraftForm.tsx` extendido con `AddRentalDraftInvitationStep`
+    — único entry point de creación de invitaciones en todo el MVP
+    (verificado por grep: ninguna otra referencia a
+    `useCreateInvitation`/`generateInvitationToken` en `features/rentals/`
+    fuera de este archivo, `RentalListCard.tsx` sin tocar). Tras un
+    `create_rental_draft` exitoso, la navegación inmediata a `/rentals` se
+    reemplazó por este paso intermedio: "Generar invitación para el
+    inquilino" es **opcional, nunca forzado** — "Ir a arriendos" siempre
+    disponible sin generar nada. El token crudo se genera y se hashea
+    client-side (`generateInvitationToken()` → `sha256Hex()`) antes de que
+    `createInvitation.mutate` lo vea — solo el hash viaja en el payload de
+    la mutation. El token crudo vive únicamente en el `useState` local de
+    este componente mientras el panel está montado — nunca
+    `localStorage`/`sessionStorage`/`console.*`/ningún log (confirmado por
+    grep en ambos archivos nuevos/editados). Expiración fijada en 7 días
+    (`Date.now() + 7*24*60*60*1000`, computado en la presentación — no
+    existe helper de dominio para esto, no se justificaba para un único
+    call site). Link mostrado en un campo de solo lectura con botón
+    "Copiar enlace" (`navigator.clipboard.writeText`).
+- **Tests**: 923/923 en la suite completa (64 nuevos en la primera
+  subtarea — domain/infrastructure/application de `invitations` + la
+  extensión de `auth` —, el resto en la segunda subtarea — presentación).
+  Cobertura explícita de los invariantes de seguridad pedidos: shape
+  exacto de los argumentos de ambas RPCs (probando que el crudo nunca
+  llega a `create` y que el crudo sí es lo que llega a `claim`), no-auto-
+  claim al montar autenticado, no-persistencia del token en
+  `localStorage`/`sessionStorage` a través de todo el flujo
+  signup/login→claim, los 4 estados de error mapeados + fallback
+  `unknown`, generación+copia del link en `AddRentalDraftForm`, skip de
+  invitación sin llamar nunca a `useCreateInvitation`.
+- **Validación** (ejecutada de forma independiente por la sesión
+  orquestadora tras cada subtarea, no solo confiando en el reporte del
+  implementer): `pnpm typecheck && pnpm lint && pnpm test -- --run && pnpm
+  build` — todos PASS en cada etapa. 923/923 tests, 0 errores de lint
+  (mismos 4 warnings preexistentes, no relacionados), build con chunk
+  propio `InvitationClaimPage-*.js` (5.26 kB / 1.71 kB gzip).
+- **Revisión independiente** (`habitex-reviewer`, contexto separado de
+  ambos implementers, re-verificó en vivo vía Supabase MCP read-only el
+  cuerpo completo de las 2 RPCs, las policies de `secure_actions`, y las
+  constraints de `accounts` — coincide exactamente con lo investigado en
+  la Fase 1, ninguna deriva del schema desplegado desde entonces): **0
+  BLOCKER/HIGH/MEDIUM**. 1 LOW — el botón "Copiar enlace" cambiaba su
+  propio texto a "Copiado" sin región `aria-live` (lectores de pantalla no
+  se enteran del éxito) y `navigator.clipboard.writeText(...)` se llamaba
+  con `void`, sin manejar un rechazo silencioso del clipboard.
+- **Fix del LOW** (aplicado directamente por la sesión orquestadora, sin
+  una nueva ronda de `habitex-implementer` — cambio mecánico y seguro, sin
+  superficie de seguridad): el estado "Copiado" ahora vive en un `<span
+  role="status" aria-live="polite">` separado, el texto del botón
+  ("Copiar enlace") ya no cambia; `handleCopy` maneja explícitamente tanto
+  el éxito como el rechazo de la promesa de `writeText` (en vez de
+  `void`). Test existente actualizado para buscar el nuevo `role="status"`
+  en vez del texto del botón. Revalidado de punta a punta tras el fix:
+  923/923 tests, 0 typecheck/lint, build limpio — sin necesidad de una
+  nueva ronda de revisión independiente dado el tamaño y naturaleza
+  puramente cosmética/accesibilidad del cambio.
+- **Human gates**: ninguno disparado — sin cambios de
+  schema/RLS/grants/migrations/dependencias/arquitectura en ningún punto
+  del incremento (confirmado por `git status`/`git diff --stat`, y por el
+  reviewer vía MCP en vivo).
+- **Fuera de alcance, explícitamente declinado por decisión humana**:
+  envío de email (el admin copia el link manualmente), WhatsApp, reenvío,
+  revocación, historial/lista de invitaciones, analytics, invitaciones
+  masivas, completar perfil, gestión de roles, INC-018 (toggle de
+  Supabase Auth, fuera de este repo).
 
 **INC-016 — Dashboard con datos reales** (`docs/agentic/HABITEX_COMPLETION_PLAN.md`,
 sección INC-016) — reemplazar `dashboard-mock-data.ts` por lecturas
@@ -2725,25 +2993,24 @@ de `rental_subjects`, las RLS de `rooms`/`rental_relationship_subjects`,
 
 ## Siguiente acción recomendada
 
-Con INC-016 completo, el Dashboard muestra KPIs de ingreso/cartera del
-mes, ocupación real, conteo de propiedades, un gráfico de 6 meses (solo
-ingreso real), un panel de atención con pagos `REPORTED` reales, y una
-lista de propiedades reales — de punta a punta, sin deuda bloqueante (0
-BLOCKER/HIGH/MEDIUM; 1 LOW cosmético registrado).
+Con INC-007 completo, **no queda ningún incremento de código pendiente en
+el MVP**. INC-016 (Dashboard con datos reales) e INC-007 (Tenant
+Invitation + Public Claim) están ambos completos, validados y revisados,
+con sus checkpoints locales pendientes únicamente de aprobación humana
+para push — ningún trabajo de implementación adicional está pendiente.
 
 Restante del MVP:
 
-- **INC-007** — Tenant invitation & claim (LARGE, solo el lado de lectura
-  existe hoy — `useTenantCandidates`; merece su propio ciclo de
-  research+plan dado que introduce una ruta pública nueva, fuera de
-  `ProtectedRoute`, con superficie de seguridad genuina).
 - **INC-018** — Habilitar `leaked_password_protection` (HUMAN ACTION
   pura, confirmado aún deshabilitado vía `get_advisors(security)` en
   vivo — toggle en el dashboard de Supabase Auth, sin camino de código
   posible desde este repo).
 
-Con INC-016 completo, **INC-007 es el único incremento de código restante
-del MVP** — INC-018 es una acción humana pura fuera de este repo.
+La acción recomendada para una sesión nueva es: (1) confirmar con el
+usuario si los checkpoints locales de INC-016/INC-007 deben pushearse a
+`origin/chore/agentic-foundation`, y (2) recordar que INC-018 requiere una
+acción humana directa en el dashboard de Supabase Auth, no un incremento
+de este orchestrator.
 
 La priorización final sigue siendo del usuario, no del orchestrator (ver
 `SKILL.md` §"SELECT INCREMENT").
@@ -2784,3 +3051,4 @@ git, no aquí._
 | 2026-09-28 | `65c8e08` | `chore/agentic-foundation` | INC-015 — Receipt issuance (FAST PATH: research+plan+implementación en el mismo ciclo): extiende `features/payments/` existente (sin nueva feature/ruta) — `PaymentRepository` gana `getReceiptForPayment`/`issueReceipt` sobre `issue_receipt`, nunca INSERT/UPDATE/DELETE directo contra `receipts` (único RPC que escribe esa tabla en todo el schema); `PaymentErrorCode` extendido con `payment_has_no_allocations`/`receipt_already_issued` (`23505`). **Resuelve la contradicción de documentación de INC-013/014**: `issue_receipt` SÍ requiere ≥1 allocation (verificado leyendo el cuerpo completo del RPC, no solo la firma) — `HABITEX_COMPLETION_PLAN.md` corregido (INC-015 depende de INC-014; allocation parcial es suficiente, no se exige completa; "anular recibos" retirado del alcance, sin RPC/policy que lo permita). Elegibilidad correcta por `allocations.length > 0` (nunca `remainingAmount === 0`); recibo ya emitido siempre visible sin gate; manejo de carrera `receipt_already_issued` sin enmascarar el fallo real (mismo principio ya corregido dos veces para `staleAllocationError` de INC-014); sin efecto financiero (`useIssueReceipt` invalida solo su propia query); sin flujo de archivo/PDF (`file_id` nunca seteado por ningún camino desplegado). Implementado en 1 ronda de `habitex-implementer` — interrumpida a mitad de camino por un rate limit de sesión, retomada e integrada directamente por la sesión orquestadora tras el reset (1 error trivial de lint corregido). 0 fix cycles — **0 BLOCKER/HIGH/MEDIUM/LOW**, deliverable excepcionalmente limpio. **Pusheado**. |
 | 2026-09-28 | `701f79b` | `chore/agentic-foundation` | INC-005 + INC-017 (FAST PATH combinado en 1 ciclo, autorizado explícitamente por el usuario, tras triage rápido del MVP restante INC-005/007/016/017/018 en turno separado research-only): **INC-005** — `QuickActions.tsx` navega de verdad vía `useNavigate()` + `ACTION_DESTINATION` (`addProperty`→`/properties/new`, `createRental`→`/rentals/new`, `registerPayment`/`uploadDocument`→`/rentals`, decisión humana explícita — sin ruta nueva, sin flujo global, sin selector de relación). **INC-017** — corrige 2 afirmaciones falsas verificadas: `ARCHITECTURE.md` (bloque de cita + §0.A) ya no dice que Auth es la única superficie de Supabase que toca `src/`; `session.types.ts`'s `SessionRepository` ya no dice que Account/Person/Administrations depende de un schema inexistente (ahora señala `features/administration/`) — cambio de comentario únicamente en ambos archivos. Colateral necesario: `DashboardPage.test.tsx` gana wrapper de `MemoryRouter`, sin cambiar aserciones. Residuo de doc drift en `ARCHITECTURE.md` §4 identificado pero deliberadamente sin tocar (fuera del alcance de las 2 afirmaciones pedidas) — registrado como candidato a incremento futuro. 1 ronda de `habitex-implementer`. 0 fix cycles — **0 BLOCKER/HIGH/MEDIUM/LOW**. **Pusheado**. |
 | 2026-09-29 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-016 — Dashboard con datos reales (FAST PATH con HUMAN GATE de research resuelto en el mismo ciclo — 2 rondas de `AskUserQuestion` fijaron la definición exacta de "properties"/"occupancy", indefinida en cualquier parte del código, verificada en vivo vía Supabase MCP contra `rental_subjects`'s `UNIQUE(property_id)`/`UNIQUE(room_id)` antes de continuar): nuevo `features/dashboard/domain/`+`application/` (`useDashboardOccupancy`/`useDashboardFinancials`/`useDashboardAttention`, `month-range.ts` sin librería de fechas), extensiones administración-wide de solo lectura en `properties`(`RoomRepository.listByAdministration`)/`rentals`(`RentalSubjectRepository.listRelationshipLinksByAdministration`, primera lectura jamás de `rental_relationship_subjects`)/`charges`(`ChargeRepository.listByAdministration` con rango de fechas)/`payments`(`PaymentRepository.listReportedByAdministration`) — ninguna requirió schema/RLS. `DashboardPage`/`KpiCard`/`FinancialOverview`/`AttentionPanel`/`PropertiesOverview`/`PropertyCard` reescritos para datos reales; `dashboard-mock-data.ts` **eliminado**. Ocupación: FULL_PROPERTY=1 unidad, BY_ROOMS=Rooms habilitados, Parking excluido, ocupado=ACTIVE/ENDING vía `rental_relationship_subjects`, `percentage: null` explícito si cero unidades (nunca `0%` fabricado). Financiero: ingreso/cartera del mes desde `charge_balances` (nunca re-derivado de payments/allocations crudos), filtrado a `chargeType='RENT'` y al mes calendario actual. Gráfico de 6 meses solo ingreso real (sin "gastos" fabricados). Panel de atención solo pagos `REPORTED` reales. Dashboard estrictamente de solo lectura (grep: 0 mutaciones). 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles (0 BLOCKER/HIGH/MEDIUM) — 1 LOW (2 keys i18n huérfanas) no bloqueante registrado. **INC-016 completo — local, pendiente de push**. |
+| 2026-09-30 | _(pendiente — este checkpoint)_ | `chore/agentic-foundation` | INC-007 — Tenant Invitation + Public Claim (ciclo en 3 fases: research-only con MANDATORY security gate — verdict A, BACKEND READY, NO AUTO-MERGE por email ni documento en ningún punto del mecanismo desplegado, `accounts` con `UNIQUE(auth_user_id)`/`UNIQUE(person_id)` a nivel de BD; diagnóstico empírico confirmando sesión inmediata en `supabase.auth.signUp()`, sin gate de confirmación de email; implementación FAST PATH con expiración de 7 días fijada por decisión humana explícita vía `AskUserQuestion`): nuevo `features/invitations/` (`InvitationRepository` sobre `create_tenant_invitation`/`claim_tenant_invitation`, token generado y hasheado client-side vía Web Crypto — `p_token_hash` ya calculado nunca el crudo — mapeo exhaustivo de 8 códigos de error), extensión aditiva `SessionRepository.signUp`, nueva ruta pública `/invitations/:token` (hermano plano de `ui-preview`, fuera de `ProtectedRoute`/`RequiresAccount`, sin auto-claim al montar bajo ninguna circunstancia), único entry point en `AddRentalDraftForm` (`AddRentalDraftInvitationStep`, opcional, nunca forzado, token crudo nunca persistido). 2 subtareas secuenciales de `habitex-implementer`. 0 fix cycles con `habitex-implementer` (0 BLOCKER/HIGH/MEDIUM) — 1 LOW (feedback de "Copiar enlace" sin `aria-live`, sin manejar rechazo del clipboard) corregido directamente por la sesión orquestadora sin nueva ronda de reviewer. Validación final: 923/923 tests, 0 typecheck/lint, build con chunk propio `InvitationClaimPage`. **INC-007 completo — local, pendiente de push**. |

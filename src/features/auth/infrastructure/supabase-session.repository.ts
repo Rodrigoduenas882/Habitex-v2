@@ -29,6 +29,15 @@ function toSessionAuthError(error: AuthError): SessionAuthError {
     return new SessionAuthError('invalid_credentials', error)
   }
 
+  // signUp only - the email already belongs to an existing Supabase Auth
+  // user (SDK error code 'user_already_exists'). Deliberately folded into
+  // 'unknown' rather than a new dedicated AuthErrorCode: LoginPage.tsx keys
+  // its alert copy directly off AuthErrorCode via `login.errors.${code}`
+  // against a locale-derived i18n key union, and that presentation wiring is
+  // explicitly out of scope for this change - adding a code here without the
+  // matching locale entry would break that file's typecheck. A future
+  // presentation-scoped change can introduce a dedicated code once it also
+  // adds the corresponding copy.
   return new SessionAuthError('unknown', error)
 }
 
@@ -58,6 +67,18 @@ export const supabaseSessionRepository: SessionRepository = {
     const startedAt = performance.now()
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password })
     logTiming('signInWithPassword', startedAt)
+
+    if (error) {
+      throw toSessionAuthError(error)
+    }
+
+    return toAuthSession(data.session)
+  },
+
+  async signUp({ email, password }: SessionCredentials) {
+    const startedAt = performance.now()
+    const { data, error } = await supabaseClient.auth.signUp({ email, password })
+    logTiming('signUp', startedAt)
 
     if (error) {
       throw toSessionAuthError(error)
