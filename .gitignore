@@ -27,6 +27,13 @@ dist-ssr
 .env
 .env.local
 
+# Local-only authenticated E2E baseline (points at `supabase start`, never remote).
+# .env.e2e-local.example is a safe placeholder and stays tracked.
+.env.e2e-local
+e2e-authenticated/.auth/
+e2e-authenticated/.seed-output.json
+e2e-authenticated/screenshots/
+
 # Testing
 coverage
 playwright-report

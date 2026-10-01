@@ -10,11 +10,15 @@
     "preview": "vite preview",
     "build:e2e": "vite build --mode e2e",
     "preview:e2e": "vite preview --port 4173",
+    "build:e2e-local": "node scripts/assert-local-e2e-env.mjs && vite build --mode e2e-local",
+    "preview:e2e-local": "node scripts/assert-local-e2e-env.mjs && vite preview --port 4174",
+    "e2e:local:seed": "node --env-file=.env.e2e-local scripts/e2e-local-seed.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:local": "playwright test --config=playwright.e2e-local.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
