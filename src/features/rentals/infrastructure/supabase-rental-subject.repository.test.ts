@@ -164,11 +164,11 @@ describe('supabaseRentalSubjectRepository.listByAdministration', () => {
 })
 
 describe('supabaseRentalSubjectRepository.listRelationshipLinksByAdministration', () => {
-  it('queries rental_relationship_subjects scoped by administration_id, selecting only the 2 needed columns', async () => {
+  it('queries rental_relationship_subjects scoped by administration_id, selecting only the needed columns', async () => {
     linksEq.mockResolvedValueOnce({
       data: [
-        { rental_relationship_id: 'rel-1', rental_subject_id: 'subj-1' },
-        { rental_relationship_id: 'rel-2', rental_subject_id: 'subj-2' },
+        { rental_relationship_id: 'rel-1', rental_subject_id: 'subj-1', subject_role: 'PRIMARY' },
+        { rental_relationship_id: 'rel-2', rental_subject_id: 'subj-2', subject_role: 'INCLUDED' },
       ],
       error: null,
     })
@@ -178,8 +178,8 @@ describe('supabaseRentalSubjectRepository.listRelationshipLinksByAdministration'
     expect(from).toHaveBeenCalledWith('rental_relationship_subjects')
     expect(linksEq).toHaveBeenCalledWith('administration_id', 'admin-1')
     expect(result).toEqual([
-      { rentalRelationshipId: 'rel-1', rentalSubjectId: 'subj-1' },
-      { rentalRelationshipId: 'rel-2', rentalSubjectId: 'subj-2' },
+      { rentalRelationshipId: 'rel-1', rentalSubjectId: 'subj-1', subjectRole: 'PRIMARY' },
+      { rentalRelationshipId: 'rel-2', rentalSubjectId: 'subj-2', subjectRole: 'INCLUDED' },
     ])
   })
 

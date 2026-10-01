@@ -61,6 +61,33 @@ vi.mock('@/features/rentals/infrastructure/supabase-rental.repository', () => ({
   },
 }))
 
+// RentalContextHeader (DS-002) resolves its own identity via
+// useRentalIdentities - mocked to resolve empty/no-op so this page's own
+// header falls back to the honest "not yet resolved" placeholder, keeping
+// this file's existing assertions (none of which assert on identity)
+// deterministic and fast.
+vi.mock('@/features/rentals/infrastructure/supabase-rental-subject.repository', () => ({
+  supabaseRentalSubjectRepository: {
+    listByAdministration: vi.fn().mockResolvedValue([]),
+    listRelationshipLinksByAdministration: vi.fn().mockResolvedValue([]),
+  },
+}))
+
+vi.mock('@/features/rentals/infrastructure/supabase-rental-participant.repository', () => ({
+  supabaseRentalParticipantRepository: {
+    listActiveTenantNamesByRelationshipIds: vi.fn().mockResolvedValue(new Map()),
+  },
+}))
+
+vi.mock('@/features/rentals/infrastructure/supabase-rental-terms.repository', () => ({
+  supabaseRentalTermsRepository: {
+    create: vi.fn(),
+    getCurrent: vi.fn(),
+    listRelationshipIdsWithTerms: vi.fn(),
+    listCurrentRentAmountsByRelationshipIds: vi.fn().mockResolvedValue(new Map()),
+  },
+}))
+
 vi.mock('../infrastructure/supabase-payment.repository', () => ({
   supabasePaymentRepository: {
     listByRelationship,
@@ -261,6 +288,22 @@ describe('RentalPaymentsPage', () => {
     renderPage()
 
     expect(await screen.findByText('Todavía no hay pagos reportados para este arriendo')).toBeInTheDocument()
+  })
+
+  it('renders the shared context header (heading + nav) above the page\'s own description and body (DS-002)', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+    listByRelationship.mockResolvedValueOnce([])
+    renderPage()
+
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Pagos' })).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.getByText(
+        'Consulta los pagos reportados para este arriendo y confirma o rechaza los que estén pendientes.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Todavía no hay pagos reportados para este arriendo')).toBeInTheDocument()
   })
 
   describe('report form', () => {

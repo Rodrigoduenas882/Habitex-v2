@@ -161,3 +161,68 @@ describe('supabaseRentalTermsRepository.listRelationshipIdsWithTerms', () => {
     )
   })
 })
+
+describe('supabaseRentalTermsRepository.listCurrentRentAmountsByRelationshipIds', () => {
+  it('returns an empty Map without calling Supabase when given an empty array', async () => {
+    from.mockClear()
+
+    const result = await supabaseRentalTermsRepository.listCurrentRentAmountsByRelationshipIds([])
+
+    expect(result).toEqual(new Map())
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it('queries rental_term_versions scoped by a single .in() call', async () => {
+    inFilter.mockResolvedValueOnce({
+      data: [
+        { rental_relationship_id: 'rel-1', version_number: 1, rent_amount: 1000000 },
+        { rental_relationship_id: 'rel-2', version_number: 1, rent_amount: 2000000 },
+      ],
+      error: null,
+    })
+
+    const result = await supabaseRentalTermsRepository.listCurrentRentAmountsByRelationshipIds(['rel-1', 'rel-2'])
+
+    expect(from).toHaveBeenCalledWith('rental_term_versions')
+    expect(inFilter).toHaveBeenCalledWith('rental_relationship_id', ['rel-1', 'rel-2'])
+    expect(result).toEqual(
+      new Map([
+        ['rel-1', 1000000],
+        ['rel-2', 2000000],
+      ]),
+    )
+  })
+
+  it('keeps only the highest version_number per relationship when it has more than one term version', async () => {
+    inFilter.mockResolvedValueOnce({
+      data: [
+        { rental_relationship_id: 'rel-1', version_number: 1, rent_amount: 1000000 },
+        { rental_relationship_id: 'rel-1', version_number: 2, rent_amount: 1500000 },
+      ],
+      error: null,
+    })
+
+    const result = await supabaseRentalTermsRepository.listCurrentRentAmountsByRelationshipIds(['rel-1'])
+
+    expect(result).toEqual(new Map([['rel-1', 1500000]]))
+  })
+
+  it('leaves a relationship with zero term version rows absent from the Map, never a fabricated 0', async () => {
+    inFilter.mockResolvedValueOnce({
+      data: [{ rental_relationship_id: 'rel-1', version_number: 1, rent_amount: 1000000 }],
+      error: null,
+    })
+
+    const result = await supabaseRentalTermsRepository.listCurrentRentAmountsByRelationshipIds(['rel-1', 'rel-2'])
+
+    expect(result.has('rel-2')).toBe(false)
+  })
+
+  it('wraps a Supabase failure in RentalTermsRepositoryError instead of throwing the raw error', async () => {
+    inFilter.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    await expect(
+      supabaseRentalTermsRepository.listCurrentRentAmountsByRelationshipIds(['rel-1']),
+    ).rejects.toBeInstanceOf(RentalTermsRepositoryError)
+  })
+})

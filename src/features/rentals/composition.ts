@@ -1,7 +1,9 @@
+import type { RentalParticipantRepository } from './domain/rental-participant.types'
 import type { RentalTermsRepository } from './domain/rental-terms.types'
 import type { RentalRepository } from './domain/rental.types'
 import type { RentalSubjectRepository } from './domain/rental-subject.types'
 import type { TenantCandidateRepository } from './domain/tenant-candidate.types'
+import { supabaseRentalParticipantRepository } from './infrastructure/supabase-rental-participant.repository'
 import { supabaseRentalTermsRepository } from './infrastructure/supabase-rental-terms.repository'
 import { supabaseRentalRepository } from './infrastructure/supabase-rental.repository'
 import { supabaseRentalSubjectRepository } from './infrastructure/supabase-rental-subject.repository'
@@ -17,3 +19,4 @@ export const rentalRepository: RentalRepository = supabaseRentalRepository
 export const rentalSubjectRepository: RentalSubjectRepository = supabaseRentalSubjectRepository
 export const tenantCandidateRepository: TenantCandidateRepository = supabaseTenantCandidateRepository
 export const rentalTermsRepository: RentalTermsRepository = supabaseRentalTermsRepository
+export const rentalParticipantRepository: RentalParticipantRepository = supabaseRentalParticipantRepository

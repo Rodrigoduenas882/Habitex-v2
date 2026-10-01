@@ -33,14 +33,22 @@ export interface RentalSubject {
 }
 
 /**
- * A minimal rental_relationship_subjects row - only the 2 FK columns
- * Dashboard occupancy needs (which relationship a given rental_subject is
- * linked to). Deliberately does not carry id/administrationId/subjectRole/
- * createdAt - nothing here needs them.
+ * A minimal rental_relationship_subjects row - only the FK columns Dashboard
+ * occupancy and rental identity resolution need (which relationship a given
+ * rental_subject is linked to, and in what role). Deliberately does not
+ * carry id/administrationId/createdAt - nothing here needs them.
+ *
+ * `subjectRole` DOES matter here (unlike the other omitted columns):
+ * resolving a rental's *display* identity (DS-002) needs to pick the
+ * `PRIMARY` subject specifically, never an `INCLUDED` one - `INCLUDED`
+ * exists for a different, not-yet-built feature (parking sublease
+ * authorizations), and mistaking it for the rental's primary subject would
+ * show the wrong property/room/parking as "what this rental is for".
  */
 export interface RentalRelationshipSubjectLink {
   rentalRelationshipId: string
   rentalSubjectId: string
+  subjectRole: 'PRIMARY' | 'INCLUDED'
 }
 
 /** Wraps a failed Supabase call so nothing above infrastructure/ ever sees a raw PostgrestError. */

@@ -104,4 +104,47 @@ export const supabaseRentalTermsRepository: RentalTermsRepository = {
 
     return new Set((data as { rental_relationship_id: string }[]).map((row) => row.rental_relationship_id))
   },
+
+  async listCurrentRentAmountsByRelationshipIds(rentalRelationshipIds: string[]): Promise<Map<string, number>> {
+    // Same empty-array guard as listRelationshipIdsWithTerms - an empty
+    // .in() is either wasteful or invalid depending on the client.
+    if (rentalRelationshipIds.length === 0) {
+      return new Map()
+    }
+
+    const { data, error } = await supabaseClient
+      .from('rental_term_versions')
+      .select('rental_relationship_id, version_number, rent_amount')
+      .in('rental_relationship_id', rentalRelationshipIds)
+
+    if (error) {
+      throw new RentalTermsRepositoryError(
+        'Failed to list current rent amounts for the given rental relationships',
+        error,
+      )
+    }
+
+    const rows = data as { rental_relationship_id: string; version_number: number; rent_amount: number }[]
+
+    // Keep only the highest version_number per relationship - matches
+    // getCurrent's own definition of "current" exactly (see this method's
+    // own doc comment).
+    const highestVersionByRelationshipId = new Map<string, { versionNumber: number; rentAmount: number }>()
+    for (const row of rows) {
+      const current = highestVersionByRelationshipId.get(row.rental_relationship_id)
+      if (!current || row.version_number > current.versionNumber) {
+        highestVersionByRelationshipId.set(row.rental_relationship_id, {
+          versionNumber: row.version_number,
+          rentAmount: row.rent_amount,
+        })
+      }
+    }
+
+    return new Map(
+      [...highestVersionByRelationshipId.entries()].map(([relationshipId, { rentAmount }]) => [
+        relationshipId,
+        rentAmount,
+      ]),
+    )
+  },
 }

@@ -38,6 +38,33 @@ vi.mock('@/features/rentals/infrastructure/supabase-rental.repository', () => ({
   },
 }))
 
+// RentalContextHeader (DS-002) resolves its own identity via
+// useRentalIdentities - mocked to resolve empty/no-op so this page's own
+// header falls back to the honest "not yet resolved" placeholder, keeping
+// this file's existing assertions (none of which assert on identity)
+// deterministic and fast.
+vi.mock('@/features/rentals/infrastructure/supabase-rental-subject.repository', () => ({
+  supabaseRentalSubjectRepository: {
+    listByAdministration: vi.fn().mockResolvedValue([]),
+    listRelationshipLinksByAdministration: vi.fn().mockResolvedValue([]),
+  },
+}))
+
+vi.mock('@/features/rentals/infrastructure/supabase-rental-participant.repository', () => ({
+  supabaseRentalParticipantRepository: {
+    listActiveTenantNamesByRelationshipIds: vi.fn().mockResolvedValue(new Map()),
+  },
+}))
+
+vi.mock('@/features/rentals/infrastructure/supabase-rental-terms.repository', () => ({
+  supabaseRentalTermsRepository: {
+    create: vi.fn(),
+    getCurrent: vi.fn(),
+    listRelationshipIdsWithTerms: vi.fn(),
+    listCurrentRentAmountsByRelationshipIds: vi.fn().mockResolvedValue(new Map()),
+  },
+}))
+
 vi.mock('../infrastructure/supabase-charge.repository', () => ({
   supabaseChargeRepository: {
     listByRelationship,
@@ -163,6 +190,20 @@ describe('RentalChargesPage', () => {
     renderPage()
 
     expect(await screen.findByText('Todavía no hay cargos para este arriendo')).toBeInTheDocument()
+  })
+
+  it('renders the shared context header (heading + nav) above the page\'s own description and body (DS-002)', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([baseRelationship('ACTIVE')])
+    listByRelationship.mockResolvedValueOnce([])
+    renderPage()
+
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Cargos' })).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.getByText('Consulta los cargos generados para este arriendo y su estado de pago.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Todavía no hay cargos para este arriendo')).toBeInTheDocument()
   })
 
   it('lists a charge with type, description, period, due date, amount, paid amount and balance', async () => {

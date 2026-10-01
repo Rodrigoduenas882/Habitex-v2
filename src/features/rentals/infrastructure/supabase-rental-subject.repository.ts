@@ -19,18 +19,20 @@ interface RentalSubjectRow {
 interface RentalRelationshipSubjectRow {
   rental_relationship_id: string
   rental_subject_id: string
+  subject_role: 'PRIMARY' | 'INCLUDED'
 }
 
 /**
- * Only the 2 columns Dashboard occupancy needs - see
- * RentalRelationshipSubjectLink's own doc comment.
+ * Only the columns Dashboard occupancy and rental identity resolution need -
+ * see RentalRelationshipSubjectLink's own doc comment.
  */
-const RENTAL_RELATIONSHIP_SUBJECT_COLUMNS = 'rental_relationship_id, rental_subject_id'
+const RENTAL_RELATIONSHIP_SUBJECT_COLUMNS = 'rental_relationship_id, rental_subject_id, subject_role'
 
 function toRentalRelationshipSubjectLink(row: RentalRelationshipSubjectRow): RentalRelationshipSubjectLink {
   return {
     rentalRelationshipId: row.rental_relationship_id,
     rentalSubjectId: row.rental_subject_id,
+    subjectRole: row.subject_role,
   }
 }
 

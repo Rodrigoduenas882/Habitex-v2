@@ -17,7 +17,17 @@ const { activate } = vi.hoisted(() => ({ activate: vi.fn() }))
 const { cancelDraft } = vi.hoisted(() => ({ cancelDraft: vi.fn() }))
 const { startEnding } = vi.hoisted(() => ({ startEnding: vi.fn() }))
 const { end } = vi.hoisted(() => ({ end: vi.fn() }))
-const { listRelationshipIdsWithTerms } = vi.hoisted(() => ({ listRelationshipIdsWithTerms: vi.fn() }))
+const { listRelationshipIdsWithTerms, listCurrentRentAmountsByRelationshipIds } = vi.hoisted(() => ({
+  listRelationshipIdsWithTerms: vi.fn(),
+  listCurrentRentAmountsByRelationshipIds: vi.fn(),
+}))
+const { subjectsListByAdministration, linksListByAdministration } = vi.hoisted(() => ({
+  subjectsListByAdministration: vi.fn(),
+  linksListByAdministration: vi.fn(),
+}))
+const { listActiveTenantNamesByRelationshipIds } = vi.hoisted(() => ({
+  listActiveTenantNamesByRelationshipIds: vi.fn(),
+}))
 
 vi.mock('@/features/administration/infrastructure/supabase-administration.repository', () => ({
   supabaseAdministrationRepository: { listAccessibleAdministrations },
@@ -40,7 +50,27 @@ vi.mock('../infrastructure/supabase-rental.repository', () => ({
 }))
 
 vi.mock('../infrastructure/supabase-rental-terms.repository', () => ({
-  supabaseRentalTermsRepository: { create: vi.fn(), getCurrent: vi.fn(), listRelationshipIdsWithTerms },
+  supabaseRentalTermsRepository: {
+    create: vi.fn(),
+    getCurrent: vi.fn(),
+    listRelationshipIdsWithTerms,
+    listCurrentRentAmountsByRelationshipIds,
+  },
+}))
+
+// DS-002's useRentalIdentities reads these too (subject links/subjects,
+// active tenant names) - mocked to resolve empty/no-op so every row's
+// identity is the honest "not yet resolved" fallback in tests that don't
+// care about it, keeping this file's existing assertions deterministic.
+vi.mock('../infrastructure/supabase-rental-subject.repository', () => ({
+  supabaseRentalSubjectRepository: {
+    listByAdministration: subjectsListByAdministration,
+    listRelationshipLinksByAdministration: linksListByAdministration,
+  },
+}))
+
+vi.mock('../infrastructure/supabase-rental-participant.repository', () => ({
+  supabaseRentalParticipantRepository: { listActiveTenantNamesByRelationshipIds },
 }))
 
 const RENTAL_1 = {
@@ -113,6 +143,13 @@ describe('RentalsPage', () => {
     window.localStorage.clear()
     getSubscription.mockResolvedValue(UNLIMITED_SUBSCRIPTION)
     listRelationshipIdsWithTerms.mockResolvedValue(new Set())
+    // Default DS-002 identity reads: empty/no-op, so every row's identity
+    // falls back to the honest "not yet resolved" placeholders unless a
+    // specific test overrides these.
+    subjectsListByAdministration.mockResolvedValue([])
+    linksListByAdministration.mockResolvedValue([])
+    listActiveTenantNamesByRelationshipIds.mockResolvedValue(new Map())
+    listCurrentRentAmountsByRelationshipIds.mockResolvedValue(new Map())
   })
 
   afterEach(() => {
@@ -167,7 +204,7 @@ describe('RentalsPage', () => {
 
     await user.click(await screen.findByRole('radio', { name: 'Administración Dos, Activa' }))
 
-    expect(await screen.findByText('Arriendo en curso')).toBeInTheDocument()
+    expect(await screen.findByText('Activo')).toBeInTheDocument()
     expect(listByAdministration).toHaveBeenCalledWith('admin-2')
   })
 
@@ -203,8 +240,25 @@ describe('RentalsPage', () => {
     listByAdministration.mockResolvedValueOnce([RENTAL_1])
     renderPage()
 
-    expect(await screen.findByText('Arriendo en curso')).toBeInTheDocument()
+    expect(await screen.findByText('Activo')).toBeInTheDocument()
     expect(listByAdministration).toHaveBeenCalledWith('admin-1')
+  })
+
+  it('a failed identity resolution degrades to the honest fallback - the rentals list itself still renders, never an error state or a blocked/empty list', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RENTAL_1])
+    // Only the identity-resolution side fails; the rentals list itself
+    // resolves fine, so this must never surface as an error state (see
+    // RentalsPage's own UNKNOWN_IDENTITY doc comment).
+    listActiveTenantNamesByRelationshipIds.mockRejectedValueOnce(new Error('boom'))
+    renderPage()
+
+    expect(await screen.findByText('Activo')).toBeInTheDocument()
+    expect(screen.getByText('Inmueble sin identificar')).toBeInTheDocument()
+    expect(screen.getByText('Sin inquilino asignado')).toBeInTheDocument()
+    expect(screen.getByText('Canon pendiente de definir')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText('Aún no tienes arriendos')).not.toBeInTheDocument()
   })
 
   it('never fetches rentals without a resolved administrationId', () => {
@@ -219,7 +273,7 @@ describe('RentalsPage', () => {
     listByAdministration.mockResolvedValueOnce([RENTAL_1])
     const user = userEvent.setup()
     renderPage()
-    await screen.findByText('Arriendo en curso')
+    await screen.findByText('Activo')
 
     await user.click(screen.getByRole('button', { name: 'Registrar arriendo' }))
 
@@ -316,7 +370,7 @@ describe('RentalsPage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Activar' }))
 
-    expect(await screen.findByText('Arriendo en curso')).toBeInTheDocument()
+    expect(await screen.findByText('Activo')).toBeInTheDocument()
     expect(listByAdministration).toHaveBeenCalledTimes(2)
   })
 
@@ -342,18 +396,18 @@ describe('RentalsPage', () => {
 
     // DRAFT -> ACTIVE
     await user.click(await screen.findByRole('button', { name: 'Activar' }))
-    expect(await screen.findByText('Arriendo en curso')).toBeInTheDocument()
+    expect(await screen.findByText('Activo')).toBeInTheDocument()
     expect(activate).toHaveBeenCalledWith(RENTAL_DRAFT_READY.id)
 
     // ACTIVE -> ENDING (single click, no confirmation)
     await user.click(await screen.findByRole('button', { name: 'Iniciar cierre' }))
-    expect(await screen.findByText('Arriendo finalizando')).toBeInTheDocument()
+    expect(await screen.findByText('Finalizando')).toBeInTheDocument()
     expect(startEnding).toHaveBeenCalledWith(RENTAL_DRAFT_READY.id)
 
     // ENDING -> ENDED (two-step confirm)
     await user.click(await screen.findByRole('button', { name: 'Terminar arriendo' }))
     await user.click(await screen.findByRole('button', { name: 'Confirmar terminación' }))
-    expect(await screen.findByText('Arriendo finalizado')).toBeInTheDocument()
+    expect(await screen.findByText('Finalizado')).toBeInTheDocument()
     expect(end).toHaveBeenCalledWith(RENTAL_DRAFT_READY.id)
 
     expect(listByAdministration).toHaveBeenCalledTimes(4)
@@ -374,7 +428,7 @@ describe('RentalsPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Confirmar cancelación' }))
 
     expect(cancelDraft).toHaveBeenCalledWith(RENTAL_DRAFT.id)
-    expect(await screen.findByText('Arriendo cancelado')).toBeInTheDocument()
+    expect(await screen.findByText('Cancelado')).toBeInTheDocument()
     expect(listByAdministration).toHaveBeenCalledTimes(2)
   })
 

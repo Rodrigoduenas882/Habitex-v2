@@ -35,7 +35,30 @@ vi.mock('../infrastructure/supabase-rental.repository', () => ({
 }))
 
 vi.mock('../infrastructure/supabase-rental-terms.repository', () => ({
-  supabaseRentalTermsRepository: { create, getCurrent },
+  supabaseRentalTermsRepository: {
+    create,
+    getCurrent,
+    listRelationshipIdsWithTerms: vi.fn(),
+    listCurrentRentAmountsByRelationshipIds: vi.fn().mockResolvedValue(new Map()),
+  },
+}))
+
+// RentalContextHeader (DS-002) resolves its own identity via
+// useRentalIdentities - mocked to resolve empty/no-op so this page's own
+// header falls back to the honest "not yet resolved" placeholder, keeping
+// this file's existing assertions (none of which assert on identity)
+// deterministic and fast.
+vi.mock('../infrastructure/supabase-rental-subject.repository', () => ({
+  supabaseRentalSubjectRepository: {
+    listByAdministration: vi.fn().mockResolvedValue([]),
+    listRelationshipLinksByAdministration: vi.fn().mockResolvedValue([]),
+  },
+}))
+
+vi.mock('../infrastructure/supabase-rental-participant.repository', () => ({
+  supabaseRentalParticipantRepository: {
+    listActiveTenantNamesByRelationshipIds: vi.fn().mockResolvedValue(new Map()),
+  },
 }))
 
 const RENTAL_DRAFT = {
@@ -157,6 +180,22 @@ describe('RentalTermsPage', () => {
 
     expect(await screen.findByRole('button', { name: 'Guardar términos' })).toBeInTheDocument()
     expect(screen.getByLabelText('Fecha real de inicio')).toBeEnabled()
+  })
+
+  it('renders the shared context header (heading + nav) above the page\'s own description and form (DS-002)', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])
+    getCurrent.mockResolvedValueOnce(null)
+    renderPage()
+
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Términos' })).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.getByText(
+        'Completa las fechas, el pago y las condiciones financieras. Estos datos son necesarios para poder activar este arriendo.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardar términos' })).toBeInTheDocument()
   })
 
   it('renders a read-only, pre-filled view when a term version already exists', async () => {

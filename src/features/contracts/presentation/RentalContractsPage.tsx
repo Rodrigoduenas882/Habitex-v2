@@ -10,6 +10,7 @@ import { useRentalTermVersion } from '@/features/rentals/application/useRentalTe
 import { useRentals } from '@/features/rentals/application/useRentals'
 import type { RentalTermVersion } from '@/features/rentals/domain/rental-terms.types'
 import type { RentalRelationship } from '@/features/rentals/domain/rental.types'
+import { RentalContextHeader } from '@/features/rentals/presentation/RentalContextHeader'
 import { Alert } from '@/shared/ui/Alert'
 import { Badge, type BadgeTone } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -719,7 +720,7 @@ function RentalContractsView({ administrationId, relationshipId }: RentalContrac
 
   return (
     <div className={styles['page']}>
-      <h1 className="text-h2">{t('title')}</h1>
+      <RentalContextHeader administrationId={administrationId} relationshipId={relationshipId} activeSection="contracts" />
       <p className="text-body-sm text-muted">{t('description')}</p>
 
       <section className={styles['section']}>

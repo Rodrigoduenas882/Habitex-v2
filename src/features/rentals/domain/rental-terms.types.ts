@@ -86,4 +86,14 @@ export interface RentalTermsRepository {
   create(input: CreateRentalTermVersionInput): Promise<RentalTermVersion>
   getCurrent(rentalRelationshipId: string): Promise<RentalTermVersion | null>
   listRelationshipIdsWithTerms(rentalRelationshipIds: string[]): Promise<Set<string>>
+  /**
+   * The current (highest version_number) rent_amount for each of the given
+   * relationships, in one query - never one per relationship. "Current"
+   * matches getCurrent's own definition exactly (highest version_number;
+   * this increment never creates more than one version in practice, but the
+   * selection logic doesn't assume that). A relationship with no term
+   * version yet (legitimately true for a DRAFT rental before terms are
+   * entered) is simply absent from the returned Map, never a fabricated 0.
+   */
+  listCurrentRentAmountsByRelationshipIds(rentalRelationshipIds: string[]): Promise<Map<string, number>>
 }

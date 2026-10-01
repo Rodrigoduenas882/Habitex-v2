@@ -1,17 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { cx } from '@/shared/lib/cx'
 import { Alert } from '@/shared/ui/Alert'
-import { Badge, type BadgeTone } from '@/shared/ui/Badge'
+import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
-import type {
-  RentalActivationErrorCode,
-  RentalLifecycleErrorCode,
-  RentalRelationship,
-  RentalStatus,
-} from '../domain/rental.types'
+import type { RentalActivationErrorCode, RentalLifecycleErrorCode, RentalRelationship } from '../domain/rental.types'
 import styles from './RentalListCard.module.css'
+import { RENTAL_STATUS_TONE } from './rental-status-tone'
 
 /** Why the Activate button is currently disabled - null when it isn't. */
 export type RentalActivationBlockReason = 'managementAccess' | 'capacity' | 'termsIncomplete' | null
@@ -50,8 +47,26 @@ export interface RentalListCardEndRental {
   onConfirm: () => void
 }
 
+/**
+ * The DS-002 identity slice for one rental relationship (subject/tenant/rent
+ * amount), as resolved by useRentalIdentities - see that hook's own
+ * RentalIdentity doc comment for exactly what null means for each field.
+ */
+export interface RentalListCardIdentity {
+  subjectLabel: string | null
+  tenantName: string | null
+  rentAmount: number | null
+}
+
 export interface RentalListCardProps {
   rental: RentalRelationship
+  /**
+   * The resolved display identity (subject/tenant/rent amount) for this
+   * rental relationship - required, since every row's primary heading now
+   * comes from here (see this component's own render for the exact
+   * per-field fallback copy), never from a generic status-derived phrase.
+   */
+  identity: RentalListCardIdentity
   /**
    * Only ever rendered for status === 'DRAFT'; omit entirely on pages that
    * don't wire activation (keeps this component usable without gate/mutation
@@ -64,20 +79,6 @@ export interface RentalListCardProps {
   startEnding?: RentalListCardStartEnding
   /** Only ever rendered for status === 'ENDING' (end_rental). */
   endRental?: RentalListCardEndRental
-}
-
-/**
- * Existing semantic tones only (see DESIGN.md) - no new palette. ACTIVE is
- * the one state that's unambiguously positive; ENDING gets a warning
- * (something to pay attention to); DRAFT/ENDED are both non-urgent, plain
- * states; CANCELLED is the one outcome closest to "stopped/negative".
- */
-const STATUS_TONE: Record<RentalStatus, BadgeTone> = {
-  DRAFT: 'neutral',
-  ACTIVE: 'success',
-  ENDING: 'warning',
-  ENDED: 'neutral',
-  CANCELLED: 'danger',
 }
 
 /**
@@ -97,6 +98,13 @@ function formatDate(value: string): string {
   return new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }).format(
     new Date(`${value}T00:00:00`),
   )
+}
+
+/** Plain Intl.NumberFormat('es-CO'), no currency selector or decimals - COP
+ * is the only currency this frontend ever displays, same pattern as
+ * RentalChargesPage's own formatAmount. */
+function formatAmount(value: number): string {
+  return `$${new Intl.NumberFormat('es-CO').format(value)}`
 }
 
 interface LifecycleConfirmActionProps {
@@ -198,13 +206,17 @@ function LifecycleConfirmAction({
 
 /**
  * Same visual family as PropertyListCard/ParkingListCard (Card, spacing
- * tokens, tone="badge" for the status). No tenant/subject/rent amount yet -
- * this increment only reads rental_relationships itself (see
- * RentalRelationship's own doc comment), so the headline is a neutral,
- * status-derived phrase instead of a fabricated name. status is shown
- * exactly as the backend reports it, never derived from dates.
+ * tokens, tone="badge" for the status). The primary heading is now the
+ * resolved subject label (what's being rented) rather than a generic
+ * status-derived phrase (DS-002) - `identity` carries that plus the current
+ * tenant name and rent amount, each with its own honest, translated
+ * fallback when not yet resolved (see useRentalIdentities' own doc comment
+ * for exactly what null means per field - e.g. a DRAFT rental with no term
+ * version yet legitimately has `rentAmount: null`, not a fabricated 0).
+ * status is still shown via the same Badge, exactly as the backend reports
+ * it, never derived from dates.
  */
-export function RentalListCard({ rental, activation, cancelDraft, startEnding, endRental }: RentalListCardProps) {
+export function RentalListCard({ rental, identity, activation, cancelDraft, startEnding, endRental }: RentalListCardProps) {
   const { t } = useTranslation(['rentals', 'administration'])
   const navigate = useNavigate()
 
@@ -212,7 +224,11 @@ export function RentalListCard({ rental, activation, cancelDraft, startEnding, e
 
   return (
     <Card className={styles['card']}>
-      <p className={styles['title']}>{t(`list.title.${rental.status}`)}</p>
+      <p className={styles['title']}>{identity.subjectLabel ?? t('list.subjectUnknown')}</p>
+      <p className="text-body-sm">{identity.tenantName ?? t('list.tenantUnknown')}</p>
+      <p className={cx('text-body-sm', 'tabular-nums')}>
+        {identity.rentAmount !== null ? formatAmount(identity.rentAmount) : t('list.rentAmountUnknown')}
+      </p>
       {rental.realStartDate ? (
         <p className="text-caption text-muted">
           {t('list.startDate', { date: formatDate(rental.realStartDate) })}
@@ -228,12 +244,15 @@ export function RentalListCard({ rental, activation, cancelDraft, startEnding, e
         <p className="text-caption text-muted">{t(`paymentTiming.${rental.paymentTiming}`)}</p>
       ) : null}
       <div className={styles['meta']}>
-        <Badge tone={STATUS_TONE[rental.status]}>{t(`status.${rental.status}`)}</Badge>
+        <Badge tone={RENTAL_STATUS_TONE[rental.status]}>{t(`status.${rental.status}`)}</Badge>
       </div>
       {rental.status === 'DRAFT' ? (
+        // Plain navigation, deliberately subordinate (ghost) to whichever
+        // primary/destructive lifecycle action is on this same card (DS-002)
+        // - never the destination of the two-step confirmations below.
         <Button
           type="button"
-          variant="secondary"
+          variant="ghost"
           size="sm"
           className={styles['termsAction']}
           onClick={() => {
@@ -251,7 +270,7 @@ export function RentalListCard({ rental, activation, cancelDraft, startEnding, e
         // CANCELLED (nothing to show there).
         <Button
           type="button"
-          variant="secondary"
+          variant="ghost"
           size="sm"
           className={styles['termsAction']}
           onClick={() => {
@@ -267,7 +286,7 @@ export function RentalListCard({ rental, activation, cancelDraft, startEnding, e
         // (never chargeable) and CANCELLED (nothing to show) are excluded.
         <Button
           type="button"
-          variant="secondary"
+          variant="ghost"
           size="sm"
           className={styles['termsAction']}
           onClick={() => {
@@ -286,7 +305,7 @@ export function RentalListCard({ rental, activation, cancelDraft, startEnding, e
         // such restriction on rental_relationships.status.
         <Button
           type="button"
-          variant="secondary"
+          variant="ghost"
           size="sm"
           className={styles['termsAction']}
           onClick={() => {

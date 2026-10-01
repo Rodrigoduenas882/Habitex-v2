@@ -126,6 +126,7 @@ function makeSubjectLink(overrides: Partial<RentalRelationshipSubjectLink> = {})
   return {
     rentalRelationshipId: 'rel-1',
     rentalSubjectId: 'subject-1',
+    subjectRole: 'PRIMARY',
     ...overrides,
   }
 }

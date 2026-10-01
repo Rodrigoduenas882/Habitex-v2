@@ -25,4 +25,18 @@ export const rentalQueryKeys = {
    */
   subjectLinks: (administrationId: string) =>
     ['administration', administrationId, 'rental-subject-links'] as const,
+  /**
+   * Scoped by administrationId only, not by the ids being resolved - same
+   * principle as termsExistence above: the relationship ids to resolve
+   * tenant names for are a queryFn argument (derived fresh from the
+   * already-fetched rentals list), not part of the cache key.
+   */
+  activeTenantNames: (administrationId: string) =>
+    ['administration', administrationId, 'rentals', 'active-tenant-names'] as const,
+  /**
+   * Scoped by administrationId only, not by the ids being resolved - same
+   * principle as termsExistence/activeTenantNames above.
+   */
+  currentRentAmounts: (administrationId: string) =>
+    ['administration', administrationId, 'rentals', 'current-rent-amounts'] as const,
 }

@@ -27,6 +27,14 @@ const SCREENS = [
   { name: 'dashboard', path: '/' },
   { name: 'rentals', path: '/rentals' },
   { name: 'payments', path: `/rentals/${seed.paidRentalRelationshipId}/payments` },
+  // DS-002: RentalContextHeader on its other 3 host routes, plus the
+  // pending rental's own payments page - confirms the header's per-section
+  // active-nav styling and that the two seeded rentals stay visually
+  // distinct (different subject/tenant/rent) across every route it mounts.
+  { name: 'contracts', path: `/rentals/${seed.paidRentalRelationshipId}/contracts` },
+  { name: 'charges', path: `/rentals/${seed.paidRentalRelationshipId}/charges` },
+  { name: 'terms', path: `/rentals/${seed.paidRentalRelationshipId}/terms` },
+  { name: 'payments-pending', path: `/rentals/${seed.pendingRentalRelationshipId}/payments` },
 ] as const
 
 test.beforeAll(() => {

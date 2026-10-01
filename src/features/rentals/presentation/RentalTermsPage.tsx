@@ -10,6 +10,7 @@ import { Button } from '@/shared/ui/Button'
 import { Input } from '@/shared/ui/Input'
 import { Select } from '@/shared/ui/Select'
 import { Skeleton } from '@/shared/ui/Skeleton'
+import { RentalContextHeader } from './RentalContextHeader'
 import styles from './RentalTermsPage.module.css'
 import {
   RENTAL_TERMS_FORM_DEFAULTS,
@@ -200,7 +201,7 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
   if (termVersion || relationship.status !== 'DRAFT') {
     return (
       <div className={styles['page']}>
-        <h1 className="text-h2">{t('termsForm.title')}</h1>
+        <RentalContextHeader administrationId={administrationId} relationshipId={relationshipId} activeSection="terms" />
         <RentalTermsReadOnlyView termVersion={termVersion} relationship={relationship} />
       </div>
     )
@@ -218,7 +219,7 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
 
   return (
     <div className={styles['page']}>
-      <h1 className="text-h2">{t('termsForm.title')}</h1>
+      <RentalContextHeader administrationId={administrationId} relationshipId={relationshipId} activeSection="terms" />
       <p className="text-body-sm text-muted">{t('termsForm.description')}</p>
 
       {saveRentalTerms.isError ? (

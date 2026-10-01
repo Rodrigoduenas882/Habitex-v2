@@ -55,7 +55,30 @@ vi.mock('@/features/rentals/infrastructure/supabase-rental.repository', () => ({
 }))
 
 vi.mock('@/features/rentals/infrastructure/supabase-rental-terms.repository', () => ({
-  supabaseRentalTermsRepository: { create: vi.fn(), getCurrent, listRelationshipIdsWithTerms: vi.fn() },
+  supabaseRentalTermsRepository: {
+    create: vi.fn(),
+    getCurrent,
+    listRelationshipIdsWithTerms: vi.fn(),
+    listCurrentRentAmountsByRelationshipIds: vi.fn().mockResolvedValue(new Map()),
+  },
+}))
+
+// RentalContextHeader (DS-002) resolves its own identity via
+// useRentalIdentities - mocked to resolve empty/no-op so this page's own
+// header falls back to the honest "not yet resolved" placeholder, keeping
+// this file's existing assertions (none of which assert on identity)
+// deterministic and fast.
+vi.mock('@/features/rentals/infrastructure/supabase-rental-subject.repository', () => ({
+  supabaseRentalSubjectRepository: {
+    listByAdministration: vi.fn().mockResolvedValue([]),
+    listRelationshipLinksByAdministration: vi.fn().mockResolvedValue([]),
+  },
+}))
+
+vi.mock('@/features/rentals/infrastructure/supabase-rental-participant.repository', () => ({
+  supabaseRentalParticipantRepository: {
+    listActiveTenantNamesByRelationshipIds: vi.fn().mockResolvedValue(new Map()),
+  },
 }))
 
 vi.mock('../infrastructure/supabase-contract.repository', () => ({
@@ -201,6 +224,20 @@ describe('RentalContractsPage', () => {
     renderPage()
 
     expect(await screen.findByText('Todavía no hay contratos registrados para este arriendo.')).toBeInTheDocument()
+  })
+
+  it('renders the shared context header (heading + nav) above the page\'s own description and body (DS-002)', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+    listByRelationship.mockResolvedValueOnce([])
+    renderPage()
+
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Contratos' })).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.getByText('Consulta el historial de contratos de este arriendo y registra nuevas versiones.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Todavía no hay contratos registrados para este arriendo.')).toBeInTheDocument()
   })
 
   it('shows the creation section for an ACTIVE relationship', async () => {

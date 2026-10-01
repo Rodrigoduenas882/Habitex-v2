@@ -58,7 +58,20 @@
     "completeTerms": "Completar términos",
     "contracts": "Contratos",
     "charges": "Cargos",
-    "payments": "Pagos"
+    "payments": "Pagos",
+    "subjectUnknown": "Inmueble sin identificar",
+    "tenantUnknown": "Sin inquilino asignado",
+    "rentAmountUnknown": "Canon pendiente de definir"
+  },
+  "contextHeader": {
+    "navLabel": "Secciones del arriendo",
+    "relationshipNotFound": "No encontramos este arriendo en tu administración.",
+    "nav": {
+      "terms": "Términos",
+      "contracts": "Contratos",
+      "charges": "Cargos",
+      "payments": "Pagos"
+    }
   },
   "activate": {
     "cta": "Activar",

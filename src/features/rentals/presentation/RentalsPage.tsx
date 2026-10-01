@@ -11,10 +11,11 @@ import { EmptyState } from '@/shared/ui/EmptyState'
 import { KeyIcon } from '@/shared/ui/icons'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import styles from './RentalsPage.module.css'
-import { RentalListCard, type RentalActivationBlockReason } from './RentalListCard'
+import { RentalListCard, type RentalActivationBlockReason, type RentalListCardIdentity } from './RentalListCard'
 import { useActivateRental } from '../application/useActivateRental'
 import { useCancelDraftRental } from '../application/useCancelDraftRental'
 import { useEndRental } from '../application/useEndRental'
+import { useRentalIdentities } from '../application/useRentalIdentities'
 import { useRentals } from '../application/useRentals'
 import { useRentalTermsExistence } from '../application/useRentalTermsExistence'
 import { useStartEndingRental } from '../application/useStartEndingRental'
@@ -24,6 +25,13 @@ import {
   type RentalLifecycleError,
   type RentalRelationship,
 } from '../domain/rental.types'
+
+/** Honest "not yet resolved" identity - used for a relationship missing from
+ * useRentalIdentities' own Map, and as the uniform fallback for every row
+ * when identity resolution itself failed (see this page's own content
+ * branching below: a failed identity read must never block seeing/acting on
+ * the rentals list itself). */
+const UNKNOWN_IDENTITY: RentalListCardIdentity = { subjectLabel: null, tenantName: null, rentAmount: null }
 
 function RentalsGridSkeleton() {
   return (
@@ -87,6 +95,7 @@ export default function RentalsPage() {
     currentAdministration.status === 'resolved' ? currentAdministration.administration.id : undefined
   const rentalsQuery = useRentals(administrationId)
   const rentals = rentalsQuery.data ?? []
+  const identities = useRentalIdentities(administrationId)
 
   const managementGate = useManagementGate(administrationId)
   const hasCapacity = hasRelationshipCapacity(managementGate.subscription ?? null, activeRelationshipCount(rentals))
@@ -138,7 +147,7 @@ export default function RentalsPage() {
 
   if (
     currentAdministration.status === 'loading' ||
-    (currentAdministration.status === 'resolved' && rentalsQuery.isLoading)
+    (currentAdministration.status === 'resolved' && (rentalsQuery.isLoading || identities.status === 'loading'))
   ) {
     content = <RentalsGridSkeleton />
   } else if (currentAdministration.status === 'error') {
@@ -183,11 +192,19 @@ export default function RentalsPage() {
       ) : (
         <div className={styles['grid']}>
           {rentals.map((rental) => {
+            // identities.status === 'error' degrades to this same fallback
+            // for every row (EMPTY_MAP.get always misses) - a failed
+            // read-only identity resolution must never block seeing/acting
+            // on the rentals list itself (see useRentalIdentities' own doc
+            // comment).
+            const identity = identities.byRelationshipId.get(rental.id) ?? UNKNOWN_IDENTITY
+
             if (rental.status === 'ACTIVE') {
               return (
                 <RentalListCard
                   key={rental.id}
                   rental={rental}
+                  identity={identity}
                   startEnding={{
                     isPending: startingEndingRelationshipId === rental.id,
                     errorCode:
@@ -208,6 +225,7 @@ export default function RentalsPage() {
                 <RentalListCard
                   key={rental.id}
                   rental={rental}
+                  identity={identity}
                   endRental={{
                     isPending: endingRelationshipId === rental.id,
                     errorCode: endErrorRelationshipId === rental.id ? (endError?.code ?? null) : null,
@@ -223,7 +241,7 @@ export default function RentalsPage() {
             }
 
             if (rental.status !== 'DRAFT') {
-              return <RentalListCard key={rental.id} rental={rental} />
+              return <RentalListCard key={rental.id} rental={rental} identity={identity} />
             }
 
             // Per-row, unlike managementAccess/capacity above (same for
@@ -245,6 +263,7 @@ export default function RentalsPage() {
               <RentalListCard
                 key={rental.id}
                 rental={rental}
+                identity={identity}
                 activation={{
                   disabled:
                     managementGate.blocked || !hasCapacity || !termsReady || activatingRelationshipId === rental.id,

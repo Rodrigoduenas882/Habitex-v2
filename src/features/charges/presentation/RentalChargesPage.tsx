@@ -4,6 +4,7 @@ import { useActiveAdministration } from '@/features/administration/application/u
 import { useManagementGate } from '@/features/administration/application/useManagementGate'
 import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
 import { useRentals } from '@/features/rentals/application/useRentals'
+import { RentalContextHeader } from '@/features/rentals/presentation/RentalContextHeader'
 import { cx } from '@/shared/lib/cx'
 import { Alert } from '@/shared/ui/Alert'
 import { Badge, type BadgeTone } from '@/shared/ui/Badge'
@@ -218,7 +219,7 @@ function RentalChargesView({ administrationId, relationshipId }: RentalChargesVi
 
   return (
     <div className={styles['page']}>
-      <h1 className="text-h2">{t('title')}</h1>
+      <RentalContextHeader administrationId={administrationId} relationshipId={relationshipId} activeSection="charges" />
       <p className="text-body-sm text-muted">{t('description')}</p>
 
       {canGenerate ? (
