@@ -751,31 +751,53 @@ Human gate? · Acceptance criteria · Validation strategy · Risk.
 - **Risk**: LOW.
 
 #### INC-018 — Habilitar `leaked_password_protection`
+- **Status**: **BLOCKED_BY_PLAN** (2026-10-01). Verificado manualmente por
+  el usuario en el dashboard de Supabase: Authentication → Sign In /
+  Providers → Email → "Prevent use of leaked passwords" — la propia UI de
+  Supabase indica "Only available on Pro plan and above", y el proyecto
+  Habitex pertenece actualmente a una organización con plan **Free**. No
+  es un bloqueo técnico de este repo ni del workflow agentic — es una
+  restricción comercial de la plataforma Supabase, fuera de cualquier
+  control vía código/migration/MCP.
+- **Motivo del bloqueo**: Supabase leaked-password protection requiere
+  plan Pro o superior; Habitex actualmente usa Free.
+- **Condición de desbloqueo**: cuando Habitex migre a Supabase Pro,
+  activar manualmente Authentication → Sign In / Providers → Email →
+  "Prevent use of leaked passwords" **antes del release de producción
+  real**. Ninguna acción de código la habilita — sigue siendo un toggle
+  100% humano en el dashboard de Supabase Auth.
 - **Priority**: P3
 - **Goal**: activar la protección de contraseñas filtradas en Supabase
   Auth.
 - **Product requirement**: ninguno de producto — hallazgo de seguridad
   del advisor.
 - **Current evidence**: `get_advisors(security)` — `auth_leaked_password_protection`
-  deshabilitado.
+  deshabilitado. Confirmado adicionalmente por inspección manual del
+  usuario en el dashboard: deshabilitado por restricción de plan, no por
+  omisión de configuración.
 - **Scope**: **ninguno de código** — es un toggle en el dashboard de
   Supabase Auth.
 - **Out of scope**: cualquier cambio en este repo.
-- **Dependencies**: ninguna.
+- **Dependencies**: ninguna (de código). Depende de una decisión de
+  negocio externa a este repo: upgrade de Habitex a Supabase Pro.
 - **Likely domains/files**: n/a — fuera de este repo.
 - **Existing Supabase support**: n/a — es configuración, no schema.
 - **Backend work required?**: sí, pero es una acción de configuración,
-  no de código/migration.
+  no de código/migration, y actualmente **no disponible bajo el plan
+  Free**.
 - **Frontend work required?**: no.
 - **Human gate?**: SUPABASE/SCHEMA/RLS GATE-adyacente — es una acción
   100% humana en el dashboard de Supabase, fuera del alcance de
   `habitex-implementer`/`habitex-reviewer` (que solo tienen MCP
-  read-only).
+  read-only). Adicionalmente ahora gateada por un upgrade de plan
+  (decisión de negocio, no técnica).
 - **Acceptance criteria**: el advisory deja de aparecer en
   `get_advisors(security)`.
 - **Validation strategy**: re-correr `get_advisors(security)` (read-only)
   después del cambio.
-- **Risk**: LOW.
+- **Risk**: LOW (riesgo de seguridad conocido y aceptado temporalmente
+  mientras el proyecto permanece en plan Free; no bloquea ningún otro
+  incremento del MVP).
 
 ### POST-MVP (fuera del alcance del MVP — decisión de producto ya tomada)
 

@@ -753,20 +753,28 @@ INC-001/003/004/005/006/008/009/010/011/012/013/014/015/017 pusheados`.
 
 ## Blockers
 
-Ninguno técnico ni de aprobación en este momento. INC-001 (`89d7e22`,
-`59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006 (`1b1dc3a`),
-INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`, `e29eed4`),
-INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`), INC-013 (`2bc3a3f`
-backend, `a6e167f` frontend), INC-014 (`22db1bc`, `c3c6a1a`), INC-015
-(`65c8e08`) e INC-005+017 (`701f79b`) ya están en
-`origin/chore/agentic-foundation` — HEAD y origin sincronizados. Los
-nuevos checkpoints de INC-016 e INC-007 (ver "Último incremento
-ejecutado") siguen pendientes de revisión humana antes de push. Restante
-del MVP: **INC-018 únicamente** (HUMAN ACTION pura, toggle de Supabase
-Auth — `leaked_password_protection` deshabilitado, confirmado vía
-`get_advisors(security)` en vivo — fuera del alcance de este repo, sin
-camino de código posible). Con INC-007 completo, **no queda ningún
-incremento de código pendiente en el MVP**.
+Ninguno técnico ni de aprobación en este momento sobre código. INC-001
+(`89d7e22`, `59778fc`), INC-003 (`a859e6c`), INC-004 (`10ec380`), INC-006
+(`1b1dc3a`), INC-008 (`57b448c`), INC-009 (`1e79c3b`), INC-010 (`14eb8b9`,
+`e29eed4`), INC-011 (`f1d6ae1`, `6cb0f71`), INC-012 (`0ed26b3`), INC-013
+(`2bc3a3f` backend, `a6e167f` frontend), INC-014 (`22db1bc`, `c3c6a1a`),
+INC-015 (`65c8e08`), INC-005+017 (`701f79b`) e INC-016+INC-007 (`498daac`,
+`c8f75e1`, `7490a82`) ya están en `origin/chore/agentic-foundation` — HEAD
+y origin sincronizados, 0 incrementos de código pendientes de push.
+
+**INC-018 — `BLOCKED_BY_PLAN`** (reconciliado 2026-10-01, verificación
+manual del usuario en el dashboard de Supabase): "Prevent use of leaked
+passwords" (Authentication → Sign In / Providers → Email) solo está
+disponible en plan Pro o superior — Habitex está actualmente en plan
+**Free**. Esto no es un blocker técnico/de aprobación de este repo, es una
+restricción comercial de la plataforma, sin ningún camino de código o
+migration que lo resuelva. **Condición de desbloqueo**: al migrar Habitex
+a Supabase Pro, activar manualmente ese toggle antes del release de
+producción real. Ver detalle completo en
+`HABITEX_COMPLETION_PLAN.md`, sección INC-018.
+
+**Resumen global del MVP**: 17 incrementos `DONE`, 1 `BLOCKED_BY_PLAN`
+(INC-018), **0 incrementos de código restantes**.
 
 ## Último incremento ejecutado
 
@@ -2993,24 +3001,34 @@ de `rental_subjects`, las RLS de `rooms`/`rental_relationship_subjects`,
 
 ## Siguiente acción recomendada
 
-Con INC-007 completo, **no queda ningún incremento de código pendiente en
-el MVP**. INC-016 (Dashboard con datos reales) e INC-007 (Tenant
-Invitation + Public Claim) están ambos completos, validados y revisados,
-con sus checkpoints locales pendientes únicamente de aprobación humana
-para push — ningún trabajo de implementación adicional está pendiente.
+Con INC-007 pusheado (`498daac..7490a82` en
+`origin/chore/agentic-foundation`), **no queda ningún incremento de
+código pendiente en el MVP**. INC-016 (Dashboard con datos reales) e
+INC-007 (Tenant Invitation + Public Claim) están completos, validados,
+revisados y pusheados — ningún trabajo de implementación adicional está
+pendiente.
 
-Restante del MVP:
+**MVP increments**:
+- **DONE**: 17
+- **BLOCKED_BY_PLAN**: 1 (INC-018)
+- **CODE INCREMENTS REMAINING**: 0
 
-- **INC-018** — Habilitar `leaked_password_protection` (HUMAN ACTION
-  pura, confirmado aún deshabilitado vía `get_advisors(security)` en
-  vivo — toggle en el dashboard de Supabase Auth, sin camino de código
-  posible desde este repo).
+**INC-018** — Habilitar `leaked_password_protection`: **BLOCKED_BY_PLAN**,
+no HUMAN ACTION pendiente de ejecutarse libremente. Verificado
+manualmente por el usuario en el dashboard de Supabase (Authentication →
+Sign In / Providers → Email → "Prevent use of leaked passwords"): la
+propia UI de Supabase indica "Only available on Pro plan and above", y
+Habitex está en plan **Free**. Motivo: Supabase leaked-password
+protection requiere plan Pro o superior. Condición de desbloqueo: al
+migrar Habitex a Supabase Pro, activar ese toggle antes del release de
+producción real — sin ningún camino de código que lo resuelva antes.
 
-La acción recomendada para una sesión nueva es: (1) confirmar con el
-usuario si los checkpoints locales de INC-016/INC-007 deben pushearse a
-`origin/chore/agentic-foundation`, y (2) recordar que INC-018 requiere una
-acción humana directa en el dashboard de Supabase Auth, no un incremento
-de este orchestrator.
+La acción recomendada para una sesión nueva es: no hay ningún incremento
+de código del MVP esperando trabajo. INC-018 queda en espera de una
+decisión de negocio externa a este repo (upgrade de plan de Supabase), no
+de una sesión del orchestrator. Si se reactiva, el primer paso sigue
+siendo activar el toggle manualmente en el dashboard de Supabase Auth —
+nunca vía código/migration/MCP (que permanece read-only).
 
 La priorización final sigue siendo del usuario, no del orchestrator (ver
 `SKILL.md` §"SELECT INCREMENT").
