@@ -28,7 +28,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       <input
         ref={ref}
         id={inputId}
-        className={cx(styles['input'], error && styles['inputError'])}
+        className={cx(
+          styles['input'],
+          props.type === 'file' && styles['inputFile'],
+          error && styles['inputError'],
+        )}
         aria-invalid={Boolean(error) || undefined}
         aria-describedby={cx(hintId, errorId) || undefined}
         {...props}

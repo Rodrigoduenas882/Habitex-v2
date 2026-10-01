@@ -2,7 +2,8 @@
   "loading": "Cargando…",
   "notFound": {
     "title": "404",
-    "description": "La página que buscas no existe."
+    "description": "La página que buscas no existe.",
+    "backHome": "Volver al inicio"
   },
   "error": {
     "title": "Algo salió mal",

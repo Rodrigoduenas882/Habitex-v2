@@ -41,7 +41,14 @@ export default defineConfig({
       name: 'authenticated',
       use: { ...devices['Desktop Chrome'], storageState: 'e2e-authenticated/.auth/user.json' },
       dependencies: ['setup'],
-      testIgnore: /auth\.setup\.ts/,
+      testIgnore: /auth\.setup\.ts|public-visual\.spec\.ts/,
+    },
+    // No storageState - for public routes that must be visited unauthenticated
+    // (e.g. /login, which redirects away from itself if a session exists).
+    {
+      name: 'public',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /public-visual\.spec\.ts/,
     },
   ],
   webServer: {

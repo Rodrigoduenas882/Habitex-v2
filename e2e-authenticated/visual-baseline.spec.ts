@@ -35,6 +35,9 @@ const SCREENS = [
   { name: 'charges', path: `/rentals/${seed.paidRentalRelationshipId}/charges` },
   { name: 'terms', path: `/rentals/${seed.paidRentalRelationshipId}/terms` },
   { name: 'payments-pending', path: `/rentals/${seed.pendingRentalRelationshipId}/payments` },
+  // DS-005: the 404 catch-all doesn't check auth state, so it's reachable
+  // (and identical) whether visited from this authenticated context or not.
+  { name: 'notfound', path: '/this-route-does-not-exist' },
 ] as const
 
 test.beforeAll(() => {
