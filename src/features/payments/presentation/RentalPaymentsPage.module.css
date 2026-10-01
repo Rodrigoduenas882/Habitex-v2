@@ -20,14 +20,33 @@
 .paymentCard {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
 }
 
+/* Header zone: status + amount, the card's primary "what/how much" anchor
+   (DS-003). Separated from the sections below it by .cardSection's own
+   border-top, so no border is declared here. */
 .paymentHeader {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
   flex-wrap: wrap;
+  padding-bottom: var(--space-3);
+}
+
+/* Shared wrapper for every zone after the header (details/application/
+   receipt/actions) - a consistent --color-border divider + spacing, same
+   structural-divider convention as FinancialOverview's/AttentionPanel's own
+   section separators (DESIGN.md §2). Composes naturally regardless of which
+   optional zones are present, since each one is always preceded by another
+   zone when it renders. */
+.cardSection {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }
 
 .downloadAction {
@@ -37,6 +56,28 @@
   margin-top: var(--space-2);
 }
 
+/* Actions zone (REPORTED only) - Confirm and Reject are given their own
+   sub-groups with more breathing room between them than within each group,
+   so Confirm (primary, size="md") reads as clearly heavier than Reject
+   (destructive, size="sm", unchanged inside RejectPaymentAction). */
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.confirmAction,
+.rejectAction {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/* Still used by PaymentAllocationSummary's/PaymentReceiptSummary's own
+   trigger-button rows (untouched) - not by PaymentCard's own Actions zone
+   anymore, see .actions above. */
 .actionsRow {
   display: flex;
   flex-direction: column;
@@ -56,7 +97,6 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-1);
-  margin-top: var(--space-2);
 }
 
 .receiptSummary {
@@ -64,7 +104,6 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-1);
-  margin-top: var(--space-2);
 }
 
 .allocationSection {

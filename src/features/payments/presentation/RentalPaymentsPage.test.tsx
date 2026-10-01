@@ -1359,4 +1359,66 @@ describe('RentalPaymentsPage', () => {
       expect(await screen.findByText('Reportado')).toBeInTheDocument()
     })
   })
+
+  describe('card layout (DS-003)', () => {
+    it('renders every data point across the header/details/application/receipt zones for a CONFIRMED payment with a receipt', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([
+        makePayment({
+          status: 'CONFIRMED',
+          amount: 500_000,
+          paymentMethod: 'BANK_TRANSFER',
+          externalReference: 'REF-0001-ABC-LONG-EXTERNAL-REFERENCE-VALUE',
+          notes: 'Pago parcial de enero, el resto se reporta la próxima semana.',
+          proofFileId: 'file-1',
+        }),
+      ])
+      listAllocationsForPayment.mockResolvedValueOnce([makeAllocation({ amount: 100_000 })])
+      getReceiptForPayment.mockResolvedValueOnce(makeReceipt())
+      renderPage()
+
+      expect(await screen.findByText('Confirmado')).toBeInTheDocument()
+      expect(screen.getByText('Valor: $500.000')).toBeInTheDocument()
+      expect(screen.getByText(/^Fecha de pago:/)).toBeInTheDocument()
+      expect(screen.getByText('Método de pago: Transferencia bancaria')).toBeInTheDocument()
+      expect(screen.getByText('Referencia: REF-0001-ABC-LONG-EXTERNAL-REFERENCE-VALUE')).toBeInTheDocument()
+      expect(
+        screen.getByText('Notas: Pago parcial de enero, el resto se reporta la próxima semana.'),
+      ).toBeInTheDocument()
+      expect(screen.getByText(/^Reportado el/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Descargar comprobante' })).toBeInTheDocument()
+      expect(await screen.findByText('Aplicado: $100.000')).toBeInTheDocument()
+      expect(screen.getByText('Pendiente por aplicar: $400.000')).toBeInTheDocument()
+      expect(await screen.findByText('Recibo No. 42')).toBeInTheDocument()
+      expect(screen.getByText(/^Emitido el/)).toBeInTheDocument()
+    })
+
+    it('renders a large 7-digit amount in the header without truncating or hiding it', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ amount: 12_500_000 })])
+      renderPage()
+
+      expect(await screen.findByText('Valor: $12.500.000')).toBeInTheDocument()
+    })
+
+    it('renders a REPORTED payment with every optional field absent (no method/reference/notes/proof) cleanly', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment()])
+      renderPage()
+
+      expect(await screen.findByText('Reportado')).toBeInTheDocument()
+      expect(screen.getByText('Valor: $500.000')).toBeInTheDocument()
+      expect(screen.getByText(/^Fecha de pago:/)).toBeInTheDocument()
+      expect(screen.getByText(/^Reportado el/)).toBeInTheDocument()
+      expect(screen.queryByText(/^Método de pago:/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/^Referencia:/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/^Notas:/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Descargar comprobante' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Confirmar pago' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Rechazar pago' })).toBeInTheDocument()
+    })
+  })
 })

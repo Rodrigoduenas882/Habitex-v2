@@ -872,14 +872,24 @@ interface PaymentCardProps {
 }
 
 /**
- * One payment row: status/amount/date/method/reference/notes/reportedAt
- * (all read-only), a proof download link when present, and - only for
- * status REPORTED - the Confirm/Reject actions. Each card owns its own
- * useConfirmPayment/useRejectPayment instances, the idiomatic way to get
- * independent per-row pending/error state without shared-mutation-plus-
- * variables-matching complexity (same principle every other per-item
- * mutation in this codebase follows, e.g. ContractCard's own markShared/
- * terminate).
+ * One payment row, visually organized into up to 5 zones (DS-003 - same
+ * data/conditions as before, purely a presentation restructure):
+ * 1. Header - status Badge + amount, the card's primary anchor.
+ * 2. Details - date/method/reference/notes/reportedAt (all read-only) and
+ *    the proof download link when present.
+ * 3. Application (CONFIRMED only) - wraps PaymentAllocationSummary as-is.
+ * 4. Receipt (CONFIRMED only) - wraps PaymentReceiptSummary as-is.
+ * 5. Actions (REPORTED only) - Confirm (primary, heavier) + Reject
+ *    (destructive, lighter), via RejectPaymentAction unchanged.
+ * Each zone after the header shares `.cardSection` (padding + a
+ * `--color-border` divider) so the grouping holds regardless of which
+ * optional zones are present for a given status.
+ *
+ * Each card owns its own useConfirmPayment/useRejectPayment instances, the
+ * idiomatic way to get independent per-row pending/error state without
+ * shared-mutation-plus-variables-matching complexity (same principle every
+ * other per-item mutation in this codebase follows, e.g. ContractCard's own
+ * markShared/terminate).
  *
  * CONFIRMED renders PaymentAllocationSummary (allocated/remaining amounts,
  * and either "Aplicar a cargos" or "Pago aplicado completamente") instead of
@@ -916,76 +926,98 @@ function PaymentCard({ payment, administrationId, relationshipId, managementGate
 
   return (
     <Card className={styles['paymentCard']}>
+      {/* Header zone: status + amount together, the card's primary
+          "what happened, how much" anchor (DS-003). */}
       <div className={styles['paymentHeader']}>
         <Badge tone={STATUS_TONE[payment.status]}>{t(`status.${payment.status}`)}</Badge>
+        <p className={cx('text-h3', 'tabular-nums')}>{t('card.amount', { amount: formatAmount(payment.amount) })}</p>
       </div>
-      <p className={cx('text-body-sm', 'tabular-nums')}>{t('card.amount', { amount: formatAmount(payment.amount) })}</p>
-      <p className="text-caption text-muted">{t('card.paymentDate', { date: formatDate(payment.paymentDate) })}</p>
-      {payment.paymentMethod ? (
-        <p className="text-caption text-muted">
-          {t('card.paymentMethod', { method: t(`paymentMethod.${payment.paymentMethod}`) })}
-        </p>
-      ) : null}
-      {payment.externalReference ? (
-        <p className="text-caption text-muted">
-          {t('card.externalReference', { reference: payment.externalReference })}
-        </p>
-      ) : null}
-      {payment.notes ? <p className="text-caption text-muted">{t('card.notes', { notes: payment.notes })}</p> : null}
-      <p className="text-caption text-muted">{t('card.reportedAt', { date: formatDateTime(payment.reportedAt) })}</p>
-      {payment.proofFileId ? <PaymentProofDownloadButton proofFileId={payment.proofFileId} /> : null}
+
+      {/* Details zone: every read-only fact about this payment, grouped as
+          one cohesive block distinct from the header above and whatever
+          comes below. */}
+      <div className={styles['cardSection']}>
+        <p className="text-caption text-muted">{t('card.paymentDate', { date: formatDate(payment.paymentDate) })}</p>
+        {payment.paymentMethod ? (
+          <p className="text-caption text-muted">
+            {t('card.paymentMethod', { method: t(`paymentMethod.${payment.paymentMethod}`) })}
+          </p>
+        ) : null}
+        {payment.externalReference ? (
+          <p className="text-caption text-muted">
+            {t('card.externalReference', { reference: payment.externalReference })}
+          </p>
+        ) : null}
+        {payment.notes ? <p className="text-caption text-muted">{t('card.notes', { notes: payment.notes })}</p> : null}
+        <p className="text-caption text-muted">{t('card.reportedAt', { date: formatDateTime(payment.reportedAt) })}</p>
+        {payment.proofFileId ? <PaymentProofDownloadButton proofFileId={payment.proofFileId} /> : null}
+      </div>
 
       {payment.status === 'CONFIRMED' ? (
         <>
-          <PaymentAllocationSummary
-            payment={payment}
-            administrationId={administrationId}
-            relationshipId={relationshipId}
-            managementGate={managementGate}
-          />
-          <PaymentReceiptSummary
-            payment={payment}
-            administrationId={administrationId}
-            relationshipId={relationshipId}
-            managementGate={managementGate}
-          />
+          {/* Application zone - PaymentAllocationSummary's own markup/logic
+              is unchanged, only visually separated from Details above and
+              Receipt below. */}
+          <div className={styles['cardSection']}>
+            <PaymentAllocationSummary
+              payment={payment}
+              administrationId={administrationId}
+              relationshipId={relationshipId}
+              managementGate={managementGate}
+            />
+          </div>
+          {/* Receipt zone - same principle, PaymentReceiptSummary untouched. */}
+          <div className={styles['cardSection']}>
+            <PaymentReceiptSummary
+              payment={payment}
+              administrationId={administrationId}
+              relationshipId={relationshipId}
+              managementGate={managementGate}
+            />
+          </div>
         </>
       ) : null}
 
       {payment.status === 'REPORTED' ? (
-        <div className={styles['actionsRow']}>
-          <Button
-            type="button"
-            size="sm"
-            loading={isConfirmPending}
-            disabled={managementGate.blocked || anyPendingForThisCard}
-            aria-disabled={managementGate.blocked ? 'true' : undefined}
-            onClick={() => {
-              confirmPayment.mutate(
-                { paymentId: payment.id, administrationId, rentalRelationshipId: relationshipId },
-                { onError: handleStaleState },
-              )
-            }}
-          >
-            {t('card.actions.confirm.cta')}
-          </Button>
-          {managementGate.blocked ? (
-            <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
-          ) : null}
-          {confirmError ? <Alert tone="danger">{confirmActionErrorMessage(t, confirmError)}</Alert> : null}
+        <div className={styles['cardSection']}>
+          <div className={styles['actions']}>
+            <div className={styles['confirmAction']}>
+              <Button
+                type="button"
+                size="md"
+                loading={isConfirmPending}
+                disabled={managementGate.blocked || anyPendingForThisCard}
+                aria-disabled={managementGate.blocked ? 'true' : undefined}
+                onClick={() => {
+                  confirmPayment.mutate(
+                    { paymentId: payment.id, administrationId, rentalRelationshipId: relationshipId },
+                    { onError: handleStaleState },
+                  )
+                }}
+              >
+                {t('card.actions.confirm.cta')}
+              </Button>
+              {managementGate.blocked ? (
+                <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
+              ) : null}
+              {confirmError ? <Alert tone="danger">{confirmActionErrorMessage(t, confirmError)}</Alert> : null}
+            </div>
 
-          <RejectPaymentAction
-            disabled={managementGate.blocked || anyPendingForThisCard}
-            blockReasonText={managementGate.blocked ? t('administration:managementAccessGate.blocked') : null}
-            isPending={isRejectPending}
-            errorMessage={rejectError ? rejectActionErrorMessage(t, rejectError) : null}
-            onConfirm={() => {
-              rejectPayment.mutate(
-                { paymentId: payment.id, administrationId, rentalRelationshipId: relationshipId },
-                { onError: handleStaleState },
-              )
-            }}
-          />
+            <div className={styles['rejectAction']}>
+              <RejectPaymentAction
+                disabled={managementGate.blocked || anyPendingForThisCard}
+                blockReasonText={managementGate.blocked ? t('administration:managementAccessGate.blocked') : null}
+                isPending={isRejectPending}
+                errorMessage={rejectError ? rejectActionErrorMessage(t, rejectError) : null}
+                onConfirm={() => {
+                  rejectPayment.mutate(
+                    { paymentId: payment.id, administrationId, rentalRelationshipId: relationshipId },
+                    { onError: handleStaleState },
+                  )
+                }}
+              />
+            </div>
+          </div>
         </div>
       ) : null}
     </Card>
