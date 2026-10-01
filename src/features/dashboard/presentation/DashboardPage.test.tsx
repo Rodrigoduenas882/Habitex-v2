@@ -228,6 +228,7 @@ describe('DashboardPage', () => {
   afterEach(() => {
     window.localStorage.clear()
     vi.clearAllMocks()
+    vi.useRealTimers()
   })
 
   it('greets the user with a name derived from their session email, not a hardcoded one', async () => {
@@ -270,6 +271,17 @@ describe('DashboardPage', () => {
   })
 
   it('renders the real monthly receivable and monthly income values, distinct from the 6-month series total', async () => {
+    // useDashboardFinancials's currentMonthRange() is correctly based on the
+    // real wall clock (see month-range.ts) - the fixture dates below are
+    // deliberately fixed, so the clock is frozen to a matching date instead
+    // of leaving this test dependent on whichever real month it happens to
+    // run in (it previously assumed "today" would always be in September
+    // 2026, which broke the instant the real clock crossed into October).
+    // Only Date is faked (not setTimeout/setInterval) - findByText's own
+    // internal waitFor polling still needs real timers to advance.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-15T12:00:00'))
+
     resolveOneAdministration()
     listCharges.mockResolvedValue([
       makeCharge({ id: 'charge-current', dueDate: '2026-09-05', amount: 500_000, paidAmount: 200_000, balance: 300_000 }),
