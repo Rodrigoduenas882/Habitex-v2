@@ -62,13 +62,13 @@ describe('RentalListCard', () => {
 
   it('translates ARREARS payment timing to a human label', () => {
     render(<RentalListCard rental={{ ...BASE, paymentTiming: 'ARREARS' }} />)
-    expect(screen.getByText('Pago vencido')).toBeInTheDocument()
+    expect(screen.getByText('Pago a mes vencido')).toBeInTheDocument()
     expect(screen.queryByText('ARREARS')).not.toBeInTheDocument()
   })
 
   it('omits the payment timing line entirely when it is null', () => {
     render(<RentalListCard rental={{ ...BASE, paymentTiming: null }} />)
-    expect(screen.queryByText(/Pago anticipado|Pago vencido/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Pago anticipado|Pago a mes vencido/)).not.toBeInTheDocument()
   })
 
   it('shows the payment day only when it exists', () => {

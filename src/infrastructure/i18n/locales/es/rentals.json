@@ -42,7 +42,7 @@
   },
   "paymentTiming": {
     "ADVANCE": "Pago anticipado",
-    "ARREARS": "Pago vencido"
+    "ARREARS": "Pago a mes vencido"
   },
   "list": {
     "title": {
