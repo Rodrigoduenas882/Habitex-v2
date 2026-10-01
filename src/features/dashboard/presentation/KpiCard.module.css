@@ -12,6 +12,33 @@
   gap: var(--space-2);
 }
 
+/* Only rendered when the card is wrapped in a Link (`to` prop) - groups the
+   existing IconBadge with the "this leads somewhere" arrow affordance. */
+.topEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.arrow {
+  flex-shrink: 0;
+  color: var(--color-muted);
+  transition: transform var(--transition-fast);
+}
+
+/* Makes the whole Card a link target while letting Card itself stay the
+   visual shell - color/decoration reset so the card's own text keeps its
+   normal (non-link) appearance; the hover shadow comes from Card's own
+   `interactive` prop, only passed when `to` is set. */
+.link {
+  display: block;
+  color: inherit;
+}
+
+.link:hover .arrow {
+  transform: translateX(2px);
+}
+
 .value {
   margin: 0;
 }

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { Skeleton } from '@/shared/ui/Skeleton'
@@ -31,5 +32,23 @@ describe('KpiCard', () => {
 
     expect(screen.getByText('7')).toBeInTheDocument()
     expect(screen.queryByText(/de.*ocupados/)).not.toBeInTheDocument()
+  })
+
+  it('renders as a real link with a clear accessible name when `to` is provided', () => {
+    render(
+      <MemoryRouter>
+        <KpiCard icon={<span />} label="Inmuebles" value="12" tone="neutral" to="/properties" />
+      </MemoryRouter>,
+    )
+
+    const link = screen.getByRole('link', { name: 'Inmuebles 12' })
+    expect(link).toHaveAttribute('href', '/properties')
+  })
+
+  it('renders with no link/button role anywhere when `to` is omitted, exactly as before', () => {
+    render(<KpiCard icon={<span />} label="Ocupación" value="86%" tone="info" />)
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })

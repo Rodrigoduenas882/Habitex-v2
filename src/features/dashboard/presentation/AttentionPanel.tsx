@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { cx } from '@/shared/lib/cx'
 import { Card } from '@/shared/ui/Card'
 import { EmptyState } from '@/shared/ui/EmptyState'
@@ -12,12 +13,18 @@ import styles from './AttentionPanel.module.css'
  * kinds have no analog in the current schema (confirmed by prior research),
  * so this type only ever carries 'payment' now, rather than keeping dead
  * kind branches that structurally can never appear.
+ *
+ * `rentalRelationshipId` (DS-004) is what makes the "Ver" action honest: it's
+ * the exact relationship whose /rentals/:id/payments page lists this same
+ * REPORTED payment for confirm/reject - carried straight through from
+ * Payment.rentalRelationshipId, never fabricated here.
  */
 export interface AttentionItem {
   id: string
   kind: 'payment'
   subtitle: string
   meta: string
+  rentalRelationshipId: string
 }
 
 export interface AttentionPanelProps {
@@ -49,10 +56,10 @@ export function AttentionPanel({ items }: AttentionPanelProps) {
                 </div>
                 <p className="text-caption">{item.subtitle}</p>
               </div>
-              <button type="button" className={styles['action']}>
+              <Link to={`/rentals/${item.rentalRelationshipId}/payments`} className={styles['action']}>
                 {t('attention.view')}
                 <ArrowRightIcon size={14} className={styles['actionArrow']} />
-              </button>
+              </Link>
             </div>
           ))}
         </div>

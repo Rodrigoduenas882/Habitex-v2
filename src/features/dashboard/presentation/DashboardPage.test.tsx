@@ -349,6 +349,47 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('Documento pendiente')).not.toBeInTheDocument()
   })
 
+  it('wires the AttentionPanel item\'s "Ver" link to that REPORTED payment\'s own relationship id (DS-004)', async () => {
+    resolveOneAdministration()
+    listReportedPayments.mockResolvedValue([
+      makePayment({ id: 'payment-a', amount: 950_000, paymentDate: '2026-01-05', rentalRelationshipId: 'rel-1' }),
+    ])
+    render(<DashboardPage />)
+
+    const link = await screen.findByRole('link', { name: 'Ver' })
+    expect(link).toHaveAttribute('href', '/rentals/rel-1/payments')
+  })
+
+  it('only the "Inmuebles" KPI is a real link (to /properties) - the other three stay non-interactive (DS-004)', async () => {
+    resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    render(<DashboardPage />)
+
+    const propertiesLink = await screen.findByRole('link', { name: 'Inmuebles 1' })
+    expect(propertiesLink).toHaveAttribute('href', '/properties')
+
+    expect(screen.queryByRole('link', { name: /Ingresos del mes/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Por cobrar/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Ocupación/ })).not.toBeInTheDocument()
+  })
+
+  it('renders AttentionPanel\'s content before FinancialOverview\'s content in document order (DS-004 hierarchy swap)', async () => {
+    resolveOneAdministration()
+    listReportedPayments.mockResolvedValue([makePayment({ id: 'payment-a' })])
+    const { container } = render(<DashboardPage />)
+
+    await screen.findByText('Pago pendiente')
+    // Unique markers for each section - "Pago pendiente" only ever renders
+    // inside AttentionPanel, "Últimos 6 meses" only inside FinancialOverview
+    // (unlike "Ingresos del mes", which is also a KPI label).
+    const attentionIndex = container.textContent.indexOf('Pago pendiente')
+    const financialIndex = container.textContent.indexOf('Últimos 6 meses')
+
+    expect(attentionIndex).toBeGreaterThan(-1)
+    expect(financialIndex).toBeGreaterThan(-1)
+    expect(attentionIndex).toBeLessThan(financialIndex)
+  })
+
   it('renders FinancialOverview with only the income series - no expenses bar/legend/total anywhere on the page', async () => {
     resolveOneAdministration()
     listCharges.mockResolvedValue([makeCharge()])

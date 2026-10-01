@@ -63,6 +63,7 @@ function DashboardView({ administrationId }: DashboardViewProps) {
     kind: 'payment',
     subtitle: formatDate(payment.paymentDate),
     meta: formatCurrency(payment.amount),
+    rentalRelationshipId: payment.rentalRelationshipId,
   }))
 
   const occupancyTrend =
@@ -138,26 +139,33 @@ function DashboardView({ administrationId }: DashboardViewProps) {
             )
           }
           trend={propertiesQuery.isError ? t('kpis.loadError') : undefined}
+          to="/properties"
         />
       </div>
 
       <QuickActions />
 
+      {/* DS-004: AttentionPanel (actionable) renders before FinancialOverview
+          (informational) so mobile's single-column stack shows the
+          actionable list first - `.analytics`'s own grid-template-columns
+          is mirrored (1fr 2fr instead of 2fr 1fr) to keep desktop's visual
+          weight distribution identical; the wider column still goes to the
+          richer chart, it's now just the second/right child. */}
       <div className={styles['analytics']}>
-        {financials.status === 'loading' ? (
-          <Skeleton height={280} radius="lg" data-testid="financial-overview-loading" />
-        ) : financials.status === 'error' ? (
-          <Alert tone="danger">{t('financialOverview.loadError')}</Alert>
-        ) : (
-          <FinancialOverview months={financials.monthlySeries} />
-        )}
-
         {attention.status === 'loading' ? (
           <Skeleton height={280} radius="lg" data-testid="attention-panel-loading" />
         ) : attention.status === 'error' ? (
           <Alert tone="danger">{t('attention.loadError')}</Alert>
         ) : (
           <AttentionPanel items={attentionItems} />
+        )}
+
+        {financials.status === 'loading' ? (
+          <Skeleton height={280} radius="lg" data-testid="financial-overview-loading" />
+        ) : financials.status === 'error' ? (
+          <Alert tone="danger">{t('financialOverview.loadError')}</Alert>
+        ) : (
+          <FinancialOverview months={financials.monthlySeries} />
         )}
       </div>
 
