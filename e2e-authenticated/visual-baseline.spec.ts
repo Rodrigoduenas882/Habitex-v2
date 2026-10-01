@@ -44,15 +44,17 @@ for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
   }
 }
 
-for (const screen of SCREENS) {
-  test(`${screen.name} - desktop - dark`, async ({ page }) => {
-    await page.setViewportSize(VIEWPORTS.desktop)
-    await page.goto(screen.path)
-    await page.evaluate(() => {
-      window.localStorage.setItem('habitex:theme', 'dark')
+for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
+  for (const screen of SCREENS) {
+    test(`${screen.name} - ${viewportName} - dark`, async ({ page }) => {
+      await page.setViewportSize(viewport)
+      await page.goto(screen.path)
+      await page.evaluate(() => {
+        window.localStorage.setItem('habitex:theme', 'dark')
+      })
+      await page.reload({ waitUntil: 'networkidle' })
+      await page.waitForTimeout(400)
+      await page.screenshot({ path: `${OUT_DIR}/${screen.name}--${viewportName}--dark.png`, fullPage: true })
     })
-    await page.reload({ waitUntil: 'networkidle' })
-    await page.waitForTimeout(400)
-    await page.screenshot({ path: `${OUT_DIR}/${screen.name}--desktop--dark.png`, fullPage: true })
-  })
+  }
 }

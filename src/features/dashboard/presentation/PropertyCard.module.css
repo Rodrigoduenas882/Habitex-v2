@@ -10,7 +10,7 @@
   height: 120px;
   overflow: hidden;
   background: var(--color-primary-subtle);
-  color: var(--color-primary);
+  color: var(--color-primary-accent);
 }
 
 .skyline {
@@ -60,7 +60,7 @@
 }
 
 .addCard:hover {
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-accent);
   box-shadow: var(--shadow-md);
 }
 

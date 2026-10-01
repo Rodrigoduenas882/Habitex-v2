@@ -36,7 +36,7 @@
 }
 
 .option:hover {
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-accent);
   box-shadow: var(--shadow-md);
 }
 

@@ -73,6 +73,7 @@ export function AuthenticatedLayout() {
       moreLabel={t('common:nav.more')}
       openNavLabel={t('common:nav.openMenu')}
       closeNavLabel={t('common:nav.closeMenu')}
+      comingSoonLabel={t('common:nav.comingSoon')}
       userEmail={session?.email ?? ''}
       themeControl={<ThemeControl />}
       logoutLabel={t('auth:logout.action')}
