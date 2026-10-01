@@ -4,10 +4,10 @@
 
 -- 1. Agregar unit_id a tenants
 ALTER TABLE public.tenants
-ADD COLUMN IF NOT EXISTS unit_id TEXT REFERENCES public.units(id) ON DELETE SET NULL
-CREATE INDEX IF NOT EXISTS idx_tenants_unit_id ON public.tenants(unit_id)
+ADD COLUMN IF NOT EXISTS unit_id TEXT REFERENCES public.units(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_tenants_unit_id ON public.tenants(unit_id);
 -- Política para que el arrendatario pueda consultar su unidad asignada
-DROP POLICY IF EXISTS "units_tenant_select" ON public.units
+DROP POLICY IF EXISTS "units_tenant_select" ON public.units;
 CREATE POLICY "units_tenant_select" ON public.units
 FOR SELECT TO authenticated
 USING (
@@ -16,7 +16,7 @@ USING (
     WHERE t.unit_id = units.id
       AND t.auth_user_id = auth.uid()
   )
-)
+);
 -- 2. Backfill idempotente de Units para propiedades y tenants existentes
 DO $$
 DECLARE
@@ -75,4 +75,4 @@ BEGIN
       );
     END IF;
   END LOOP;
-END $$
+END $$;

@@ -46,9 +46,9 @@ BEGIN
     'property_id', v_property_id
   );
 END;
-$$
-ALTER FUNCTION public.claim_tenant_invitation(UUID) OWNER TO postgres
-REVOKE ALL ON FUNCTION public.claim_tenant_invitation(UUID) FROM PUBLIC
-REVOKE EXECUTE ON FUNCTION public.claim_tenant_invitation(UUID) FROM anon
-GRANT EXECUTE ON FUNCTION public.claim_tenant_invitation(UUID) TO authenticated
-GRANT EXECUTE ON FUNCTION public.claim_tenant_invitation(UUID) TO service_role
+$$;
+ALTER FUNCTION public.claim_tenant_invitation(UUID) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.claim_tenant_invitation(UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.claim_tenant_invitation(UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.claim_tenant_invitation(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_tenant_invitation(UUID) TO service_role;

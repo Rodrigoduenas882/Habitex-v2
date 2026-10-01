@@ -28,15 +28,15 @@ CREATE TABLE IF NOT EXISTS public.contracts (
   signed_document_id TEXT REFERENCES public.documents(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-)
+);
 -- Índices de búsqueda y rendimiento
-CREATE INDEX IF NOT EXISTS idx_contracts_property_id ON public.contracts(property_id)
-CREATE INDEX IF NOT EXISTS idx_contracts_tenant_id ON public.contracts(tenant_id)
-CREATE INDEX IF NOT EXISTS idx_contracts_public_token ON public.contracts(public_token)
+CREATE INDEX IF NOT EXISTS idx_contracts_property_id ON public.contracts(property_id);
+CREATE INDEX IF NOT EXISTS idx_contracts_tenant_id ON public.contracts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_contracts_public_token ON public.contracts(public_token);
 -- 2. Configuración de Row Level Security (RLS) en public.contracts
-ALTER TABLE public.contracts ENABLE ROW LEVEL SECURITY
+ALTER TABLE public.contracts ENABLE ROW LEVEL SECURITY;
 -- Propietario de la propiedad: control total sobre contratos de sus propiedades
-DROP POLICY IF EXISTS "contracts_owner_all" ON public.contracts
+DROP POLICY IF EXISTS "contracts_owner_all" ON public.contracts;
 CREATE POLICY "contracts_owner_all" ON public.contracts
 FOR ALL TO authenticated
 USING (
@@ -44,14 +44,14 @@ USING (
 )
 WITH CHECK (
   public.is_property_owner(property_id)
-)
+);
 -- Arrendatario autenticado: lectura de contratos de su propiedad
-DROP POLICY IF EXISTS "contracts_tenant_select" ON public.contracts
+DROP POLICY IF EXISTS "contracts_tenant_select" ON public.contracts;
 CREATE POLICY "contracts_tenant_select" ON public.contracts
 FOR SELECT TO authenticated
 USING (
   public.is_property_tenant(property_id)
-)
+);
 -- 3. Función RPC Pública Segura (SECURITY DEFINER, Fail-Closed)
 CREATE OR REPLACE FUNCTION public.get_public_contract_by_token(p_token TEXT)
 RETURNS JSONB
@@ -138,12 +138,12 @@ BEGIN
 
   RETURN v_result;
 END;
-$$
+$$;
 -- Permisos estrictos para RPC pública
-REVOKE EXECUTE ON FUNCTION public.get_public_contract_by_token(TEXT) FROM PUBLIC
-GRANT EXECUTE ON FUNCTION public.get_public_contract_by_token(TEXT) TO anon, authenticated
+REVOKE EXECUTE ON FUNCTION public.get_public_contract_by_token(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_public_contract_by_token(TEXT) TO anon, authenticated;
 -- 4. Política de Storage para descarga segura de contratos formalizados o finalizados
-DROP POLICY IF EXISTS "storage_public_contract_signed_document_select" ON storage.objects
+DROP POLICY IF EXISTS "storage_public_contract_signed_document_select" ON storage.objects;
 CREATE POLICY "storage_public_contract_signed_document_select" ON storage.objects
 FOR SELECT TO anon, authenticated
 USING (
@@ -154,4 +154,4 @@ USING (
     WHERE c.status IN ('SIGNED', 'TERMINATED')
       AND d.file_url = storage.objects.name
   )
-)
+);

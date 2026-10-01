@@ -27,7 +27,8 @@ classified_tenants AS (
   LEFT JOIN email_counts ec ON LOWER(TRIM(t.email)) = ec.clean_email
   LEFT JOIN auth.users u ON LOWER(TRIM(t.email)) = LOWER(TRIM(u.email))
 )
-SELECT * FROM classified_tenants
+SELECT * FROM classified_tenants;
+
 UPDATE public.tenants t
 SET 
   auth_user_id = u.id,
@@ -40,4 +41,4 @@ WHERE LOWER(TRIM(t.email)) = LOWER(TRIM(u.email))
   AND t.id IN (
     SELECT tenant_id FROM public.v_tenants_migration_precheck
     WHERE migration_status = 'SAFE_TO_LINK'
-  )
+  );

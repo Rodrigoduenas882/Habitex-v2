@@ -1,4 +1,4 @@
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp"
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   country TEXT DEFAULT 'CO',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 CREATE TABLE IF NOT EXISTS public.subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   valid_until TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 CREATE TABLE IF NOT EXISTS public.properties (
   id TEXT PRIMARY KEY,
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.properties (
   landlord JSONB NOT NULL DEFAULT '{"name": "Luz Bertha Chaparro", "docType": "CC", "docNumber": "39533374", "phone": "3102212123", "city": "Bogotá"}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 CREATE TABLE IF NOT EXISTS public.tenants (
   id TEXT PRIMARY KEY,
   property_id TEXT NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   status TEXT DEFAULT 'Activo' CHECK (status IN ('Activo', 'Inactivo', 'En Mora')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 CREATE TABLE IF NOT EXISTS public.utility_bills (
   id TEXT PRIMARY KEY,
   property_id TEXT NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS public.utility_bills (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT unique_period_property UNIQUE (property_id, period_month, period_year)
-)
+);
 CREATE TABLE IF NOT EXISTS public.payments (
   id TEXT PRIMARY KEY,
   property_id TEXT NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.payments (
   status TEXT DEFAULT 'Pagado' CHECK (status IN ('Pendiente', 'Pagado', 'Rechazado')),
   receipt_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 CREATE TABLE IF NOT EXISTS public.cleaning_shifts (
   id TEXT PRIMARY KEY,
   property_id TEXT NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS public.cleaning_shifts (
   floor INTEGER DEFAULT 1,
   status TEXT DEFAULT 'Pendiente' CHECK (status IN ('Pendiente', 'Completado', 'Atrasado')),
   created_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
 CREATE TABLE IF NOT EXISTS public.documents (
   id TEXT PRIMARY KEY,
   property_id TEXT NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
@@ -106,4 +106,4 @@ CREATE TABLE IF NOT EXISTS public.documents (
   file_url TEXT NOT NULL,
   size TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
-)
+);
