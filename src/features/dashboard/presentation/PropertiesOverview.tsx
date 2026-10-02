@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation, type UseTranslationResponse } from 'react-i18next'
+import { derivePropertyOccupancyStatus, type PropertyOccupancyMap } from '@/features/properties/application/usePropertyOccupancy'
 import type { Property } from '@/features/properties/domain/property.types'
 import { cx } from '@/shared/lib/cx'
 import { IconBadge } from '@/shared/ui/IconBadge'
@@ -8,7 +9,6 @@ import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '@/shared/ui/icons'
 import propertyCardStyles from './PropertyCard.module.css'
 import styles from './PropertiesOverview.module.css'
 import { PropertyCard, type PropertyDisplayStatus } from './PropertyCard'
-import type { PropertyOccupancyMap } from './usePropertyOccupancy'
 
 type PropertiesOverviewT = UseTranslationResponse<['dashboard', 'properties'], undefined>['t']
 
@@ -32,27 +32,19 @@ function derivePropertyDisplay(
   occupancy: PropertyOccupancyMap,
   t: PropertiesOverviewT,
 ): { status: PropertyDisplayStatus; detail: string } {
+  const { status, occupiedRooms, totalRooms } = derivePropertyOccupancyStatus(property, occupancy)
+
   if (property.rentalMode === 'FULL_PROPERTY') {
-    const detail = t(`properties:propertyType.${property.propertyType}`)
-    if (occupancy.status !== 'ready') {
-      return { status: 'unknown', detail }
-    }
-    const entry = occupancy.byPropertyId.get(property.id)
-    return { status: entry?.isOccupied ? 'rented' : 'available', detail }
+    return { status, detail: t(`properties:propertyType.${property.propertyType}`) }
   }
 
   if (occupancy.status !== 'ready') {
-    return { status: 'unknown', detail: t('properties:rentalMode.BY_ROOMS') }
+    return { status, detail: t('properties:rentalMode.BY_ROOMS') }
   }
 
-  const entry = occupancy.byPropertyId.get(property.id) ?? {
-    isOccupied: false,
-    occupiedRooms: 0,
-    totalRooms: 0,
-  }
   return {
-    status: entry.occupiedRooms > 0 ? 'rented' : 'available',
-    detail: t('properties.roomsDetail', { occupied: entry.occupiedRooms, total: entry.totalRooms }),
+    status,
+    detail: t('properties.roomsDetail', { occupied: occupiedRooms, total: totalRooms }),
   }
 }
 

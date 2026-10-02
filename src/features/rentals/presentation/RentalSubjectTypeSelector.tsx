@@ -14,11 +14,9 @@ export function RentalSubjectTypeSelector({ onSelect }: RentalSubjectTypeSelecto
   const { t } = useTranslation('rentals')
 
   return (
-    <div role="radiogroup" aria-label={t('addRental.title')} className={styles['grid']}>
+    <div role="group" aria-label={t('addRental.title')} className={styles['grid']}>
       <button
         type="button"
-        role="radio"
-        aria-checked={false}
         aria-label={t('addRental.optionFullProperty.title')}
         className={styles['option']}
         onClick={() => {
@@ -34,8 +32,6 @@ export function RentalSubjectTypeSelector({ onSelect }: RentalSubjectTypeSelecto
 
       <button
         type="button"
-        role="radio"
-        aria-checked={false}
         aria-label={t('addRental.optionRoom.title')}
         className={styles['option']}
         onClick={() => {
@@ -51,8 +47,6 @@ export function RentalSubjectTypeSelector({ onSelect }: RentalSubjectTypeSelecto
 
       <button
         type="button"
-        role="radio"
-        aria-checked={false}
         aria-label={t('addRental.optionParking.title')}
         className={styles['option']}
         onClick={() => {

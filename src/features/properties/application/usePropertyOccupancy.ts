@@ -1,17 +1,18 @@
 import { useMemo } from 'react'
-import { useAdministrationRooms } from '@/features/properties/application/useAdministrationRooms'
 import { useRentalSubjectLinks } from '@/features/rentals/application/useRentalSubjectLinks'
 import { useRentalSubjects } from '@/features/rentals/application/useRentalSubjects'
 import { useRentals } from '@/features/rentals/application/useRentals'
 import type { RentalSubject } from '@/features/rentals/domain/rental-subject.types'
 import type { RentalStatus } from '@/features/rentals/domain/rental.types'
+import type { Property } from '../domain/property.types'
+import { useAdministrationRooms } from './useAdministrationRooms'
 
 /**
- * Per-property occupancy signal PropertyCard needs - a FULL_PROPERTY
- * property's single unit occupied state, and a BY_ROOMS property's enabled/
- * occupied room counts. A property absent from `byPropertyId` (e.g. no
- * matching rental_subject yet, or zero enabled rooms) is simply not
- * occupied/has zero rooms - never an error.
+ * Per-property occupancy signal - a FULL_PROPERTY property's single unit
+ * occupied state, and a BY_ROOMS property's enabled/occupied room counts. A
+ * property absent from `byPropertyId` (e.g. no matching rental_subject yet,
+ * or zero enabled rooms) is simply not occupied/has zero rooms - never an
+ * error.
  */
 export interface PropertyOccupancyEntry {
   /** FULL_PROPERTY only - always false for a BY_ROOMS property. */
@@ -33,19 +34,15 @@ function isLiveStatus(status: RentalStatus): boolean {
 }
 
 /**
- * Presentation-local, PropertiesOverview-scoped duplicate of a small slice of
- * useDashboardOccupancy's own cross-referencing logic (see that hook's own
- * doc comment for the full explanation of the data flow) - deliberately NOT
- * added to useDashboardOccupancy itself, which only returns an
- * administration-wide aggregate (occupiedUnits/totalUnits), not a
- * per-property breakdown. Extending that hook to also expose a per-property
- * map is a genuinely new capability outside this subtask's boundary (see the
- * PropertiesOverview wiring's own report) - this hook is the smaller,
- * presentation-local alternative: it re-fetches (React Query dedupes by
- * query key, so this is not a second network round trip) the same
- * rooms/rental_subjects/rental_relationship_subjects/rentals data and
- * derives only what PropertyCard's status badge/detail line need, scoped to
- * exactly this list.
+ * Shared per-property occupancy cross-reference - the single source both
+ * the Dashboard's PropertyCard and /properties's own PropertyListCard read
+ * from, so "is this Property occupied" is never computed twice. Originally
+ * Dashboard-presentation-local; moved here because Properties is the
+ * natural owner of "occupancy of a Property/Room" even though it
+ * cross-references rentals-feature data to compute it (same cross-feature
+ * direction Dashboard itself already uses). React Query dedupes by query
+ * key, so a Dashboard + Properties page both calling this for the same
+ * administrationId is not a second network round trip.
  */
 export function usePropertyOccupancy(administrationId: string | undefined): PropertyOccupancyMap {
   const roomsQuery = useAdministrationRooms(administrationId)
@@ -130,4 +127,56 @@ export function usePropertyOccupancy(administrationId: string | undefined): Prop
 
     return { status: 'ready', byPropertyId }
   }, [isError, isSuccess, rooms, fullPropertySubjects, roomSubjects, subjectLinks, rentals])
+}
+
+/** 'unknown' covers the occupancy cross-reference still loading/erroring -
+ * rendered as a distinct, honest neutral state rather than guessing
+ * 'available'. The single definition of "is this Property occupied" -
+ * every card that shows an occupancy badge (Dashboard's PropertyCard,
+ * /properties's PropertyListCard) reads this same computation, never its
+ * own re-derivation. */
+export type PropertyOccupancyStatus = 'rented' | 'available' | 'unknown'
+
+export interface PropertyOccupancyStatusResult {
+  status: PropertyOccupancyStatus
+  /** BY_ROOMS only - 0 for a FULL_PROPERTY property. */
+  occupiedRooms: number
+  /** BY_ROOMS only - 0 for a FULL_PROPERTY property. */
+  totalRooms: number
+}
+
+/**
+ * Pure, i18n-free status/raw-numbers computation shared by every caller
+ * that needs to know whether a Property is occupied. Callers own their own
+ * i18n-formatted `detail` string locally (see PropertiesOverview's
+ * derivePropertyDisplay and PropertiesPage's equivalent) - this function
+ * only ever returns the one true status, never re-derived differently by
+ * two callers.
+ */
+export function derivePropertyOccupancyStatus(
+  property: Property,
+  occupancy: PropertyOccupancyMap,
+): PropertyOccupancyStatusResult {
+  if (property.rentalMode === 'FULL_PROPERTY') {
+    if (occupancy.status !== 'ready') {
+      return { status: 'unknown', occupiedRooms: 0, totalRooms: 0 }
+    }
+    const entry = occupancy.byPropertyId.get(property.id)
+    return { status: entry?.isOccupied ? 'rented' : 'available', occupiedRooms: 0, totalRooms: 0 }
+  }
+
+  if (occupancy.status !== 'ready') {
+    return { status: 'unknown', occupiedRooms: 0, totalRooms: 0 }
+  }
+
+  const entry = occupancy.byPropertyId.get(property.id) ?? {
+    isOccupied: false,
+    occupiedRooms: 0,
+    totalRooms: 0,
+  }
+  return {
+    status: entry.occupiedRooms > 0 ? 'rented' : 'available',
+    occupiedRooms: entry.occupiedRooms,
+    totalRooms: entry.totalRooms,
+  }
 }

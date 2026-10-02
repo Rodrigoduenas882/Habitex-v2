@@ -73,6 +73,17 @@ describe('RoomSetupPage', () => {
     expect(screen.getByRole('button', { name: 'Terminar configuración' })).toBeEnabled()
   })
 
+  it('gives "Terminar configuración" the heavier visual weight once it is enabled, never subordinate to "Agregar habitación"', async () => {
+    listByProperty.mockResolvedValueOnce([ROOM_1])
+    renderPage()
+
+    await screen.findByText('Habitación 1')
+    const finishButton = screen.getByRole('button', { name: 'Terminar configuración' })
+    const addButton = screen.getByRole('button', { name: 'Agregar habitación' })
+    expect(finishButton.className).not.toMatch(/secondary/)
+    expect(addButton.className).toMatch(/secondary/)
+  })
+
   it('behaves the same on a fresh mount (refresh/direct URL entry) as any other mount - the backend decides, not navigation state', async () => {
     // No special setup beyond the standard render - there is no
     // justCreated/navigation-state concept left to configure. The backend

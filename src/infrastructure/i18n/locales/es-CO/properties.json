@@ -11,6 +11,12 @@
     "FULL_PROPERTY": "Inmueble completo",
     "BY_ROOMS": "Por habitaciones"
   },
+  "occupancy": {
+    "rented": "Arrendado",
+    "available": "Disponible",
+    "statusUnknown": "Sin datos",
+    "roomsDetail": "{{occupied}} de {{total}} habitaciones ocupadas"
+  },
   "empty": {
     "title": "Todavía no tienes inmuebles",
     "description": "Cuando agregues un inmueble, aparecerá aquí."

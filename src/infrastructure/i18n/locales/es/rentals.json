@@ -132,6 +132,7 @@
     }
   },
   "form": {
+    "title": "Completa los datos del arriendo",
     "sectionSubject": {
       "FULL_PROPERTY": "¿Cuál inmueble?",
       "ROOM": "¿Cuál habitación?",
@@ -188,6 +189,7 @@
     "linkLabel": "Enlace de invitación",
     "copyLink": "Copiar enlace",
     "copied": "Copiado",
+    "copyFailed": "No pudimos copiar el enlace. Selecciona el texto y cópialo manualmente.",
     "errors": {
       "tenant_not_linked": "Este inquilino no está vinculado a tu administración.",
       "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",

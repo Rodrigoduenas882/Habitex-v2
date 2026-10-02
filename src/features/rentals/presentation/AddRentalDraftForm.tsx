@@ -81,6 +81,7 @@ function AddRentalDraftInvitationStep({
   const createInvitation = useCreateInvitation()
   const [rawToken, setRawToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
 
   const handleGenerate = () => {
     void (async () => {
@@ -109,13 +110,15 @@ function AddRentalDraftInvitationStep({
 
   const handleCopy = () => {
     if (!invitationLink) return
+    setCopied(false)
+    setCopyFailed(false)
     navigator.clipboard
       .writeText(invitationLink)
       .then(() => {
         setCopied(true)
       })
       .catch(() => {
-        setCopied(false)
+        setCopyFailed(true)
       })
   }
 
@@ -131,7 +134,7 @@ function AddRentalDraftInvitationStep({
             {t('invitationStep.copyLink')}
           </Button>
           <span role="status" aria-live="polite" className={styles['copyStatus']}>
-            {copied ? t('invitationStep.copied') : ''}
+            {copyFailed ? t('invitationStep.copyFailed') : copied ? t('invitationStep.copied') : ''}
           </span>
         </div>
       ) : (
@@ -276,7 +279,7 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
       <button type="button" className={styles['back']} onClick={onBack}>
         {t('addRental.back')}
       </button>
-      <h1 className="text-h2">{t('addRental.title')}</h1>
+      <h1 className="text-h2">{t('form.title')}</h1>
 
       {createRentalDraft.isError ? <Alert tone="danger">{t('form.errors.createFailed')}</Alert> : null}
 

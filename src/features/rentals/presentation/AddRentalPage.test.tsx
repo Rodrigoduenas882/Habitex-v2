@@ -113,9 +113,9 @@ describe('AddRentalPage', () => {
     renderPage()
 
     expect(await screen.findByText('¿Qué vas a arrendar?')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Inmueble completo' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Habitación' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Parqueadero' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inmueble completo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Habitación' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Parqueadero' })).toBeInTheDocument()
     expect(createDraft).not.toHaveBeenCalled()
     expect(listRentalSubjects).not.toHaveBeenCalled()
   })
@@ -128,7 +128,7 @@ describe('AddRentalPage', () => {
     renderPage()
     await screen.findByText('¿Qué vas a arrendar?')
 
-    await user.click(screen.getByRole('radio', { name: 'Inmueble completo' }))
+    await user.click(screen.getByRole('button', { name: 'Inmueble completo' }))
 
     expect(listRentalSubjects).toHaveBeenCalledWith('admin-1', 'FULL_PROPERTY')
     expect(createDraft).not.toHaveBeenCalled()
@@ -140,7 +140,7 @@ describe('AddRentalPage', () => {
     listTenantCandidates.mockReturnValueOnce(new Promise(() => {}))
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('radio', { name: 'Inmueble completo' }))
+    await user.click(await screen.findByRole('button', { name: 'Inmueble completo' }))
     await screen.findByRole('button', { name: 'Volver' })
 
     await user.click(screen.getByRole('button', { name: 'Volver' }))

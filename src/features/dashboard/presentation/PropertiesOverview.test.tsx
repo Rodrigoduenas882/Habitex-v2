@@ -1,9 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
+import type { PropertyOccupancyMap } from '@/features/properties/application/usePropertyOccupancy'
 import type { Property } from '@/features/properties/domain/property.types'
 import { PropertiesOverview } from './PropertiesOverview'
-import type { PropertyOccupancyMap } from './usePropertyOccupancy'
 
 function makeProperty(overrides: Partial<Property> = {}): Property {
   return {

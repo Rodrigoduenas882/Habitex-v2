@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
+import { useTranslation, type UseTranslationResponse } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useActiveAdministration } from '@/features/administration/application/useActiveAdministration'
 import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
@@ -15,7 +15,14 @@ import { Skeleton } from '@/shared/ui/Skeleton'
 import styles from './PropertiesPage.module.css'
 import { PropertyListCard } from './PropertyListCard'
 import { useProperties } from '../application/useProperties'
+import {
+  derivePropertyOccupancyStatus,
+  usePropertyOccupancy,
+  type PropertyOccupancyMap,
+} from '../application/usePropertyOccupancy'
 import type { Property } from '../domain/property.types'
+
+type PropertiesSectionT = UseTranslationResponse<'properties', undefined>['t']
 
 function GridSkeleton({ testId }: { testId: string }) {
   return (
@@ -29,9 +36,35 @@ function GridSkeleton({ testId }: { testId: string }) {
 
 interface PropertiesSectionProps {
   query: UseQueryResult<Property[]>
+  occupancy: PropertyOccupancyMap
 }
 
-function PropertiesSection({ query }: PropertiesSectionProps) {
+/**
+ * This section's own i18n-formatted detail string, built from the shared,
+ * pure derivePropertyOccupancyStatus (see usePropertyOccupancy's own doc
+ * comment) - the status computation itself is never re-derived here, only
+ * formatted into this feature's own copy (properties.json's `occupancy`
+ * keys, not dashboard.json's).
+ */
+function derivePropertyListDisplay(
+  property: Property,
+  occupancy: PropertyOccupancyMap,
+  t: PropertiesSectionT,
+): { status: ReturnType<typeof derivePropertyOccupancyStatus>['status']; detail: string } {
+  const { status, occupiedRooms, totalRooms } = derivePropertyOccupancyStatus(property, occupancy)
+
+  if (property.rentalMode === 'FULL_PROPERTY') {
+    return { status, detail: t(`propertyType.${property.propertyType}`) }
+  }
+
+  if (occupancy.status !== 'ready') {
+    return { status, detail: t('rentalMode.BY_ROOMS') }
+  }
+
+  return { status, detail: t('occupancy.roomsDetail', { occupied: occupiedRooms, total: totalRooms }) }
+}
+
+function PropertiesSection({ query, occupancy }: PropertiesSectionProps) {
   const { t } = useTranslation('properties')
 
   if (query.isLoading) {
@@ -60,9 +93,10 @@ function PropertiesSection({ query }: PropertiesSectionProps) {
 
   return (
     <div className={styles['grid']}>
-      {properties.map((property) => (
-        <PropertyListCard key={property.id} property={property} />
-      ))}
+      {properties.map((property) => {
+        const { status, detail } = derivePropertyListDisplay(property, occupancy, t)
+        return <PropertyListCard key={property.id} property={property} status={status} detail={detail} />
+      })}
     </div>
   )
 }
@@ -136,6 +170,7 @@ export default function PropertiesPage() {
     currentAdministration.status === 'resolved' ? currentAdministration.administration.id : undefined
   const propertiesQuery = useProperties(administrationId)
   const parkingsQuery = useParkings(administrationId)
+  const propertyOccupancy = usePropertyOccupancy(administrationId)
 
   const addPropertyCta = (
     <Button
@@ -185,7 +220,7 @@ export default function PropertiesPage() {
         <>
           <section className={styles['section']}>
             <h2 className="text-h3">{t('sections.properties')}</h2>
-            <PropertiesSection query={propertiesQuery} />
+            <PropertiesSection query={propertiesQuery} occupancy={propertyOccupancy} />
           </section>
 
           <section className={styles['section']}>

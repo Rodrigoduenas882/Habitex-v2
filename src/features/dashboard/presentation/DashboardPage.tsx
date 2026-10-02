@@ -3,6 +3,7 @@ import { useActiveAdministration } from '@/features/administration/application/u
 import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
 import { useAuthSession } from '@/features/auth/application/useAuthSession'
 import { useProperties } from '@/features/properties/application/useProperties'
+import { usePropertyOccupancy } from '@/features/properties/application/usePropertyOccupancy'
 import { Alert } from '@/shared/ui/Alert'
 import { AlertTriangleIcon, BuildingIcon, UsersIcon, WalletIcon } from '@/shared/ui/icons'
 import { Skeleton } from '@/shared/ui/Skeleton'
@@ -16,7 +17,6 @@ import { FinancialOverview } from './FinancialOverview'
 import { getDisplayNameFromEmail } from './getDisplayNameFromEmail'
 import { KpiCard } from './KpiCard'
 import { PropertiesOverview } from './PropertiesOverview'
-import { usePropertyOccupancy } from './usePropertyOccupancy'
 import { QuickActions } from './QuickActions'
 
 /** Plain Intl.NumberFormat('es-CO'), no currency selector or decimals - same
@@ -183,8 +183,9 @@ function DashboardView({ administrationId }: DashboardViewProps) {
 /**
  * Dashboard: the authenticated landing page, now wired to real data. Every
  * section reads from its own real hook (useProperties, useDashboardOccupancy,
- * useDashboardFinancials, useDashboardAttention, plus the presentation-local
- * usePropertyOccupancy for PropertyCard's per-property status) - no
+ * useDashboardFinancials, useDashboardAttention, plus the shared
+ * properties/application/usePropertyOccupancy for PropertyCard's
+ * per-property status, also reused by /properties's PropertyListCard) - no
  * dashboard-mock-data import remains anywhere in this file.
  */
 export default function DashboardPage() {

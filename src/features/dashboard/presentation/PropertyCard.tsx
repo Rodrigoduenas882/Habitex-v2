@@ -3,12 +3,15 @@ import { cx } from '@/shared/lib/cx'
 import { Badge, type BadgeTone } from '@/shared/ui/Badge'
 import { Card } from '@/shared/ui/Card'
 import type { Property } from '@/features/properties/domain/property.types'
+import type { PropertyOccupancyStatus } from '@/features/properties/application/usePropertyOccupancy'
 import styles from './PropertyCard.module.css'
 
-/** 'unknown' covers the occupancy cross-reference still loading/erroring -
- * see PropertiesOverview's own derivePropertyDisplay doc comment. Rendered
- * as a distinct, honest neutral state rather than guessing 'available'. */
-export type PropertyDisplayStatus = 'rented' | 'available' | 'unknown'
+/** Alias of the shared `PropertyOccupancyStatus` (see
+ * `properties/application/usePropertyOccupancy`'s own doc comment) - that
+ * is the single source of truth for "is this Property occupied"; this
+ * local name is kept only so this file's existing Dashboard-scoped usages
+ * don't all need renaming. */
+export type PropertyDisplayStatus = PropertyOccupancyStatus
 
 export interface PropertyCardProps {
   property: Property

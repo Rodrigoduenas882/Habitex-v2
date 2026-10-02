@@ -1,12 +1,34 @@
 import { useTranslation } from 'react-i18next'
+import type { PropertyOccupancyStatus } from '@/features/properties/application/usePropertyOccupancy'
 import { cx } from '@/shared/lib/cx'
-import { Badge } from '@/shared/ui/Badge'
+import { Badge, type BadgeTone } from '@/shared/ui/Badge'
 import { Card } from '@/shared/ui/Card'
 import type { Property } from '../domain/property.types'
 import styles from './PropertyListCard.module.css'
 
 export interface PropertyListCardProps {
   property: Property
+  /** Shared occupancy computation (see usePropertyOccupancy's own doc
+   * comment) - this card never re-derives it on its own. */
+  status: PropertyOccupancyStatus
+  /** One short, already-translated secondary line - computed by the caller
+   * (PropertiesPage), same pattern as the Dashboard's PropertyCard. */
+  detail: string
+}
+
+const STATUS_TONE: Record<PropertyOccupancyStatus, BadgeTone> = {
+  rented: 'success',
+  available: 'info',
+  unknown: 'neutral',
+}
+
+const STATUS_LABEL_KEY: Record<
+  PropertyOccupancyStatus,
+  'occupancy.rented' | 'occupancy.available' | 'occupancy.statusUnknown'
+> = {
+  rented: 'occupancy.rented',
+  available: 'occupancy.available',
+  unknown: 'occupancy.statusUnknown',
 }
 
 /**
@@ -36,10 +58,12 @@ function PropertySkyline() {
 
 /**
  * Real property card - decoupled from the Dashboard's mock PropertySummary.
- * Only shows fields the properties table actually has; no rented/available
- * badge, because occupancy isn't known here (see Property's own doc comment).
+ * Now shares the same occupancy badge the Dashboard's PropertyCard shows
+ * (status/detail computed once by usePropertyOccupancy +
+ * derivePropertyOccupancyStatus, never re-derived here - see that hook's
+ * own doc comment).
  */
-export function PropertyListCard({ property }: PropertyListCardProps) {
+export function PropertyListCard({ property, status, detail }: PropertyListCardProps) {
   const { t } = useTranslation('properties')
 
   return (
@@ -51,7 +75,14 @@ export function PropertyListCard({ property }: PropertyListCardProps) {
         <p className={styles['name']}>{property.name}</p>
         <p className="text-caption">{property.city}</p>
         <p className={cx('text-caption', styles['detail'])}>{property.address}</p>
+        {/* BY_ROOMS only - for FULL_PROPERTY, `detail` is the same text the
+            propertyType badge below already shows, so rendering it again
+            here would just be a literal duplicate line. */}
+        {property.rentalMode === 'BY_ROOMS' ? (
+          <p className={cx('text-caption', 'text-muted')}>{detail}</p>
+        ) : null}
         <div className={styles['meta']}>
+          <Badge tone={STATUS_TONE[status]}>{t(STATUS_LABEL_KEY[status])}</Badge>
           <Badge tone="neutral">{t(`propertyType.${property.propertyType}`)}</Badge>
           <Badge tone="neutral">{t(`rentalMode.${property.rentalMode}`)}</Badge>
         </div>

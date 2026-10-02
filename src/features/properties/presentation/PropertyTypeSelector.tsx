@@ -18,11 +18,9 @@ export function PropertyTypeSelector({ onSelect }: PropertyTypeSelectorProps) {
   const { t } = useTranslation('properties')
 
   return (
-    <div role="radiogroup" aria-label={t('addProperty.title')} className={styles['grid']}>
+    <div role="group" aria-label={t('addProperty.title')} className={styles['grid']}>
       <button
         type="button"
-        role="radio"
-        aria-checked={false}
         aria-label={t('addProperty.optionFull.title')}
         className={styles['option']}
         onClick={() => {
@@ -38,8 +36,6 @@ export function PropertyTypeSelector({ onSelect }: PropertyTypeSelectorProps) {
 
       <button
         type="button"
-        role="radio"
-        aria-checked={false}
         aria-label={t('addProperty.optionRooms.title')}
         className={styles['option']}
         onClick={() => {
@@ -55,8 +51,6 @@ export function PropertyTypeSelector({ onSelect }: PropertyTypeSelectorProps) {
 
       <button
         type="button"
-        role="radio"
-        aria-checked={false}
         aria-label={t('addProperty.optionParking.title')}
         className={styles['option']}
         onClick={() => {

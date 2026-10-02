@@ -80,6 +80,16 @@ async function waitForSubjectsToSettle() {
 }
 
 describe('AddRentalDraftForm', () => {
+  it('shows its own step-2 heading, not a repeat of the step-1 "¿Qué vas a arrendar?" question', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    expect(await screen.findByText('Completa los datos del arriendo')).toBeInTheDocument()
+    expect(screen.queryByText('¿Qué vas a arrendar?')).not.toBeInTheDocument()
+  })
+
   it('shows a loading state while rental subjects are resolving, and calls the real port with administrationId + subjectType', () => {
     listRentalSubjects.mockReturnValueOnce(new Promise(() => {}))
     listTenantCandidates.mockReturnValueOnce(new Promise(() => {}))
@@ -540,5 +550,37 @@ describe('AddRentalDraftForm', () => {
 
     expect(writeTextSpy).toHaveBeenCalledWith(linkValue)
     expect(await screen.findByRole('status')).toHaveTextContent('Copiado')
+  })
+
+  it('"Copiar enlace" shows a visible failure message, not just silence, when the clipboard write rejects', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
+    createInvitation.mockResolvedValueOnce({
+      id: 'invitation-1',
+      administrationId: 'admin-1',
+      personId: 'person-5',
+      rentalRelationshipId: 'rel-5',
+      status: 'PENDING',
+      expiresAt: '2026-01-12T00:00:00Z',
+      createdAt: '2026-01-05T00:00:00Z',
+    })
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'))
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    await user.selectOptions(screen.getByLabelText('Activo a arrendar'), 'subj-1')
+    await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    await screen.findByTestId('add-rental-invitation-step')
+    await user.click(screen.getByRole('button', { name: 'Generar invitación para el inquilino' }))
+    await screen.findByLabelText('Enlace de invitación')
+
+    await user.click(screen.getByRole('button', { name: 'Copiar enlace' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'No pudimos copiar el enlace. Selecciona el texto y cópialo manualmente.',
+    )
   })
 })
