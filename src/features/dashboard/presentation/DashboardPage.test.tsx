@@ -422,7 +422,7 @@ describe('DashboardPage', () => {
     ])
     render(<DashboardPage />)
 
-    expect(await screen.findByRole('radiogroup')).toBeInTheDocument()
+    expect(await screen.findByRole('group', { name: 'Selecciona una administración' })).toBeInTheDocument()
   })
 
   it('shows an error state when the administration itself fails to resolve', async () => {

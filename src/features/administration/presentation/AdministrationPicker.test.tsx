@@ -10,11 +10,11 @@ const ADMIN_2: AccessibleAdministration = { id: 'admin-2', name: 'Administració
 const ADMIN_3: AccessibleAdministration = { id: 'admin-3', name: 'Administración Tres', status: 'ARCHIVED' }
 
 describe('AdministrationPicker', () => {
-  it('renders one selectable option per administration, as a radiogroup', () => {
+  it('renders one selectable option per administration, as a labeled group of navigation buttons', () => {
     render(<AdministrationPicker options={[ADMIN_1, ADMIN_2]} onSelect={vi.fn()} />)
 
-    expect(screen.getByRole('radiogroup', { name: 'Selecciona una administración' })).toBeInTheDocument()
-    expect(screen.getAllByRole('radio')).toHaveLength(2)
+    expect(screen.getByRole('group', { name: 'Selecciona una administración' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(2)
   })
 
   it('shows each administration name and its translated status, never the raw enum', () => {
@@ -34,8 +34,8 @@ describe('AdministrationPicker', () => {
   it('keeps SUSPENDED and ARCHIVED administrations selectable - this is a navigation preference, not a business guard', () => {
     render(<AdministrationPicker options={[ADMIN_2, ADMIN_3]} onSelect={vi.fn()} />)
 
-    for (const radio of screen.getAllByRole('radio')) {
-      expect(radio).toBeEnabled()
+    for (const button of screen.getAllByRole('button')) {
+      expect(button).toBeEnabled()
     }
   })
 
@@ -44,10 +44,20 @@ describe('AdministrationPicker', () => {
     const user = userEvent.setup()
     render(<AdministrationPicker options={[ADMIN_1, ADMIN_2]} onSelect={onSelect} />)
 
-    await user.click(screen.getByRole('radio', { name: /Administración Dos/ }))
+    await user.click(screen.getByRole('button', { name: /Administración Dos/ }))
 
     expect(onSelect).toHaveBeenCalledWith('admin-2')
     expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
+  it('never exposes a persistent "checked" state - this is a one-shot navigation choice, not a real radiogroup', () => {
+    render(<AdministrationPicker options={[ADMIN_1, ADMIN_2]} onSelect={vi.fn()} />)
+
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+    for (const button of screen.getAllByRole('button')) {
+      expect(button).not.toHaveAttribute('aria-checked')
+    }
   })
 
   it('is operable by keyboard - each option is a real <button>, not a div with a click handler', async () => {
@@ -55,11 +65,11 @@ describe('AdministrationPicker', () => {
     const user = userEvent.setup()
     render(<AdministrationPicker options={[ADMIN_1]} onSelect={onSelect} />)
 
-    const [radio] = screen.getAllByRole('radio')
-    if (!radio) {
-      throw new Error('expected a radio option to render')
+    const [button] = screen.getAllByRole('button')
+    if (!button) {
+      throw new Error('expected an option button to render')
     }
-    radio.focus()
+    button.focus()
     await user.keyboard('{Enter}')
 
     expect(onSelect).toHaveBeenCalledWith('admin-1')

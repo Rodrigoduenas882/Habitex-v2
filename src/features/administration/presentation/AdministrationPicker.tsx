@@ -29,6 +29,15 @@ const STATUS_TONE: Record<AdministrationStatus, BadgeTone> = {
  * administration-selection-storage.ts), not a business-rule guard; RLS and
  * the destination pages remain the authority on what a suspended/archived
  * administration can actually do.
+ *
+ * Navigation tiles, not a persistent choice: clicking an option calls
+ * `onSelect`, which immediately flips useActiveAdministration() to
+ * 'resolved' and unmounts this component - there is no "currently selected"
+ * state that ever stays visible here (no `selectedId`/`currentId` prop
+ * exists), so `role="radiogroup"`/`role="radio"`/`aria-checked` was never
+ * correct (a real radiogroup needs a reachable `aria-checked="true"`, which
+ * this could never produce). Same pattern/fix as PropertyTypeSelector and
+ * RentalSubjectTypeSelector - a plain labeled group of buttons.
  */
 export function AdministrationPicker({ options, onSelect }: AdministrationPickerProps) {
   const { t } = useTranslation('administration')
@@ -39,13 +48,11 @@ export function AdministrationPicker({ options, onSelect }: AdministrationPicker
         <h2 className="text-h3">{t('picker.title')}</h2>
         <p className={cx('text-body-sm', 'text-muted', styles['description'])}>{t('picker.description')}</p>
       </div>
-      <div role="radiogroup" aria-label={t('picker.title')} className={styles['list']}>
+      <div role="group" aria-label={t('picker.title')} className={styles['list']}>
         {options.map((option) => (
           <button
             key={option.id}
             type="button"
-            role="radio"
-            aria-checked={false}
             aria-label={t('picker.optionLabel', {
               name: option.name,
               status: t(`status.${option.status}`),

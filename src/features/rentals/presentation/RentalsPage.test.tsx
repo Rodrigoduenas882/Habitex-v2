@@ -188,8 +188,8 @@ describe('RentalsPage', () => {
     renderPage()
 
     expect(await screen.findByText('Selecciona una administración')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Administración Uno, Activa' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Administración Dos, Activa' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Administración Uno, Activa' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Administración Dos, Activa' })).toBeInTheDocument()
     expect(listByAdministration).not.toHaveBeenCalled()
   })
 
@@ -202,7 +202,7 @@ describe('RentalsPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole('radio', { name: 'Administración Dos, Activa' }))
+    await user.click(await screen.findByRole('button', { name: 'Administración Dos, Activa' }))
 
     expect(await screen.findByText('Activo')).toBeInTheDocument()
     expect(listByAdministration).toHaveBeenCalledWith('admin-2')

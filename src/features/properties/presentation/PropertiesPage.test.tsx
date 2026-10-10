@@ -151,8 +151,8 @@ describe('PropertiesPage', () => {
     renderPage()
 
     expect(await screen.findByText('Selecciona una administración')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Administración Uno, Activa' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Administración Dos, Activa' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Administración Uno, Activa' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Administración Dos, Activa' })).toBeInTheDocument()
     expect(listPropertiesByAdministration).not.toHaveBeenCalled()
     expect(listParkingsByAdministration).not.toHaveBeenCalled()
   })
@@ -167,7 +167,7 @@ describe('PropertiesPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole('radio', { name: 'Administración Dos, Activa' }))
+    await user.click(await screen.findByRole('button', { name: 'Administración Dos, Activa' }))
 
     expect(await screen.findByText('Apartamento 302')).toBeInTheDocument()
     expect(listPropertiesByAdministration).toHaveBeenCalledWith('admin-2')

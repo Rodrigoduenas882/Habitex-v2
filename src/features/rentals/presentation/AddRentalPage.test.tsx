@@ -103,7 +103,7 @@ describe('AddRentalPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole('radio', { name: 'Administración Dos, Activa' }))
+    await user.click(await screen.findByRole('button', { name: 'Administración Dos, Activa' }))
 
     expect(await screen.findByText('¿Qué vas a arrendar?')).toBeInTheDocument()
   })
