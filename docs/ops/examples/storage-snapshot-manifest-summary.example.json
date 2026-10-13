@@ -1,0 +1,17 @@
+{
+  "runId": "20261013T150935Z-e98c0f",
+  "createdAt": "2026-10-13T15:09:35.587Z",
+  "buckets": [
+    "receipts",
+    "documents"
+  ],
+  "completeness": "COMPLETE",
+  "objectCount": 4,
+  "downloadedCount": 4,
+  "missingCount": 0,
+  "totalBytes": 2252,
+  "archiveFilename": "20261013T150935Z-e98c0f.snapshot.age",
+  "archiveSha256": "93d922f03f37683a03c4f42c4fd88544704b872f936ef56351ed948e3b8d801d",
+  "archiveBytes": 5026,
+  "recipientCount": 2
+}
