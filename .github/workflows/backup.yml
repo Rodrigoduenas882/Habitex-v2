@@ -1,0 +1,95 @@
+name: Backup
+
+# INC-BKP-004 - prepares automation for the backup pipeline validated
+# locally across INC-BKP-001 through INC-BKP-003 (backup_reader role,
+# PostgreSQL export, Storage export, R2 upload/verify orchestration). This
+# workflow is NOT active: both triggers below require a human action
+# before any real backup runs - see the two gates documented inline.
+#
+# Gate 1 (this trigger definition): the scheduled trigger is commented out
+# entirely, not merely disabled by a condition - GitHub Actions only runs
+# `schedule:` crons from the repository's default branch, and only once a
+# workflow file defining one has been merged there. This file is not even
+# committed yet (restriction: "no hacer commit, push ni merge"), so there
+# is zero risk of this cron ever firing from today's state. When a human
+# approves enabling the schedule, uncomment the block below - do not add a
+# new one, so this comment and the review history around it stay attached
+# to the trigger that was actually reasoned about.
+#
+# on:
+#   schedule:
+#     - cron: '0 9 * * *'   # proposed: daily 09:00 UTC - human-approved, not active
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type RUN to confirm you intend to execute a real backup against production'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-${{ github.workflow }}
+  cancel-in-progress: false # never cancel a backup mid-upload
+
+jobs:
+  backup:
+    name: Run backup (PostgreSQL + Storage -> R2)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Gate 2: the kill switch. Even a manual workflow_dispatch run (the
+      # only trigger that exists right now) does nothing real past this
+      # point unless a human has explicitly set the BACKUP_AUTOMATION_ENABLED
+      # repository variable to exactly "true" AND typed "RUN" into the
+      # confirm input above. Both conditions are required (AND, not OR) -
+      # neither one alone is enough to make this workflow do real work.
+      - name: Guard - confirm this run is intentional and automation is enabled
+        run: |
+          if [ "${{ inputs.confirm }}" != "RUN" ]; then
+            echo "confirm input was not exactly 'RUN' - stopping, no backup executed." >&2
+            exit 1
+          fi
+          if [ "${{ vars.BACKUP_AUTOMATION_ENABLED }}" != "true" ]; then
+            echo "BACKUP_AUTOMATION_ENABLED repository variable is not 'true' - stopping, no backup executed." >&2
+            echo "This is the explicit human approval gate - see docs/ops/backup-automation-findings.md." >&2
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # age is not preinstalled on GitHub-hosted Ubuntu runners.
+      - name: Install age
+        run: sudo apt-get update && sudo apt-get install -y age
+
+      # pg_dump - already-validated export-postgres-data.sh (INC-BKP-002)
+      # needs it on PATH, same as any Linux environment (unlike this
+      # repo's own Windows dev machine, which required a local Docker
+      # escape hatch - not needed here, the runner is Linux).
+      - name: Install PostgreSQL client
+        run: sudo apt-get install -y postgresql-client
+
+      - name: Run backup
+        env:
+          PGHOST: ${{ secrets.BACKUP_PGHOST }}
+          PGPORT: ${{ secrets.BACKUP_PGPORT }}
+          PGDATABASE: ${{ secrets.BACKUP_PGDATABASE }}
+          PGUSER: ${{ secrets.BACKUP_PGUSER }}
+          PGPASSWORD: ${{ secrets.BACKUP_PGPASSWORD }}
+          SUPABASE_URL: ${{ secrets.BACKUP_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.BACKUP_SUPABASE_SERVICE_ROLE_KEY }}
+          AGE_RECIPIENTS: ${{ secrets.BACKUP_AGE_RECIPIENTS }}
+          R2_ENDPOINT: ${{ secrets.BACKUP_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.BACKUP_R2_BUCKET }}
+          HEALTHCHECKS_PING_URL: ${{ secrets.BACKUP_HEALTHCHECKS_PING_URL }}
+        run: node scripts/backup/run-backup.mjs
