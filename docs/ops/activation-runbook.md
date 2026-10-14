@@ -38,9 +38,12 @@ Confirm, don't assume:
 ## 1. Apply the `backup_reader` migration to the remote project
 
 **Human action, separate from everything else in this list**: review
-`supabase/migrations/20261013120000_create_backup_reader_role.sql` one
-more time, then apply it to the real project (Supabase dashboard SQL
-editor, or `supabase db push` once a human has confirmed the diff). Set
+`supabase/migrations/20261014170751_create_backup_reader_role.sql`
+(renamed from `20261013120000_...` to match the version the remote
+project tracks — see `docs/ops/remote-connectivity-and-pgdump-findings.md`
+§8; content unchanged) one more time, then apply it to the real project
+(Supabase dashboard SQL editor, or `supabase db push` once a human has
+confirmed the diff). Set
 `backup_reader`'s real password immediately after, via the dashboard —
 **never** in a migration, **never** in this repo.
 

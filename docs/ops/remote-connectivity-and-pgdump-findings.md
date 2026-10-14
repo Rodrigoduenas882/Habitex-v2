@@ -229,11 +229,125 @@ pipeline.
   assumed; revisit only if §8b's real smoke test surfaces an SSL-specific
   failure.
 
+## 7. Real Supavisor smoke test results (post-activation)
+
+Everything flagged as "documentation-verified, not connection-verified"
+in §6 above has since been tested for real, after a human applied the
+`backup_reader` migration to the remote project (via the Dashboard SQL
+Editor — see §8 below for the version this created) and set its password
+out-of-band. Two real runs, both read-only, both manual, both outside
+this repo's own tool-calling (per this increment's restriction on running
+anything credentialed from inside Claude Code):
+
+- **First attempt failed**: `FATAL: password authentication failed for
+  user "backup_reader"`. Investigated read-only (official Supabase docs
+  via `search_docs`, `pg_authid` via `execute_sql`, and
+  `supavisor_logs`/`postgres_logs` via `query_logs`) rather than assumed.
+  Root cause, evidenced directly in `supavisor_logs`: the failed attempt
+  (`17:54:28`) landed on `"SecretChecker not started, using a one-off
+  auth_query connection"` immediately before the auth error — Supavisor's
+  own credential cache/checker had never been warmed for this brand-new
+  role, the same cold-start path Supabase's own troubleshooting doc
+  documents for a password changed shortly before a connection attempt
+  ("Supavisor error: 'password authentication failed' after rotating
+  database password" — not a bug, resolves on a bare retry).
+  `pg_authid` confirmed the password hash was correctly stored and the
+  role wasn't expired, ruling out the two other documented causes before
+  concluding this was the cache/cold-start path specifically.
+- **Retry succeeded**: `current_user = backup_reader` (exact match),
+  `transaction_read_only = on`, `SELECT count(*) FROM
+  public.administrations` executed without error (returned `0` at the
+  time — the project had no real tenant data yet; `1` by the time of a
+  later re-run, both are valid, non-error results), `ALL CHECKS PASSED`.
+  `PGPASSWORD` cleared from the shell afterward.
+- **`pg_dump` itself validated separately, against real data**: schema-
+  only `pg_dump --schema-only --table "public.administrations"` through
+  the real Supavisor session-mode pooler. Asserted non-empty, not just
+  exit code 0: output contained the real `CREATE TABLE` statement and at
+  least 3 of `administrations`' 5 known columns — ruling out the
+  "`pg_dump` exits 0 but silently dumped nothing" false-positive this
+  increment's own §8b smoke test design was built to catch. **PASSED.**
+
+This closes §6's primary residual risk (the pooler/username/port design
+was documentation-verified only) with a real, successful round-trip.
+Still open, as noted in §6: `pg-connection-guard.mjs` cannot and does not
+verify the project-ref segment or `PGHOST` are the *correct* pooler
+cluster beyond their *shape* — that still rests on this successful real
+connection, not on any static check.
+
+## 8. Migration version reconciliation (`20261013120000` → `20261014170751`)
+
+**The divergence:** this file was originally authored and committed as
+`supabase/migrations/20261013120000_create_backup_reader_role.sql`. Local
+dev (`supabase start`/`db reset`) tracks it under that same version in
+its own `supabase_migrations.schema_migrations`. The human who applied it
+to the real remote project did so via the Dashboard's SQL Editor — not
+`supabase db push` — which auto-records executed DDL into
+`supabase_migrations.schema_migrations` stamped with the **execution
+timestamp**, not the file's embedded version. The remote project
+therefore tracks this exact statement set under version
+`20261014170751` (`2026-10-14 17:07:51 UTC`), not `20261013120000`.
+
+**Verified read-only, both sides, before any file was touched:**
+- Remote's recorded `statements` column (queried directly from
+  `supabase_migrations.schema_migrations`) and this file's SQL are
+  identical, modulo SQL keyword casing only.
+- `backup_reader`'s resulting role attributes — `rolcanlogin`,
+  `rolbypassrls`, `rolsuper`, `rolcreatedb`, `rolcreaterole`,
+  `rolconnlimit`, `rolconfig` (`default_transaction_read_only=on`), and
+  its single `pg_read_all_data` grant with no `ADMIN OPTION` — are
+  byte-for-byte identical between the local dev database and the real
+  remote project.
+- No other migration file, locally or remotely, already uses version
+  `20261014170751`.
+
+This is a pure version/tracking-number divergence, never a content or
+behavioral one — confirmed, not assumed.
+
+**Why a rename, and not something else:** `supabase db push` matches
+local files against remote tracking by **version number**, not content.
+Leaving both versions in place would mean a future `db push` sees
+`20261013120000` as a distinct, never-applied-remotely migration and
+attempts to run it — harmless here only because every statement in it is
+idempotent (`IF NOT EXISTS`, `GRANT`, `ALTER ROLE SET`), but it would
+permanently pollute the migration history with a phantom entry. Adding a
+*second* new file under `20261014170751` instead of renaming would
+duplicate the same operation across two files — worse, not better.
+Renaming is the only outcome that leaves exactly one file whose version
+matches what the remote project actually tracks, with zero remote writes
+of any kind (a local `git mv`, nothing else).
+
+**Approved exception:** CLAUDE.md §5 states "las migrations ya aplicadas
+no se modifican nunca; un cambio siempre es una migration nueva." This
+rename is an explicit, human-approved exception to that rule — approved
+specifically because only the filename/embedded version identifier
+changed (confirmed via `git diff --stat`: 0 insertions, 0 deletions,
+rename-only), the SQL content is untouched line-for-line, and because a
+content-preserving rename is the only outcome that avoids either a
+phantom pending migration or a duplicate file (above). No remote or
+local database write of any kind was performed to produce this rename —
+`supabase db reset`, `db push`, and `migration repair` were all
+deliberately not run.
+
+**Known, accepted side effect:** the local dev database's own
+`supabase_migrations.schema_migrations` still reads `20261013120000` for
+this entry until the next `supabase db reset` — routine local-dev
+bookkeeping that self-heals on the next reset, not a new risk this
+rename introduces.
+
 ## Next human checkpoint
 
-Unchanged from the existing runbook: **§1, applying the `backup_reader`
-migration to the remote project**, remains the first real write action,
-requiring separate, explicit human approval — nothing in this increment
-moves that forward. Once approved and a real password is set (§6), the
-very next action should be §8b's smoke test, run manually, before
-anything in §7's gated workflow run.
+§7 above closes out the connectivity/identity/read-capability validation
+this document originally called for — `backup_reader` is now confirmed
+working end-to-end against the real project via Supavisor session mode,
+both for a plain query and for `pg_dump` itself. §8's rename is a local,
+zero-remote-write bookkeeping fix, committed alongside this document but
+not yet pushed.
+
+What remains, per `docs/ops/activation-runbook.md`, is unchanged in kind
+even though §7 now satisfies its §8b smoke test: R2 bucket + Bucket Lock
+configuration, the 2 real age identities, all of §6's GitHub secrets
+(now with the corrected pooler host/port/username confirmed working for
+real), and only then §7's single gated manual workflow run — still
+requiring its own separate human approval, still with the cron trigger
+left commented out.
