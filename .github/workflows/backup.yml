@@ -105,6 +105,25 @@ jobs:
       # the installed pg_dump actually reports major version 17 - failing
       # the job immediately with a clear message rather than letting a
       # future Ubuntu image bump silently reintroduce this exact mismatch.
+      #
+      # Real-world follow-up fix: Backup run #1 (the first real production
+      # run) still failed this exact guard, with `pg_dump --version`
+      # reporting 16.15 despite this step completing with no error.
+      # Verified (packages.debian.org's own file listing for
+      # postgresql-client-17): the PGDG package installs its binaries
+      # ONLY under /usr/lib/postgresql/17/bin/ - never at /usr/bin/pg_dump
+      # directly. The ubuntu-24.04 runner image ships postgresql-client-16
+      # preinstalled, and /usr/bin/pg_dump belongs to THAT package (or the
+      # wrapper it configures) - installing postgresql-client-17 alongside
+      # it does not retarget /usr/bin/pg_dump to the new version. Every
+      # bare `pg_dump`/`psql` call in this job (including inside
+      # scripts/backup/export-postgres-data.sh, invoked indirectly by
+      # `node scripts/backup/run-backup.mjs` below) resolves through PATH,
+      # so the fix is to prepend the versioned directory to $GITHUB_PATH
+      # right here - this is picked up by every subsequent step in this
+      # job (GitHub Actions' own documented mechanism for a job-wide PATH
+      # change), including the "Run backup" step's child processes,
+      # without touching any script logic.
       - name: Install PostgreSQL 17 client (pinned via PGDG, matches server major version)
         run: |
           sudo apt-get update
@@ -116,9 +135,24 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
+      # Regression guard for the real Backup #1 failure: checking only the
+      # version STRING (as this step did before) isn't enough - it already
+      # passed locally against a correctly-configured machine and still
+      # failed for real here, because the string check never asked *which
+      # binary* produced it. Asserting the resolved path explicitly is
+      # what actually catches "the wrong pg_dump is on PATH" as its own
+      # distinct failure, with a message that names the real cause instead
+      # of a bare version mismatch.
       - name: Verify pg_dump is major version 17 (fails fast on a future runner-image drift)
         run: |
+          resolved_path="$(command -v pg_dump)"
+          echo "pg_dump resolved to: $resolved_path"
+          if [ "$resolved_path" != "/usr/lib/postgresql/17/bin/pg_dump" ]; then
+            echo "pg_dump on PATH is not /usr/lib/postgresql/17/bin/pg_dump (got: $resolved_path) - this is the exact failure mode from Backup run #1: the ubuntu-24.04 runner's preinstalled postgresql-client-16 still owns /usr/bin/pg_dump, and \$GITHUB_PATH wasn't (or is no longer) pointing at the versioned PGDG install first. See docs/ops/remote-connectivity-and-pgdump-findings.md." >&2
+            exit 1
+          fi
           version_line="$(pg_dump --version)"
           echo "$version_line"
           if ! echo "$version_line" | grep -qE '\) 17\.'; then
