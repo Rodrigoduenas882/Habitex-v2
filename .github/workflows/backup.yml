@@ -39,9 +39,24 @@ jobs:
   backup:
     name: Run backup (PostgreSQL + Storage -> R2)
     runs-on: ubuntu-latest
+    # Gate 0: this workflow only has one trigger, `workflow_dispatch` - but
+    # that trigger does NOT restrict which ref a dispatch runs against (the
+    # GitHub UI/API lets anyone with Actions write-access pick any branch or
+    # tag that has this file, not only the default branch). Without this
+    # check, a deliberate dispatch against a branch carrying modified
+    # scripts/backup/ code would still receive the real production secrets
+    # below - a workflow_dispatch's own branch-selection isn't itself a
+    # security boundary. This job-level `if:` is evaluated BEFORE any step
+    # runs, including Checkout - a dispatch against any ref other than
+    # `refs/heads/main` skips this job entirely (shows as "skipped", not
+    # "failed"): no checkout, no secret ever gets referenced/resolved, no
+    # external network call of any kind happens. This is strictly additive
+    # to Gate 1/Gate 2 below (confirm=RUN + BACKUP_AUTOMATION_ENABLED) -
+    # all three are required (AND), none replaces another.
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Gate 2: the kill switch. Even a manual workflow_dispatch run (the
       # only trigger that exists right now) does nothing real past this
@@ -62,7 +77,7 @@ jobs:
           fi
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
 
