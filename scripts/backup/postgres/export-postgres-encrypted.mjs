@@ -39,6 +39,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { generateRunId } from '../shared/run-id.mjs'
 import { sha256, encryptBuffer } from '../shared/age-helpers.mjs'
 import { SnapshotCollisionError } from '../shared/errors.mjs'
+import { assertValidPgEnv } from '../shared/pg-connection-guard.mjs'
 
 const EXPORT_SCRIPT_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'export-postgres-data.sh')
 
@@ -95,6 +96,9 @@ export async function runPostgresExport({
       throw new Error(`${key} is required`)
     }
   }
+  // INC-BKP-006: catches a misconfigured PGUSER early when PGHOST points at
+  // Supavisor - see shared/pg-connection-guard.mjs for why this is needed.
+  assertValidPgEnv(pgEnv)
   if (!outputDir) {
     throw new Error('SNAPSHOT_OUTPUT_DIR is required')
   }

@@ -74,9 +74,53 @@ jobs:
       # needs it on PATH, same as any Linux environment (unlike this
       # repo's own Windows dev machine, which required a local Docker
       # escape hatch - not needed here, the runner is Linux).
-      - name: Install PostgreSQL client
-        run: sudo apt-get install -y postgresql-client
+      #
+      # INC-BKP-006 fix: `sudo apt-get install -y postgresql-client` (the
+      # version this step used before) pulls whatever major version Ubuntu
+      # noble ships - PostgreSQL 16, confirmed against the ubuntu-24.04
+      # runner image. The remote project runs PostgreSQL 17.6 (confirmed
+      # via `select version()` against the project, read-only). A pg_dump
+      # built against an *older* major version than the server refuses to
+      # run at all ("server version mismatch"), per pg_dump's own
+      # documented version-compatibility rule - pg_dump only supports
+      # servers from its own version back to roughly 9.2, never a NEWER
+      # server. This adds the official PGDG apt repo (apt.postgresql.org)
+      # to install `postgresql-client-17` specifically, matching
+      # `supabase/config.toml`'s `[db] major_version = 17`, then verifies
+      # the installed pg_dump actually reports major version 17 - failing
+      # the job immediately with a clear message rather than letting a
+      # future Ubuntu image bump silently reintroduce this exact mismatch.
+      - name: Install PostgreSQL 17 client (pinned via PGDG, matches server major version)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates gnupg
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
 
+      - name: Verify pg_dump is major version 17 (fails fast on a future runner-image drift)
+        run: |
+          version_line="$(pg_dump --version)"
+          echo "$version_line"
+          if ! echo "$version_line" | grep -qE '\) 17\.'; then
+            echo "pg_dump is not major version 17 (got: $version_line) - the remote project runs PostgreSQL 17.6, and pg_dump cannot dump from a newer server than itself. See docs/ops/remote-connectivity-and-pgdump-findings.md (INC-BKP-006)." >&2
+            exit 1
+          fi
+
+      # INC-BKP-006: this runner is IPv4-only (unlike a direct Supabase
+      # connection, which defaults to IPv6-only), so BACKUP_PGHOST/PGPORT
+      # must be the Supavisor SESSION MODE pooler (port 5432 - never 6543
+      # transaction mode, which pg_dump cannot use), and BACKUP_PGUSER must
+      # be "backup_reader.<project-ref>" (the shared-pooler username
+      # format), not bare "backup_reader". See
+      # docs/ops/remote-connectivity-and-pgdump-findings.md and
+      # docs/ops/activation-runbook.md §6. scripts/backup's own
+      # shared/pg-connection-guard.mjs fails fast with a clear error if
+      # PGUSER doesn't match this shape for a pooler PGHOST.
       - name: Run backup
         env:
           PGHOST: ${{ secrets.BACKUP_PGHOST }}

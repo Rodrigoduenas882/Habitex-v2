@@ -1,4 +1,4 @@
-# Backup system activation runbook (INC-BKP-005)
+# Backup system activation runbook (INC-BKP-005, connection details corrected in INC-BKP-006)
 
 This is a **checklist for a human**, to be followed in order, the first
 time the backup pipeline is pointed at real infrastructure. Nothing in
@@ -17,6 +17,19 @@ Confirm, don't assume:
   recovery is validated end-to-end, including the two real findings fixed
   there (summary-manifest upload, the `x-upsert: true` Storage restore
   requirement).
+- `docs/ops/remote-connectivity-and-pgdump-findings.md` (INC-BKP-006) —
+  **read this before touching §6 and §8 below.** Two assumptions this
+  runbook originally made were checked against the real remote project and
+  found wrong: (1) a direct Postgres connection is IPv6-only and
+  GitHub-hosted runners cannot reliably reach it, so the pipeline must
+  connect through Supavisor's **session mode** pooler instead; (2) the
+  shared pooler requires the username `<role>.<project-ref>`, not a bare
+  role name — a plain `backup_reader` silently becomes the WRONG username
+  the moment `PGHOST` is a pooler host. §6's table already reflects the
+  fix; this is still **unverified against a real Supavisor connection**
+  (no real `backup_reader` credential exists yet) — treat it as the
+  documented best-supported configuration, not a tested one, until the
+  smoke test in §8 actually runs.
 - D1 is **not** resolved by anything in this runbook alone — it is
   resolved only once a real backup has actually run successfully against
   the real project and been verified restorable, which this runbook ends
@@ -78,12 +91,44 @@ in this machine's scratchpad, never committed). For real activation:
 
 ## 6. Create the GitHub repository secrets and variable
 
+**`BACKUP_PGHOST`/`BACKUP_PGPORT`/`BACKUP_PGUSER` must target the Supavisor
+session-mode pooler, not a direct connection** — see
+`docs/ops/remote-connectivity-and-pgdump-findings.md` (INC-BKP-006) for the
+full reasoning. Short version:
+
+- A direct connection (`db.<project-ref>.supabase.co:5432`) defaults to
+  **IPv6-only**. GitHub-hosted runners cannot be relied on to reach an
+  IPv6-only endpoint — Supabase's own docs name this exact scenario and
+  recommend the Supavisor pooler as the IPv4-compatible alternative.
+- Use **session mode specifically** (port **5432** on the pooler host),
+  not transaction mode (port 6543) — session mode is a single persistent
+  session per client, matching what `pg_dump` (a "Postgres native
+  command", per Supabase's own guidance) needs; transaction mode
+  multiplexes connections and does not support prepared statements.
+- The pooler **host itself** (`aws-<index>-<region>.pooler.supabase.com`)
+  cannot be derived from the project ref — Supabase's docs explicitly warn
+  the index is "not part of the region name." Copy it from the dashboard's
+  Connect dialog (Project Settings → Database → Connection string →
+  Session pooler), don't construct it by hand.
+- Connecting through the shared pooler changes the **username format**:
+  Supabase's docs state "If you connect as a custom role through the
+  shared pooler, the username is `[ROLE].[PROJECT-REF]`" — so
+  `BACKUP_PGUSER` must be `backup_reader.<project-ref>`, not bare
+  `backup_reader` (bare `backup_reader` is only correct for a direct
+  connection, which isn't usable here).
+- `scripts/backup/shared/pg-connection-guard.mjs` (INC-BKP-006) now fails
+  the run fast, with an explanatory message, if `PGPORT` isn't `5432`
+  (session mode) or `PGUSER` doesn't match this shape for a pooler
+  `PGHOST` — but it can only check the port/shape are right, not that the
+  project-ref segment is actually correct. That needs a real connection
+  (§8b).
+
 | Name | Value | Type |
 |---|---|---|
-| `BACKUP_PGHOST` | Real project's Postgres host | Secret |
-| `BACKUP_PGPORT` | Real project's Postgres port | Secret |
+| `BACKUP_PGHOST` | Session-mode pooler host from the dashboard's Connect dialog (`aws-<index>-<region>.pooler.supabase.com`) — **not** `db.<project-ref>.supabase.co` | Secret |
+| `BACKUP_PGPORT` | `5432` (session mode) — **not** `6543` (transaction mode) | Secret |
 | `BACKUP_PGDATABASE` | Real project's database name | Secret |
-| `BACKUP_PGUSER` | `backup_reader` | Secret |
+| `BACKUP_PGUSER` | `backup_reader.<project-ref>` (shared-pooler username format) — **not** bare `backup_reader` | Secret |
 | `BACKUP_PGPASSWORD` | The password set in step 1 | Secret |
 | `BACKUP_SUPABASE_URL` | Real project's URL | Secret |
 | `BACKUP_SUPABASE_SERVICE_ROLE_KEY` | Real project's `service_role` key | Secret |
@@ -163,6 +208,51 @@ against what `s3-client.mjs`'s `signRequest()` would have built for the
 same request — do not guess; re-derive it by hand once, the same way
 `mock-r2-server.mjs`'s own independent verifier does.
 
+## 8b. Testing the Supavisor session-mode connection against the real project (INC-BKP-006)
+
+Unlike §8's SigV4 math, which was provable in-process against a mock, the
+pooler-vs-direct-connection and username-format conclusions in §6 come
+from reading Supabase's own documentation, not from a real connection —
+**this repo has no real `backup_reader` credential and is not authorized
+to create one**, so none of it has been tested end-to-end. Run this once,
+manually, with the real session-mode host/credentials from §6, before
+trusting it in §7's gated run:
+
+```bash
+# Minimal real-connection smoke test for the PostgreSQL leg - confirms the
+# session-mode pooler host/port/username actually work with pg_dump
+# (pg_dump 17, per the workflow's pinned install) before the full backup
+# pipeline ever runs against them. Produces a tiny schema-only dump of one
+# harmless system catalog, not a real backup.
+PGHOST=<session-mode pooler host from dashboard Connect dialog> \
+PGPORT=5432 \
+PGDATABASE=postgres \
+PGUSER=backup_reader.<project-ref> \
+PGPASSWORD=<the real password set in step 1> \
+pg_dump --schema-only --table 'pg_catalog.pg_type' --no-owner --no-privileges 2>&1 | head -5
+```
+
+Expected on success: real `CREATE ...`/`COPY` SQL output, no error. If it
+fails:
+- `could not translate host name` / connection timeout → the pooler host
+  or port is wrong, or the runner genuinely cannot reach it — re-copy the
+  host from the dashboard, don't hand-construct it.
+- `password authentication failed for user "..."` → check the username is
+  exactly `backup_reader.<project-ref>` (the error will echo back what it
+  tried to authenticate as — compare character-for-character against the
+  project ref in the project's dashboard URL).
+- `pg_dump: error: server version mismatch` → the workflow's pinned
+  `postgresql-client-17` install (INC-BKP-006) wasn't actually picked up —
+  re-check `pg_dump --version` reports 17.x before re-running.
+
+Once this succeeds, re-run it once more against the actual
+`export-postgres-data.sh` (not just a single catalog table) with the real
+`backup_reader` credential, to confirm the full exclude-list/flags
+combination that was only ever validated locally also works through the
+pooler. Record the result in a short note appended to
+`docs/ops/remote-connectivity-and-pgdump-findings.md` — don't just discard
+it once it passes.
+
 ## 9. Criteria for declaring the first real external backup authorized
 
 All of the following, not any subset:
@@ -172,10 +262,16 @@ All of the following, not any subset:
 - [ ] R2 bucket + Bucket Lock configured (steps 2–3).
 - [ ] 2 real age identities generated, public keys recorded, private keys
   held only by designated humans (step 4).
-- [ ] All secrets in §6's table set in GitHub.
+- [ ] All secrets in §6's table set in GitHub, with `BACKUP_PGHOST`/
+  `BACKUP_PGPORT` pointing at the session-mode pooler and `BACKUP_PGUSER`
+  in `backup_reader.<project-ref>` format (§6).
 - [ ] The step 8 connectivity smoke test passed against the real bucket.
-- [ ] A human has reviewed this entire runbook and the disaster-recovery
-  findings document and explicitly approves proceeding.
+- [ ] The §8b smoke test passed: `pg_dump` 17 succeeded through the real
+  Supavisor session-mode pooler, both for a single catalog table and for
+  the full `export-postgres-data.sh` script.
+- [ ] A human has reviewed this entire runbook, the disaster-recovery
+  findings document, and `docs/ops/remote-connectivity-and-pgdump-findings.md`,
+  and explicitly approves proceeding.
 - [ ] `BACKUP_AUTOMATION_ENABLED` is set to `"true"` **only** immediately
   before the one gated manual run in step 7 — never set it and leave it
   set "just in case," since the cron trigger (currently commented out)
