@@ -2,26 +2,32 @@ name: CI
 
 on:
   pull_request:
+    branches:
+      - develop
+      - main
   push:
-    branches: [main]
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
 
 # Read-only by default - this workflow only verifies code, it never deploys,
 # comments, or writes anything back to the repo.
 permissions:
   contents: read
 
-# Cancel a stale run on the same PR/branch when a new push arrives, so we
-# don't burn CI minutes re-checking commits nobody cares about anymore.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Typecheck, lint, test, build
+  quality:
+    name: Quality checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       # Pinned to the exact version package.json's "packageManager" field
@@ -31,8 +37,7 @@ jobs:
         with:
           version: 9.5.0
 
-      # Node 24 matches this project's @types/node major version.
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -43,18 +48,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Real scripts already defined in package.json - nothing invented here.
-      - name: Typecheck
-        run: pnpm typecheck
-
       - name: Lint
         run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
 
       # No Supabase secrets required: vite.config.ts already stubs
       # VITE_SUPABASE_URL/VITE_SUPABASE_PUBLISHABLE_KEY with non-functional
       # placeholders for the test environment - no network calls happen
       # against them.
-      - name: Test
+      - name: Unit tests
         run: pnpm test
 
       # vite build does not execute src/shared/lib/env.ts's runtime Zod
