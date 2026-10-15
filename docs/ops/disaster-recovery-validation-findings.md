@@ -323,3 +323,36 @@ No application TypeScript touched. `pnpm typecheck`/`lint` unaffected
 app's type/lint graph). `pnpm test` (the main Vitest suite) not re-run in
 this phase specifically, since nothing in `src/` changed — already
 confirmed clean in INC-BKP-004's own final validation pass.
+
+## 12. Addendum (INC-BKP-007): a bare-container restore path needs explicit Storage/Auth bootstrap
+
+This section's own restore procedure (§6) used `supabase stop --no-backup`
++ `supabase start` to get a genuinely empty **CLI-managed** instance —
+`supabase start` itself runs the real `storage-api` and `gotrue` services
+as part of bringing the stack up, so their internal schemas
+(`storage.buckets`/`storage.objects`/`storage.foldername()`, and
+`auth.users`' full modern column set) already exist before any restore is
+attempted. **That is not true of a bare `docker run` Postgres container**
+(no CLI, no other Supabase services) — the restore path a real production
+drill used instead, for isolation from the existing local dev stack. Two
+real runs there hit exactly this gap, in each required schema:
+
+- `storage.buckets`/`storage.objects`/`storage.foldername()`: the bare
+  image creates the `storage` schema (namespace) but none of its tables -
+  those are created by `storage-api` self-migrating on first connect.
+- `auth.users`' full modern column set (e.g. `email_confirmed_at`): the
+  bare image's own `auth.users` is a much older, ~20-column GoTrue schema -
+  enough to satisfy what Habitex's *migrations* reference, but not what a
+  real data-only dump of the table actually contains (33 columns at
+  export time).
+
+**If you are restoring into a bare/disposable Postgres container (not
+through `supabase start`/the CLI), both must be explicitly bootstrapped
+first** — run a throwaway `storage-api` helper, then a throwaway `gotrue`
+helper, each on their own isolated Docker network, before replaying
+migrations. `scripts/backup/restore-drill.ps1` is the reference
+implementation (Steps 3.75/3.8); full narrative, evidence, and the
+"named-object check is not a full structural comparison" caveat are in
+`docs/ops/real-recovery-drill-plan.md` §3/§6. This does not change
+anything about restoring into a CLI-managed instance (§6 above) — that
+path was already correct as documented.
