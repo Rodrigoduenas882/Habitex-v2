@@ -112,12 +112,23 @@ export async function createProperty(
 /**
  * Creates a rental draft against an EXISTING property (selected by its
  * exact, already-visible name) through the real /rentals/new form, with a
- * brand-new tenant. Never generates an invitation (always takes the "Ir a
- * arriendos" escape hatch). Leaves `page` on /rentals.
+ * brand-new tenant. By default never generates an invitation (always takes
+ * the "Ir a arriendos" escape hatch) - scenario #3 (tenant invitation) opts
+ * into generating one via the optional `beforeContinue` hook below, invoked
+ * right after "¡Arriendo creado!" becomes visible but BEFORE the escape
+ * hatch is clicked, so it can drive AddRentalDraftInvitationStep's own
+ * "Generar invitación"/link-reading UI without duplicating this function's
+ * draft-creation steps (same reasoning as this file's own header comment on
+ * why shared flows live here, not duplicated per spec file). Leaves `page`
+ * on /rentals either way.
  */
 export async function createRentalDraft(
   page: Page,
-  { propertyName, tenantName }: { propertyName: string; tenantName: string },
+  {
+    propertyName,
+    tenantName,
+    beforeContinue,
+  }: { propertyName: string; tenantName: string; beforeContinue?: () => Promise<void> },
 ): Promise<void> {
   await page.goto('/rentals/new')
   await page.getByRole('button', { name: 'Inmueble completo' }).click()
@@ -126,6 +137,9 @@ export async function createRentalDraft(
   await page.getByRole('button', { name: 'Continuar' }).click()
 
   await expect(page.getByRole('heading', { name: '¡Arriendo creado!' })).toBeVisible()
+  if (beforeContinue) {
+    await beforeContinue()
+  }
   await page.getByRole('button', { name: 'Ir a arriendos' }).click()
   await page.waitForURL('**/rentals')
 }
