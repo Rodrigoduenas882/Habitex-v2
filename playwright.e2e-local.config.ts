@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { defineConfig, devices } from '@playwright/test'
+import { isStrictlyLocalSupabaseUrl } from './scripts/local-supabase-guard.mjs'
 
 // Separate config for the authenticated visual baseline against a LOCAL
 // Supabase stack only (`pnpm exec supabase start`). Deliberately isolated
@@ -18,7 +19,9 @@ if (!existsSync('.env.e2e-local')) {
 process.loadEnvFile('.env.e2e-local')
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? ''
-if (!supabaseUrl.includes('127.0.0.1') && !supabaseUrl.includes('localhost')) {
+// Independent review (MEDIUM, fixed): strict URL parsing + exact hostname
+// equality instead of a substring check - see local-supabase-guard.mjs.
+if (!isStrictlyLocalSupabaseUrl(supabaseUrl)) {
   throw new Error(
     `VITE_SUPABASE_URL ("${supabaseUrl}") in .env.e2e-local does not look like a local Supabase stack. ` +
       'Refusing to run the authenticated E2E baseline against anything but 127.0.0.1/localhost.',
