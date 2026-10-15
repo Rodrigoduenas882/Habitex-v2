@@ -28,7 +28,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.config.{ts,js}', 'e2e/**/*.ts', 'e2e-authenticated/**/*.ts', 'scripts/**/*.mjs'],
+    files: ['**/*.config.{ts,js}', 'e2e/**/*.ts', 'e2e-authenticated/**/*.ts', 'e2e-functional/**/*.ts', 'scripts/**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
   },
 )

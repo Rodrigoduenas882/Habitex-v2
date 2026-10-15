@@ -1,4 +1,9 @@
-// Fail-closed guard run before any E2E-local build/preview step.
+// Fail-closed guard run before any E2E-local OR E2E-functional build/preview
+// step (both build:e2e-local/preview:e2e-local AND build:e2e-functional/
+// preview:e2e-functional chain this script - deliberately shared, not
+// duplicated; see playwright.e2e-functional.config.ts's own webServer
+// comment for why that suite reuses the `e2e-local` Vite mode by name
+// rather than introducing a separate one).
 //
 // `vite build --mode e2e-local` on its own silently falls back to the base
 // `.env` (the real remote Supabase project) if `.env.e2e-local` doesn't
@@ -6,9 +11,15 @@
 // error. This script is the explicit check that was missing: it is chained
 // with `&&` in front of `vite build`/`vite preview` in package.json's
 // build:e2e-local/preview:e2e-local scripts, so neither can ever produce an
-// artifact wired to production without this check failing first.
+// artifact wired to production without this check failing first. The
+// functional suite additionally requires E2E_FUNCTIONAL_SUPABASE_PORT and a
+// live stack-identity check of its own (local-supabase-guard.mjs's
+// assertDisposableSupabaseStack, invoked separately by
+// playwright.e2e-functional.config.ts and its spec file) - this script's own
+// check here is the first, minimal layer common to both suites.
 
 import { existsSync } from 'node:fs'
+import { isStrictlyLocalSupabaseUrl } from './local-supabase-guard.mjs'
 
 if (!existsSync('.env.e2e-local')) {
   console.error(
@@ -21,7 +32,10 @@ if (!existsSync('.env.e2e-local')) {
 
 process.loadEnvFile('.env.e2e-local')
 const url = process.env.VITE_SUPABASE_URL ?? ''
-if (!url.includes('127.0.0.1') && !url.includes('localhost')) {
+// Independent review (MEDIUM, fixed): a substring check (`.includes(...)`)
+// accepted a crafted host like "https://127.0.0.1.example.com". Strict URL
+// parsing + exact hostname equality closes this - see local-supabase-guard.mjs.
+if (!isStrictlyLocalSupabaseUrl(url)) {
   console.error(
     `[assert-local-e2e-env] VITE_SUPABASE_URL ("${url}") in .env.e2e-local does not look like a local ` +
       'Supabase stack. Refusing to continue - this pipeline only ever runs against 127.0.0.1/localhost.',
