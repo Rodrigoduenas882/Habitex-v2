@@ -8,6 +8,7 @@ export type BathroomType = 'PRIVATE' | 'SHARED'
  */
 export interface Room {
   id: string
+  administrationId: string
   propertyId: string
   name: string
   bathroomType: BathroomType | null
@@ -63,8 +64,17 @@ export class RoomRepositoryError extends Error {
  * value.
  *
  * No update/delete yet - this increment only needs to list and create.
+ *
+ * listByAdministration is a direct, unfiltered (beyond administration_id)
+ * read of every room in the administration - no `is_enabled` filter at this
+ * level. Deciding which rooms count as "enabled" (or anything else business-
+ * specific, e.g. Dashboard occupancy) is the caller's own decision, not this
+ * repository's concern - this repository just reads rooms. RLS
+ * (is_administration_member(administration_id)) remains the actual security
+ * authority regardless of this filter.
  */
 export interface RoomRepository {
   listByProperty(propertyId: string): Promise<Room[]>
+  listByAdministration(administrationId: string): Promise<Room[]>
   createForProperty(input: CreateRoomInput): Promise<void>
 }

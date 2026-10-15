@@ -9,7 +9,10 @@
     "monthlyIncome": "Ingresos del mes",
     "receivable": "Por cobrar",
     "occupancy": "Ocupación",
-    "properties": "Inmuebles"
+    "properties": "Inmuebles",
+    "occupancyTrend": "{{occupied}} de {{total}} ocupados",
+    "occupancyNoData": "Sin unidades registradas",
+    "loadError": "No pudimos cargar este dato"
   },
   "quickActions": {
     "title": "Acciones rápidas",
@@ -19,10 +22,10 @@
     "uploadDocument": "Subir documento"
   },
   "financialOverview": {
-    "title": "Ingresos vs. gastos",
+    "title": "Ingresos del mes",
     "subtitle": "Últimos 6 meses",
     "income": "Ingresos",
-    "expenses": "Gastos"
+    "loadError": "No pudimos cargar el resumen financiero."
   },
   "attention": {
     "title": "Requiere tu atención",
@@ -31,14 +34,25 @@
     "documentPending": "Documento pendiente",
     "view": "Ver",
     "emptyTitle": "Todo al día",
-    "emptyDescription": "No tienes pendientes por revisar en este momento."
+    "emptyDescription": "No tienes pendientes por revisar en este momento.",
+    "loadError": "No pudimos cargar tus pendientes."
   },
   "properties": {
     "title": "Mis inmuebles",
     "rented": "Arrendado",
     "available": "Disponible",
+    "statusUnknown": "Sin datos",
+    "roomsDetail": "{{occupied}} de {{total}} habitaciones ocupadas",
     "addProperty": "Agregar inmueble",
     "previous": "Ver inmuebles anteriores",
-    "next": "Ver más inmuebles"
+    "next": "Ver más inmuebles",
+    "loadError": "No pudimos cargar tus inmuebles."
+  },
+  "errors": {
+    "administrationTitle": "No pudimos cargar tu administración",
+    "administrationDescription": "Ocurrió un error al resolver tu administración. Intenta de nuevo más tarde."
+  },
+  "noAdministration": {
+    "title": "Todavía no tienes una administración"
   }
 }

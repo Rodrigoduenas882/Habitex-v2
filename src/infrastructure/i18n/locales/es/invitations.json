@@ -1,0 +1,53 @@
+{
+  "claim": {
+    "invalidLink": {
+      "title": "Enlace no válido"
+    },
+    "title": "Aceptar invitación",
+    "explanation": "Ya iniciaste sesión. Confirma para vincular tu cuenta a este arriendo.",
+    "accept": "Aceptar invitación",
+    "accepting": "Aceptando invitación…",
+    "errors": {
+      "invalid_token": "Este enlace de invitación no es válido.",
+      "expired": "Este enlace de invitación ha expirado. Solicita uno nuevo al administrador.",
+      "already_claimed": "Esta invitación ya fue utilizada.",
+      "account_conflict": "Tu cuenta ya está vinculada a otra persona y no puede usar esta invitación.",
+      "unknown": "No pudimos procesar la invitación. Intenta de nuevo más tarde."
+    }
+  },
+  "auth": {
+    "title": "Únete a Habitex",
+    "description": "Inicia sesión o crea una cuenta para aceptar tu invitación.",
+    "tabs": {
+      "ariaLabel": "Iniciar sesión o crear cuenta",
+      "login": "Ya tengo cuenta",
+      "signup": "Crear cuenta"
+    },
+    "login": {
+      "emailLabel": "Correo electrónico",
+      "passwordLabel": "Contraseña",
+      "submit": "Iniciar sesión",
+      "submitting": "Iniciando sesión…",
+      "validation": {
+        "emailRequired": "Ingresa tu correo electrónico.",
+        "emailInvalid": "Ingresa un correo electrónico válido.",
+        "passwordRequired": "Ingresa tu contraseña."
+      }
+    },
+    "signup": {
+      "emailLabel": "Correo electrónico",
+      "passwordLabel": "Contraseña",
+      "submit": "Crear cuenta",
+      "submitting": "Creando cuenta…",
+      "validation": {
+        "emailRequired": "Ingresa tu correo electrónico.",
+        "emailInvalid": "Ingresa un correo electrónico válido.",
+        "passwordRequired": "Ingresa una contraseña."
+      },
+      "errors": {
+        "invalid_credentials": "No pudimos crear tu cuenta. Intenta nuevamente.",
+        "unknown": "No pudimos crear tu cuenta. Intenta nuevamente."
+      }
+    }
+  }
+}

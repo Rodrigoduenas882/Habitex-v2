@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import { RentalRepositoryError } from '../domain/rental.types'
@@ -11,6 +11,8 @@ import { AddRentalDraftForm } from './AddRentalDraftForm'
 const { listRentalSubjects } = vi.hoisted(() => ({ listRentalSubjects: vi.fn() }))
 const { listTenantCandidates } = vi.hoisted(() => ({ listTenantCandidates: vi.fn() }))
 const { createDraft } = vi.hoisted(() => ({ createDraft: vi.fn() }))
+const { getSubscription } = vi.hoisted(() => ({ getSubscription: vi.fn() }))
+const { createInvitation } = vi.hoisted(() => ({ createInvitation: vi.fn() }))
 
 vi.mock('../infrastructure/supabase-rental-subject.repository', () => ({
   supabaseRentalSubjectRepository: { listByAdministration: listRentalSubjects },
@@ -21,8 +23,35 @@ vi.mock('../infrastructure/supabase-tenant-candidate.repository', () => ({
 }))
 
 vi.mock('../infrastructure/supabase-rental.repository', () => ({
-  supabaseRentalRepository: { createDraft, listByAdministration: vi.fn() },
+  supabaseRentalRepository: { createDraft, listByAdministration: vi.fn(), activate: vi.fn() },
 }))
+
+vi.mock('@/features/administration/infrastructure/supabase-subscription.repository', () => ({
+  supabaseSubscriptionRepository: { getSubscription },
+}))
+
+vi.mock('@/features/invitations/infrastructure/supabase-invitation.repository', () => ({
+  supabaseInvitationRepository: { createInvitation, claim: vi.fn() },
+}))
+
+
+/** Grants management access, no capacity limit - the default most tests rely on. */
+const UNLIMITED_SUBSCRIPTION = {
+  id: 'sub-1',
+  administrationId: 'admin-1',
+  status: 'ACTIVE' as const,
+  planCode: 'starter',
+  trialStartedAt: null,
+  trialEndsAt: null,
+  currentPeriodStartsAt: null,
+  currentPeriodEndsAt: null,
+  managementAccessUntil: null,
+  activeRelationshipLimit: null,
+}
+
+beforeEach(() => {
+  getSubscription.mockResolvedValue(UNLIMITED_SUBSCRIPTION)
+})
 
 const SUBJECT_1 = { id: 'subj-1', administrationId: 'admin-1', subjectType: 'FULL_PROPERTY' as const, label: 'la florida' }
 const CANDIDATE_1 = { id: 'person-1', fullName: 'María Pérez' }
@@ -51,6 +80,16 @@ async function waitForSubjectsToSettle() {
 }
 
 describe('AddRentalDraftForm', () => {
+  it('shows its own step-2 heading, not a repeat of the step-1 "¿Qué vas a arrendar?" question', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    expect(await screen.findByText('Completa los datos del arriendo')).toBeInTheDocument()
+    expect(screen.queryByText('¿Qué vas a arrendar?')).not.toBeInTheDocument()
+  })
+
   it('shows a loading state while rental subjects are resolving, and calls the real port with administrationId + subjectType', () => {
     listRentalSubjects.mockReturnValueOnce(new Promise(() => {}))
     listTenantCandidates.mockReturnValueOnce(new Promise(() => {}))
@@ -376,7 +415,33 @@ describe('AddRentalDraftForm', () => {
     expect(screen.queryByText(/postgres/i)).not.toBeInTheDocument()
   })
 
-  it('navigates to /rentals only on real success', async () => {
+  it('disables the submit button and shows the management-access reason when the subscription denies access', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    getSubscription.mockResolvedValueOnce({ ...UNLIMITED_SUBSCRIPTION, status: 'EXPIRED' })
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeDisabled()
+    expect(
+      await screen.findByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).toBeInTheDocument()
+    expect(createDraft).not.toHaveBeenCalled()
+  })
+
+  it('leaves the submit button enabled and shows no gate reason when the subscription grants access', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeEnabled()
+    expect(
+      screen.queryByText('Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the invitation step (not an immediate navigation) after a successful draft creation', async () => {
     listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
     listTenantCandidates.mockResolvedValueOnce([])
     createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
@@ -388,6 +453,134 @@ describe('AddRentalDraftForm', () => {
     await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
     await user.click(screen.getByRole('button', { name: 'Continuar' }))
 
+    expect(await screen.findByTestId('add-rental-invitation-step')).toBeInTheDocument()
+    expect(screen.queryByText('Rentals list page')).not.toBeInTheDocument()
+    expect(createInvitation).not.toHaveBeenCalled()
+  })
+
+  it('skipping the invitation and clicking "Ir a arriendos" still navigates to /rentals without ever calling useCreateInvitation', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
+    const user = userEvent.setup()
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    await user.selectOptions(screen.getByLabelText('Activo a arrendar'), 'subj-1')
+    await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    await screen.findByTestId('add-rental-invitation-step')
+
+    await user.click(screen.getByRole('button', { name: 'Ir a arriendos' }))
+
     expect(await screen.findByText('Rentals list page')).toBeInTheDocument()
+    expect(createInvitation).not.toHaveBeenCalled()
+  })
+
+  it('"Generar invitación" hashes a fresh token client-side and calls create_tenant_invitation with the hash (never the raw token)', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
+    createInvitation.mockResolvedValueOnce({
+      id: 'invitation-1',
+      administrationId: 'admin-1',
+      personId: 'person-5',
+      rentalRelationshipId: 'rel-5',
+      status: 'PENDING',
+      expiresAt: '2026-01-12T00:00:00Z',
+      createdAt: '2026-01-05T00:00:00Z',
+    })
+    const user = userEvent.setup()
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    await user.selectOptions(screen.getByLabelText('Activo a arrendar'), 'subj-1')
+    await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    await screen.findByTestId('add-rental-invitation-step')
+
+    await user.click(screen.getByRole('button', { name: 'Generar invitación para el inquilino' }))
+
+    await waitFor(() => {
+      expect(createInvitation).toHaveBeenCalledTimes(1)
+    })
+    const [[input]] = createInvitation.mock.calls as [
+      [{ administrationId: string; personId: string; rentalRelationshipId: string; tokenHash: string; expiresAt: string }],
+    ]
+    expect(input.administrationId).toBe('admin-1')
+    expect(input.personId).toBe('person-5')
+    expect(input.rentalRelationshipId).toBe('rel-5')
+    expect(input.tokenHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(input).not.toHaveProperty('rawToken')
+    expect(input).not.toHaveProperty('token')
+
+    const linkInput = await screen.findByLabelText('Enlace de invitación')
+    expect((linkInput as HTMLInputElement).value).toMatch(
+      new RegExp(`^${window.location.origin}/invitations/[0-9a-f-]{36}$`),
+    )
+  })
+
+  it('"Copiar enlace" copies the exact displayed invitation link to the clipboard, with copy-success feedback', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
+    createInvitation.mockResolvedValueOnce({
+      id: 'invitation-1',
+      administrationId: 'admin-1',
+      personId: 'person-5',
+      rentalRelationshipId: 'rel-5',
+      status: 'PENDING',
+      expiresAt: '2026-01-12T00:00:00Z',
+      createdAt: '2026-01-05T00:00:00Z',
+    })
+    const user = userEvent.setup()
+    const writeTextSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    await user.selectOptions(screen.getByLabelText('Activo a arrendar'), 'subj-1')
+    await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    await screen.findByTestId('add-rental-invitation-step')
+    await user.click(screen.getByRole('button', { name: 'Generar invitación para el inquilino' }))
+    const linkInput = await screen.findByLabelText('Enlace de invitación')
+    const linkValue = (linkInput as HTMLInputElement).value
+
+    await user.click(screen.getByRole('button', { name: 'Copiar enlace' }))
+
+    expect(writeTextSpy).toHaveBeenCalledWith(linkValue)
+    expect(await screen.findByRole('status')).toHaveTextContent('Copiado')
+  })
+
+  it('"Copiar enlace" shows a visible failure message, not just silence, when the clipboard write rejects', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    createDraft.mockResolvedValueOnce({ rentalRelationshipId: 'rel-5', tenantPersonId: 'person-5' })
+    createInvitation.mockResolvedValueOnce({
+      id: 'invitation-1',
+      administrationId: 'admin-1',
+      personId: 'person-5',
+      rentalRelationshipId: 'rel-5',
+      status: 'PENDING',
+      expiresAt: '2026-01-12T00:00:00Z',
+      createdAt: '2026-01-05T00:00:00Z',
+    })
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'))
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    await user.selectOptions(screen.getByLabelText('Activo a arrendar'), 'subj-1')
+    await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    await screen.findByTestId('add-rental-invitation-step')
+    await user.click(screen.getByRole('button', { name: 'Generar invitación para el inquilino' }))
+    await screen.findByLabelText('Enlace de invitación')
+
+    await user.click(screen.getByRole('button', { name: 'Copiar enlace' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'No pudimos copiar el enlace. Selecciona el texto y cópialo manualmente.',
+    )
   })
 })

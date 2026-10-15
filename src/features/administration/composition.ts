@@ -1,6 +1,11 @@
-import type { AccountRepository, AdministrationRepository } from './domain/administration.types'
+import type {
+  AccountRepository,
+  AdministrationRepository,
+  SubscriptionRepository,
+} from './domain/administration.types'
 import { supabaseAccountRepository } from './infrastructure/supabase-account.repository'
 import { supabaseAdministrationRepository } from './infrastructure/supabase-administration.repository'
+import { supabaseSubscriptionRepository } from './infrastructure/supabase-subscription.repository'
 
 /**
  * The one place that decides which repository implementations this feature
@@ -9,3 +14,4 @@ import { supabaseAdministrationRepository } from './infrastructure/supabase-admi
  */
 export const accountRepository: AccountRepository = supabaseAccountRepository
 export const administrationRepository: AdministrationRepository = supabaseAdministrationRepository
+export const subscriptionRepository: SubscriptionRepository = supabaseSubscriptionRepository

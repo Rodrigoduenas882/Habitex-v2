@@ -1,0 +1,75 @@
+{
+  "title": "Contratos",
+  "description": "Consulta el historial de contratos de este arriendo y registra nuevas versiones.",
+  "status": {
+    "DRAFT": "Borrador",
+    "GENERATED": "Generado",
+    "SHARED": "Compartido",
+    "SIGNED": "Firmado",
+    "TERMINATED": "Terminado"
+  },
+  "origin": {
+    "HABITEX": "Generado en Habitex",
+    "EXTERNAL": "Externo"
+  },
+  "list": {
+    "empty": "Todavía no hay contratos registrados para este arriendo.",
+    "version": "Versión {{version}}",
+    "generatedAt": "Generado el {{date}}",
+    "sharedAt": "Compartido el {{date}}",
+    "signedAt": "Firmado el {{date}}",
+    "terminatedAt": "Terminado el {{date}}",
+    "downloadDocument": "Descargar documento",
+    "downloadSigned": "Descargar copia firmada",
+    "downloadError": "No pudimos descargar este archivo. Intenta de nuevo."
+  },
+  "actions": {
+    "markShared": {
+      "cta": "Marcar como compartido"
+    },
+    "attachSignedCopy": {
+      "cta": "Adjuntar copia firmada",
+      "fileLabel": "Archivo de la copia firmada",
+      "submit": "Adjuntar copia firmada",
+      "submitting": "Adjuntando…"
+    },
+    "terminate": {
+      "cta": "Terminar contrato",
+      "confirmCta": "Confirmar terminación",
+      "back": "Volver"
+    }
+  },
+  "create": {
+    "title": "Registrar un nuevo contrato",
+    "habitex": {
+      "title": "Registrar contrato Habitex",
+      "description": "Sube el documento del contrato que compartirás con el arrendatario.",
+      "fileLabel": "Documento del contrato",
+      "submit": "Registrar contrato",
+      "submitting": "Registrando contrato…"
+    },
+    "external": {
+      "title": "Registrar contrato externo firmado",
+      "description": "Sube el contrato que ya fue firmado fuera de Habitex.",
+      "fileLabel": "Documento firmado",
+      "submit": "Registrar contrato externo",
+      "submitting": "Registrando contrato…"
+    },
+    "fileRequired": "Selecciona un archivo.",
+    "termsUnavailable": "No encontramos las condiciones financieras de este arriendo. Completa los términos antes de registrar un contrato."
+  },
+  "errors": {
+    "contractsTitle": "No pudimos cargar los contratos",
+    "contractsDescription": "Ocurrió un error al consultar los contratos de este arriendo. Intenta de nuevo más tarde.",
+    "missingRelationship": "No encontramos el arriendo indicado en la URL.",
+    "relationshipNotFound": "No encontramos este arriendo en tu administración.",
+    "contract": {
+      "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",
+      "not_found": "No encontramos el elemento referenciado. Actualiza la página e intenta de nuevo.",
+      "invalid_document_hash": "No pudimos validar el documento subido. Intenta de nuevo.",
+      "not_signable": "Este contrato ya no admite adjuntar una copia firmada. Actualiza la página para ver su estado actual.",
+      "version_conflict": "Otra versión de este contrato ya fue registrada. Actualiza la página e intenta de nuevo.",
+      "unknown": "No pudimos completar esta acción. Intenta de nuevo."
+    }
+  }
+}

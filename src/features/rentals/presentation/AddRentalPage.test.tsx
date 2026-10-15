@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import AddRentalPage from './AddRentalPage'
@@ -51,6 +51,14 @@ function resolveOneAdministration() {
 }
 
 describe('AddRentalPage', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
   it('gates on Administration Context: shows loading while resolving', () => {
     listAccessibleAdministrations.mockReturnValueOnce(new Promise(() => {}))
     renderPage()
@@ -75,14 +83,39 @@ describe('AddRentalPage', () => {
     expect(screen.queryByText('¿Qué vas a arrendar?')).not.toBeInTheDocument()
   })
 
+  it('gates on Administration Context: shows the AdministrationPicker for multiple administrations, never a bare selector', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    renderPage()
+
+    expect(await screen.findByText('Selecciona una administración')).toBeInTheDocument()
+    expect(screen.queryByText('¿Qué vas a arrendar?')).not.toBeInTheDocument()
+    expect(createDraft).not.toHaveBeenCalled()
+  })
+
+  it('selecting an administration from the picker resolves to the "¿Qué vas a arrendar?" selector', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Administración Dos, Activa' }))
+
+    expect(await screen.findByText('¿Qué vas a arrendar?')).toBeInTheDocument()
+  })
+
   it('shows "¿Qué vas a arrendar?" once resolved, and never writes anything to the backend just by opening', async () => {
     resolveOneAdministration()
     renderPage()
 
     expect(await screen.findByText('¿Qué vas a arrendar?')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Inmueble completo' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Habitación' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Parqueadero' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inmueble completo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Habitación' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Parqueadero' })).toBeInTheDocument()
     expect(createDraft).not.toHaveBeenCalled()
     expect(listRentalSubjects).not.toHaveBeenCalled()
   })
@@ -95,7 +128,7 @@ describe('AddRentalPage', () => {
     renderPage()
     await screen.findByText('¿Qué vas a arrendar?')
 
-    await user.click(screen.getByRole('radio', { name: 'Inmueble completo' }))
+    await user.click(screen.getByRole('button', { name: 'Inmueble completo' }))
 
     expect(listRentalSubjects).toHaveBeenCalledWith('admin-1', 'FULL_PROPERTY')
     expect(createDraft).not.toHaveBeenCalled()
@@ -107,7 +140,7 @@ describe('AddRentalPage', () => {
     listTenantCandidates.mockReturnValueOnce(new Promise(() => {}))
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('radio', { name: 'Inmueble completo' }))
+    await user.click(await screen.findByRole('button', { name: 'Inmueble completo' }))
     await screen.findByRole('button', { name: 'Volver' })
 
     await user.click(screen.getByRole('button', { name: 'Volver' }))

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { cx } from '@/shared/lib/cx'
 import styles from './AppShell.module.css'
@@ -26,6 +26,12 @@ export interface AppShellProps {
   moreLabel: string
   openNavLabel: string
   closeNavLabel: string
+  /** Shown on every inert (no `to`) nav item - sidebar/drawer get a small
+   * visible label next to it, the bottom nav gets it as a screen-reader-only
+   * description only (no room there). Optional so a caller that genuinely
+   * has no inert items (or doesn't care to label them) isn't forced to pass
+   * a string that's never used. */
+  comingSoonLabel?: string
   userEmail: string
   onLogout: () => void
   logoutLabel: string
@@ -50,6 +56,7 @@ export function AppShell({
   moreLabel,
   openNavLabel,
   closeNavLabel,
+  comingSoonLabel,
   userEmail,
   onLogout,
   logoutLabel,
@@ -78,31 +85,53 @@ export function AppShell({
 
   const navList = (onNavigate?: () => void) => (
     <nav className={styles['nav']}>
-      {navItems.map((item) =>
-        item.to ? (
-          <Link
-            key={item.key}
-            to={item.to}
-            className={cx(styles['navItem'], item.active && styles['navItemActive'])}
-            aria-current={item.active ? 'page' : undefined}
-            onClick={onNavigate}
-          >
-            {item.icon}
-            {item.label}
-          </Link>
-        ) : (
-          <button
-            key={item.key}
-            type="button"
-            className={cx(styles['navItem'], item.active && styles['navItemActive'])}
-            aria-current={item.active ? 'page' : undefined}
-            onClick={onNavigate}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ),
-      )}
+      {navItems.map((item) => {
+        if (item.to) {
+          return (
+            <Link
+              key={item.key}
+              to={item.to}
+              className={cx(styles['navItem'], item.active && styles['navItemActive'])}
+              aria-current={item.active ? 'page' : undefined}
+              onClick={onNavigate}
+            >
+              {item.icon}
+              <span className={styles['navItemLabel']}>{item.label}</span>
+            </Link>
+          )
+        }
+
+        const descriptionId = `${item.key}-coming-soon`
+        return (
+          // The sr-only description lives OUTSIDE the button on purpose: an
+          // element's accessible name is computed from its own subtree's
+          // visible text regardless of aria-describedby, so a description
+          // span placed *inside* would still leak into the button's name
+          // (making it "Finanzas Próximamente" instead of "Finanzas"). As a
+          // sibling, it only ever contributes to the description.
+          <Fragment key={item.key}>
+            <button
+              type="button"
+              className={cx(styles['navItem'], styles['navItemDisabled'])}
+              disabled
+              aria-describedby={comingSoonLabel ? descriptionId : undefined}
+            >
+              {item.icon}
+              <span className={styles['navItemLabel']}>{item.label}</span>
+              {comingSoonLabel ? (
+                <span className={styles['comingSoonLabel']} aria-hidden="true">
+                  {comingSoonLabel}
+                </span>
+              ) : null}
+            </button>
+            {comingSoonLabel ? (
+              <span id={descriptionId} className="sr-only">
+                {comingSoonLabel}
+              </span>
+            ) : null}
+          </Fragment>
+        )
+      })}
     </nav>
   )
 
@@ -174,30 +203,42 @@ export function AppShell({
           {children}
         </main>
 
-        <nav className={styles['bottomNav']} aria-label={brandName}>
-          {bottomNavItems.map((item) =>
-            item.to ? (
-              <Link
-                key={item.key}
-                to={item.to}
-                className={cx(styles['bottomNavItem'], item.active && styles['bottomNavItemActive'])}
-                aria-current={item.active ? 'page' : undefined}
-              >
-                {item.icon}
-                {item.label}
-              </Link>
-            ) : (
-              <button
-                key={item.key}
-                type="button"
-                className={cx(styles['bottomNavItem'], item.active && styles['bottomNavItemActive'])}
-                aria-current={item.active ? 'page' : undefined}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ),
-          )}
+        <nav className={styles['bottomNav']} aria-label={brandName} data-testid="app-shell-bottom-nav">
+          {bottomNavItems.map((item) => {
+            if (item.to) {
+              return (
+                <Link
+                  key={item.key}
+                  to={item.to}
+                  className={cx(styles['bottomNavItem'], item.active && styles['bottomNavItemActive'])}
+                  aria-current={item.active ? 'page' : undefined}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              )
+            }
+
+            const descriptionId = `${item.key}-coming-soon-mobile`
+            return (
+              <Fragment key={item.key}>
+                <button
+                  type="button"
+                  className={cx(styles['bottomNavItem'], styles['bottomNavItemDisabled'])}
+                  disabled
+                  aria-describedby={comingSoonLabel ? descriptionId : undefined}
+                >
+                  {item.icon}
+                  {item.label}
+                </button>
+                {comingSoonLabel ? (
+                  <span id={descriptionId} className="sr-only">
+                    {comingSoonLabel}
+                  </span>
+                ) : null}
+              </Fragment>
+            )
+          })}
           <button
             type="button"
             className={styles['bottomNavItem']}

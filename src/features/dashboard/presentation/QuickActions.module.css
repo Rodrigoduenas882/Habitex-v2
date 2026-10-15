@@ -21,7 +21,7 @@
 }
 
 .action:hover {
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-accent);
   background: var(--color-surface-hover);
 }
 

@@ -12,4 +12,10 @@
 export const administrationQueryKeys = {
   account: ['account'] as const,
   accessibleAdministrations: ['administrations', 'accessible'] as const,
+  /**
+   * Business data of a *resolved* administrationId - unlike the two keys
+   * above (which produce that id), this follows queryClient.ts's
+   * ["administration", administrationId, resource] namespacing rule.
+   */
+  subscription: (administrationId: string) => ['administration', administrationId, 'subscription'] as const,
 }

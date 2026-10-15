@@ -17,8 +17,13 @@ import { uiPreviewMockData } from './mock-data'
 
 type NavKey = 'home' | 'rentals' | 'properties' | 'people' | 'finances' | 'documents' | 'settings'
 
-const NAV_KEYS: Array<{ key: NavKey; icon: (props: IconProps) => ReactNode }> = [
-  { key: 'home', icon: HomeIcon },
+const NAV_KEYS: Array<{ key: NavKey; icon: (props: IconProps) => ReactNode; to?: string }> = [
+  // Only 'home' carries a `to` - same ratio of real-vs-"Próximamente" items
+  // as the real AuthenticatedLayout (3 real, 4 planned), so this preview
+  // still demonstrates AppShell's active-link styling instead of showing
+  // every item disabled (which previously made .navItemActive impossible
+  // to visually check here).
+  { key: 'home', icon: HomeIcon, to: '/ui-preview' },
   { key: 'rentals', icon: KeyIcon },
   { key: 'properties', icon: BuildingIcon },
   { key: 'people', icon: UsersIcon },
@@ -43,10 +48,13 @@ export interface AppShellPreviewProps {
 export function AppShellPreview({ children }: AppShellPreviewProps) {
   const { t } = useTranslation(['common', 'auth'])
 
-  const navItems: AppShellNavItem[] = NAV_KEYS.map(({ key, icon: Icon }) => ({
+  const navItems: AppShellNavItem[] = NAV_KEYS.map(({ key, icon: Icon, to }) => ({
     key,
     label: t(`common:nav.${key}`),
     icon: <Icon size={18} />,
+    // exactOptionalPropertyTypes: only include `to` when it actually has a
+    // route, same pattern as AuthenticatedLayout's own navItems mapping.
+    ...(to ? { to } : {}),
     active: key === ACTIVE_KEY,
   }))
 
@@ -59,6 +67,7 @@ export function AppShellPreview({ children }: AppShellPreviewProps) {
       moreLabel={t('common:nav.more')}
       openNavLabel={t('common:nav.openMenu')}
       closeNavLabel={t('common:nav.closeMenu')}
+      comingSoonLabel={t('common:nav.comingSoon')}
       userEmail={uiPreviewMockData.userEmail}
       // Not passing themeControl here on purpose: the page already has one
       // ThemeControl in its own header (source of truth for this preview),

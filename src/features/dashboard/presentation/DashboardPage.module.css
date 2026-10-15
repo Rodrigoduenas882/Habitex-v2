@@ -14,6 +14,11 @@
   gap: var(--space-4);
 }
 
+/* DS-004: children are AttentionPanel (actionable) then FinancialOverview
+   (informational), in that DOM order, so mobile's single-column stack shows
+   the actionable list first. On desktop the columns are mirrored (1fr 2fr
+   instead of 2fr 1fr) so the wider column still goes to FinancialOverview -
+   desktop's visual weight distribution is unchanged, only left/right swap. */
 .analytics {
   display: grid;
   grid-template-columns: 1fr;
@@ -23,7 +28,7 @@
 
 @media (min-width: 1024px) {
   .analytics {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr 2fr;
     gap: var(--space-6);
   }
 }

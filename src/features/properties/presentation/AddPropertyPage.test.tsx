@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import AddPropertyPage from './AddPropertyPage'
@@ -55,6 +55,14 @@ async function fillBaseFields(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('AddPropertyPage', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
   it('gates on Administration Context: shows loading while resolving', () => {
     listAccessibleAdministrations.mockReturnValueOnce(new Promise(() => {}))
     renderPage()
@@ -77,13 +85,37 @@ describe('AddPropertyPage', () => {
     expect(screen.queryByText('¿Qué quieres administrar?')).not.toBeInTheDocument()
   })
 
+  it('gates on Administration Context: shows the AdministrationPicker for multiple administrations, never a bare selector', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    renderPage()
+
+    expect(await screen.findByText('Selecciona una administración')).toBeInTheDocument()
+    expect(screen.queryByText('¿Qué quieres administrar?')).not.toBeInTheDocument()
+  })
+
+  it('selecting an administration from the picker resolves to the "¿Qué quieres administrar?" selector', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Administración Dos, Activa' }))
+
+    expect(await screen.findByText('¿Qué quieres administrar?')).toBeInTheDocument()
+  })
+
   it('shows the "¿Qué quieres administrar?" selector once resolved', async () => {
     resolveOneAdministration()
     renderPage()
 
     expect(await screen.findByText('¿Qué quieres administrar?')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Casa o apartamento completo' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Habitaciones de una propiedad' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Casa o apartamento completo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Habitaciones de una propiedad' })).toBeInTheDocument()
   })
 
   it('Parking is a real, selectable option that renders ParkingForm', async () => {
@@ -92,7 +124,7 @@ describe('AddPropertyPage', () => {
     renderPage()
     await screen.findByText('¿Qué quieres administrar?')
 
-    const parkingOption = screen.getByRole('radio', { name: 'Parqueadero' })
+    const parkingOption = screen.getByRole('button', { name: 'Parqueadero' })
     expect(parkingOption).toBeEnabled()
 
     await user.click(parkingOption)
@@ -116,7 +148,7 @@ describe('AddPropertyPage', () => {
     resolveOneAdministration()
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('radio', { name: 'Casa o apartamento completo' }))
+    await user.click(await screen.findByRole('button', { name: 'Casa o apartamento completo' }))
 
     await user.click(screen.getByRole('button', { name: 'Guardar inmueble' }))
 
@@ -130,7 +162,7 @@ describe('AddPropertyPage', () => {
     resolveOneAdministration()
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('radio', { name: 'Casa o apartamento completo' }))
+    await user.click(await screen.findByRole('button', { name: 'Casa o apartamento completo' }))
 
     expect(screen.queryByLabelText('Valor mensual de administración')).not.toBeInTheDocument()
 
@@ -151,7 +183,7 @@ describe('AddPropertyPage', () => {
     createFullProperty.mockResolvedValueOnce(undefined)
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('radio', { name: 'Casa o apartamento completo' }))
+    await user.click(await screen.findByRole('button', { name: 'Casa o apartamento completo' }))
 
     await fillBaseFields(user)
     await user.click(screen.getByRole('button', { name: 'Guardar inmueble' }))
@@ -189,7 +221,7 @@ describe('AddPropertyPage', () => {
     })
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('radio', { name: 'Habitaciones de una propiedad' }))
+    await user.click(await screen.findByRole('button', { name: 'Habitaciones de una propiedad' }))
 
     await user.type(screen.getByLabelText('Nombre del inmueble'), 'Casa 14')
     await user.type(screen.getByLabelText('Dirección'), 'Cra 1 # 2-3')
@@ -204,7 +236,7 @@ describe('AddPropertyPage', () => {
     createFullProperty.mockRejectedValueOnce(new Error('boom'))
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('radio', { name: 'Casa o apartamento completo' }))
+    await user.click(await screen.findByRole('button', { name: 'Casa o apartamento completo' }))
 
     await fillBaseFields(user)
     await user.click(screen.getByRole('button', { name: 'Guardar inmueble' }))
@@ -217,7 +249,7 @@ describe('AddPropertyPage', () => {
     resolveOneAdministration()
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('radio', { name: 'Casa o apartamento completo' }))
+    await user.click(await screen.findByRole('button', { name: 'Casa o apartamento completo' }))
     await screen.findByRole('button', { name: 'Guardar inmueble' })
 
     await user.click(screen.getByRole('button', { name: 'Volver' }))

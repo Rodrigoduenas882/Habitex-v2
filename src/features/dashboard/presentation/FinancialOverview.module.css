@@ -38,11 +38,7 @@
 }
 
 .legendDotIncome {
-  background: var(--color-primary);
-}
-
-.legendDotExpenses {
-  background: var(--color-muted);
+  background: var(--color-primary-accent);
 }
 
 .chart {
@@ -81,12 +77,7 @@
 }
 
 .barIncome {
-  background: var(--color-primary);
-}
-
-.barExpenses {
-  background: var(--color-muted);
-  opacity: 0.55;
+  background: var(--color-primary-accent);
 }
 
 .monthLabel {

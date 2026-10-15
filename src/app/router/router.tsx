@@ -3,6 +3,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { lazy, Suspense, type ReactNode } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
+import { RedirectIfAccountExists } from '@/features/administration/presentation/RedirectIfAccountExists'
+import { RequiresAccount } from '@/features/administration/presentation/RequiresAccount'
 import { ProtectedRoute } from '@/features/auth/presentation/ProtectedRoute'
 import { RedirectIfAuthenticated } from '@/features/auth/presentation/RedirectIfAuthenticated'
 import { HabitexBootScreen } from '@/shared/components/HabitexBootScreen'
@@ -10,13 +12,19 @@ import { RouteErrorBoundary } from '@/shared/components/RouteErrorBoundary'
 import { AuthenticatedLayout } from '../layouts/AuthenticatedLayout'
 import { RootLayout } from '../layouts/RootLayout'
 
+const BootstrapAccountPage = lazy(() => import('@/features/administration/presentation/BootstrapAccountPage'))
 const DashboardPage = lazy(() => import('@/features/dashboard/presentation/DashboardPage'))
 const PropertiesPage = lazy(() => import('@/features/properties/presentation/PropertiesPage'))
 const AddPropertyPage = lazy(() => import('@/features/properties/presentation/AddPropertyPage'))
 const RoomSetupPage = lazy(() => import('@/features/properties/presentation/RoomSetupPage'))
 const RentalsPage = lazy(() => import('@/features/rentals/presentation/RentalsPage'))
 const AddRentalPage = lazy(() => import('@/features/rentals/presentation/AddRentalPage'))
+const RentalTermsPage = lazy(() => import('@/features/rentals/presentation/RentalTermsPage'))
+const RentalContractsPage = lazy(() => import('@/features/contracts/presentation/RentalContractsPage'))
+const RentalChargesPage = lazy(() => import('@/features/charges/presentation/RentalChargesPage'))
+const RentalPaymentsPage = lazy(() => import('@/features/payments/presentation/RentalPaymentsPage'))
 const LoginPage = lazy(() => import('@/features/auth/presentation/LoginPage'))
+const InvitationClaimPage = lazy(() => import('@/features/invitations/presentation/InvitationClaimPage'))
 const UiPreviewPage = lazy(() => import('../pages/ui-preview/UiPreviewPage'))
 const NotFoundPage = lazy(() => import('@/shared/components/NotFoundPage'))
 
@@ -34,17 +42,31 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: [
           {
-            element: <AuthenticatedLayout />,
+            path: 'bootstrap',
+            element: <RedirectIfAccountExists />,
+            children: [{ index: true, element: withSuspense(<BootstrapAccountPage />) }],
+          },
+          {
+            element: <RequiresAccount />,
             children: [
-              { index: true, element: withSuspense(<DashboardPage />) },
-              { path: 'properties', element: withSuspense(<PropertiesPage />) },
-              { path: 'properties/new', element: withSuspense(<AddPropertyPage />) },
               {
-                path: 'properties/:propertyId/rooms/setup',
-                element: withSuspense(<RoomSetupPage />),
+                element: <AuthenticatedLayout />,
+                children: [
+                  { index: true, element: withSuspense(<DashboardPage />) },
+                  { path: 'properties', element: withSuspense(<PropertiesPage />) },
+                  { path: 'properties/new', element: withSuspense(<AddPropertyPage />) },
+                  {
+                    path: 'properties/:propertyId/rooms/setup',
+                    element: withSuspense(<RoomSetupPage />),
+                  },
+                  { path: 'rentals', element: withSuspense(<RentalsPage />) },
+                  { path: 'rentals/new', element: withSuspense(<AddRentalPage />) },
+                  { path: 'rentals/:id/terms', element: withSuspense(<RentalTermsPage />) },
+                  { path: 'rentals/:id/contracts', element: withSuspense(<RentalContractsPage />) },
+                  { path: 'rentals/:id/charges', element: withSuspense(<RentalChargesPage />) },
+                  { path: 'rentals/:id/payments', element: withSuspense(<RentalPaymentsPage />) },
+                ],
               },
-              { path: 'rentals', element: withSuspense(<RentalsPage />) },
-              { path: 'rentals/new', element: withSuspense(<AddRentalPage />) },
             ],
           },
         ],
@@ -56,6 +78,9 @@ export const router = createBrowserRouter([
       // Public on purpose: internal design-system tool, not authenticated
       // product surface. See UiPreviewPage's own doc comment.
       { path: 'ui-preview', element: withSuspense(<UiPreviewPage />) },
+      // Public on purpose: a brand-new tenant has no session/Account yet when
+      // first opening this link - must never be inside ProtectedRoute/RequiresAccount.
+      { path: 'invitations/:token', element: withSuspense(<InvitationClaimPage />) },
       { path: '*', element: withSuspense(<NotFoundPage />) },
     ],
   },

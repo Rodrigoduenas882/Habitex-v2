@@ -51,5 +51,19 @@ begin
     end if;
   end loop;
   raise notice 'FK constraints checked: %, constraints with orphans: %', total_checked, total_bad;
+  -- Found by independent review (INC-BKP-007, Phase 2 restoration-compatibility
+  -- pass): `raise notice` alone never changes psql's exit code - a run with
+  -- real orphaned rows would still print "ORPHANS FOUND: ..." and then exit
+  -- 0, letting any caller's exit-code check (Assert-LastExitCode or
+  -- equivalent) pass silently past a genuine referential-integrity failure.
+  -- This had never been exercised: every prior real run of this script
+  -- (docs/ops/disaster-recovery-validation-findings.md) found 0 orphans, so
+  -- the failure path was never actually triggered or verified. Promoting
+  -- this to a real error is what makes `psql -v ON_ERROR_STOP=1` (the
+  -- caller's responsibility - see verify-real-recovery's own invocation)
+  -- actually abort with a non-zero exit code when integrity is broken.
+  if total_bad > 0 then
+    raise exception 'Referential integrity check failed: % of % FK constraints have orphaned rows', total_bad, total_checked;
+  end if;
 end
 $$;

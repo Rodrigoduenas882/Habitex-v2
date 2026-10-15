@@ -5,4 +5,38 @@
  */
 export const rentalQueryKeys = {
   list: (administrationId: string) => ['administration', administrationId, 'rentals'] as const,
+  terms: (administrationId: string, relationshipId: string) =>
+    ['administration', administrationId, 'rentals', relationshipId, 'terms'] as const,
+  /**
+   * Scoped by administrationId only, not by the ids being checked - the
+   * relationship ids to check are a queryFn argument (derived fresh from
+   * the already-fetched rentals list on every call), not part of the key,
+   * same principle as not baking filter params into a key when the caller
+   * always wants "the current one for this administration" (see
+   * useRentalTermsExistence).
+   */
+  termsExistence: (administrationId: string) =>
+    ['administration', administrationId, 'rentals', 'terms-existence'] as const,
+  /**
+   * rental_relationship_subjects links, administration-wide - not nested
+   * under a single relationship's own path (unlike `terms`/
+   * `termsExistence`) because Dashboard occupancy needs every link for the
+   * administration in one read, not one relationship's.
+   */
+  subjectLinks: (administrationId: string) =>
+    ['administration', administrationId, 'rental-subject-links'] as const,
+  /**
+   * Scoped by administrationId only, not by the ids being resolved - same
+   * principle as termsExistence above: the relationship ids to resolve
+   * tenant names for are a queryFn argument (derived fresh from the
+   * already-fetched rentals list), not part of the cache key.
+   */
+  activeTenantNames: (administrationId: string) =>
+    ['administration', administrationId, 'rentals', 'active-tenant-names'] as const,
+  /**
+   * Scoped by administrationId only, not by the ids being resolved - same
+   * principle as termsExistence/activeTenantNames above.
+   */
+  currentRentAmounts: (administrationId: string) =>
+    ['administration', administrationId, 'rentals', 'current-rent-amounts'] as const,
 }

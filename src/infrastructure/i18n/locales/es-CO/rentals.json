@@ -7,10 +7,6 @@
     "title": "Todavía no tienes una administración",
     "description": "Tu cuenta no está asociada a ninguna administración por ahora."
   },
-  "selectionRequired": {
-    "title": "Tienes varias administraciones",
-    "description": "Selecciona una administración para ver sus arriendos. Esta opción estará disponible próximamente."
-  },
   "errors": {
     "administrationTitle": "No pudimos cargar tu administración",
     "administrationDescription": "Ocurrió un error al resolver tu administración. Intenta de nuevo más tarde.",
@@ -46,7 +42,7 @@
   },
   "paymentTiming": {
     "ADVANCE": "Pago anticipado",
-    "ARREARS": "Pago vencido"
+    "ARREARS": "Pago a mes vencido"
   },
   "list": {
     "title": {
@@ -58,7 +54,59 @@
     },
     "startDate": "Desde {{date}}",
     "endDate": "Hasta {{date}}",
-    "paymentDay": "Pago el día {{day}}"
+    "paymentDay": "Pago el día {{day}}",
+    "completeTerms": "Completar términos",
+    "contracts": "Contratos",
+    "charges": "Cargos",
+    "payments": "Pagos",
+    "subjectUnknown": "Inmueble sin identificar",
+    "tenantUnknown": "Sin inquilino asignado",
+    "rentAmountUnknown": "Canon pendiente de definir"
+  },
+  "contextHeader": {
+    "navLabel": "Secciones del arriendo",
+    "relationshipNotFound": "No encontramos este arriendo en tu administración.",
+    "nav": {
+      "terms": "Términos",
+      "contracts": "Contratos",
+      "charges": "Cargos",
+      "payments": "Pagos"
+    }
+  },
+  "activate": {
+    "cta": "Activar",
+    "capacityReasonBlocked": "Alcanzaste el límite de relaciones activas de tu plan.",
+    "termsIncompleteReasonBlocked": "Completa los términos de este arriendo para poder activarlo.",
+    "errors": {
+      "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",
+      "capacity_reached": "Alcanzaste el límite de relaciones activas de tu plan.",
+      "terms_incomplete": "Completa los términos de este arriendo antes de activarlo.",
+      "already_active": "Este arriendo ya fue activado. Actualiza la página para ver su estado actual.",
+      "subject_in_use": "El activo de este arriendo ya está en uso en otra relación activa.",
+      "unknown": "No pudimos activar esta relación. Intenta de nuevo."
+    }
+  },
+  "lifecycle": {
+    "back": "Volver",
+    "cancel": {
+      "cta": "Cancelar",
+      "confirmCta": "Confirmar cancelación"
+    },
+    "startEnding": {
+      "cta": "Iniciar cierre"
+    },
+    "end": {
+      "cta": "Terminar arriendo",
+      "confirmCta": "Confirmar terminación"
+    },
+    "errors": {
+      "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",
+      "not_draft": "Este arriendo ya no está en borrador. Actualiza la página para ver su estado actual.",
+      "not_active": "Este arriendo ya no está activo. Actualiza la página para ver su estado actual.",
+      "not_endable": "Este arriendo ya no se puede terminar desde aquí. Actualiza la página para ver su estado actual.",
+      "end_before_start": "La fecha de terminación no puede ser anterior a la fecha de inicio del arriendo.",
+      "unknown": "No pudimos completar esta acción. Intenta de nuevo."
+    }
   },
   "addRental": {
     "cta": "Registrar arriendo",
@@ -76,9 +124,15 @@
     "optionParking": {
       "title": "Parqueadero",
       "description": "Arrienda un espacio de parqueo."
+    },
+    "success": {
+      "title": "¡Arriendo creado!",
+      "description": "El arriendo quedó en borrador. Puedes generar una invitación para que el inquilino cree su cuenta, o continuar sin generarla por ahora.",
+      "goToRentals": "Ir a arriendos"
     }
   },
   "form": {
+    "title": "Completa los datos del arriendo",
     "sectionSubject": {
       "FULL_PROPERTY": "¿Cuál inmueble?",
       "ROOM": "¿Cuál habitación?",
@@ -127,6 +181,67 @@
     },
     "errors": {
       "createFailed": "No pudimos crear el arriendo. Intenta de nuevo."
+    }
+  },
+  "invitationStep": {
+    "generate": "Generar invitación para el inquilino",
+    "generating": "Generando invitación…",
+    "linkLabel": "Enlace de invitación",
+    "copyLink": "Copiar enlace",
+    "copied": "Copiado",
+    "copyFailed": "No pudimos copiar el enlace. Selecciona el texto y cópialo manualmente.",
+    "errors": {
+      "tenant_not_linked": "Este inquilino no está vinculado a tu administración.",
+      "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",
+      "unknown": "No pudimos generar la invitación. Intenta de nuevo."
+    }
+  },
+  "termsForm": {
+    "title": "Términos del arriendo",
+    "description": "Completa las fechas, el pago y las condiciones financieras. Estos datos son necesarios para poder activar este arriendo.",
+    "sectionSchedule": "Fechas y pago",
+    "sectionFinancial": "Condiciones financieras",
+    "realStartDate": { "label": "Fecha real de inicio" },
+    "trackingStartDate": { "label": "Fecha de inicio de seguimiento" },
+    "paymentDay": { "label": "Día de pago" },
+    "paymentTiming": { "label": "Momento de pago" },
+    "expectedEndDate": {
+      "label": "Fecha de finalización esperada",
+      "hint": "Opcional. Déjala vacía si el arriendo es indefinido."
+    },
+    "rentAmount": { "label": "Valor del arriendo" },
+    "administrationMode": {
+      "label": "Administración",
+      "NONE": "Sin administración",
+      "INCLUDED": "Incluida en el arriendo",
+      "TENANT_DIRECT": "El arrendatario la paga directamente"
+    },
+    "utilitiesMode": {
+      "label": "Servicios públicos",
+      "none": "Sin especificar",
+      "TENANT": "A cargo del arrendatario",
+      "LESSOR": "A cargo del arrendador",
+      "SPECIAL_AGREEMENT": "Acuerdo especial"
+    },
+    "submit": "Guardar términos",
+    "submitting": "Guardando términos…",
+    "readOnly": {
+      "notice": "Estos términos ya fueron registrados y no se pueden editar todavía.",
+      "financialUnavailable": "No hay condiciones financieras registradas para este arriendo."
+    },
+    "validation": {
+      "realStartDateRequired": "Ingresa la fecha real de inicio.",
+      "trackingStartDateRequired": "Ingresa la fecha de inicio de seguimiento.",
+      "trackingStartDateBeforeReal": "La fecha de inicio de seguimiento no puede ser anterior a la fecha real de inicio.",
+      "paymentDayInvalid": "Ingresa un día de pago válido, entre 1 y 31.",
+      "rentAmountInvalid": "Ingresa un valor de arriendo válido.",
+      "expectedEndDateBeforeReal": "La fecha de finalización esperada no puede ser anterior a la fecha real de inicio."
+    },
+    "errors": {
+      "missingRelationship": "No encontramos el arriendo indicado en la URL.",
+      "relationshipNotFound": "No encontramos este arriendo en tu administración.",
+      "saveFailed": "No pudimos guardar los términos de este arriendo. Intenta de nuevo.",
+      "partialFailure": "Guardamos las fechas y el pago, pero no pudimos guardar el valor del arriendo. Intenta de nuevo para completarlo."
     }
   }
 }

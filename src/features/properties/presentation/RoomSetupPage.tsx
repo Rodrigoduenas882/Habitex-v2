@@ -121,7 +121,7 @@ export default function RoomSetupPage() {
           <option value="yes">{t('rooms.furnished.yes')}</option>
         </Select>
         <Textarea label={t('rooms.description.label')} disabled={createRoom.isPending} {...register('description')} />
-        <Button type="submit" loading={createRoom.isPending} className={styles['submit']}>
+        <Button type="submit" variant="secondary" loading={createRoom.isPending} className={styles['submit']}>
           {createRoom.isPending ? t('rooms.submitting') : t('rooms.submit')}
         </Button>
       </form>
@@ -156,7 +156,6 @@ export default function RoomSetupPage() {
       <div className={styles['finishRow']}>
         <Button
           type="button"
-          variant="secondary"
           disabled={!canFinish}
           onClick={() => {
             void navigate('/properties')

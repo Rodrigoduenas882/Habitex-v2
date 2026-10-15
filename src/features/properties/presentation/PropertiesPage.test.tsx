@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import PropertiesPage from './PropertiesPage'
@@ -16,6 +16,12 @@ const { listPropertiesByAdministration } = vi.hoisted(() => ({
 const { listParkingsByAdministration } = vi.hoisted(() => ({
   listParkingsByAdministration: vi.fn(),
 }))
+const { listRooms } = vi.hoisted(() => ({ listRooms: vi.fn() }))
+const { listRentalSubjects, listSubjectLinks } = vi.hoisted(() => ({
+  listRentalSubjects: vi.fn(),
+  listSubjectLinks: vi.fn(),
+}))
+const { listRentals } = vi.hoisted(() => ({ listRentals: vi.fn() }))
 
 vi.mock('@/features/administration/infrastructure/supabase-administration.repository', () => ({
   supabaseAdministrationRepository: { listAccessibleAdministrations },
@@ -27,6 +33,30 @@ vi.mock('../infrastructure/supabase-property.repository', () => ({
 
 vi.mock('@/features/parking/infrastructure/supabase-parking.repository', () => ({
   supabaseParkingRepository: { listByAdministration: listParkingsByAdministration, create: vi.fn() },
+}))
+
+// usePropertyOccupancy's own cross-referenced reads - see its doc comment.
+vi.mock('../infrastructure/supabase-room.repository', () => ({
+  supabaseRoomRepository: {
+    listByAdministration: listRooms,
+    listByProperty: vi.fn(),
+    createForProperty: vi.fn(),
+  },
+}))
+
+vi.mock('@/features/rentals/infrastructure/supabase-rental-subject.repository', () => ({
+  supabaseRentalSubjectRepository: {
+    listByAdministration: listRentalSubjects,
+    listRelationshipLinksByAdministration: listSubjectLinks,
+  },
+}))
+
+vi.mock('@/features/rentals/infrastructure/supabase-rental.repository', () => ({
+  supabaseRentalRepository: {
+    listByAdministration: listRentals,
+    createDraft: vi.fn(),
+    activate: vi.fn(),
+  },
 }))
 
 const PROPERTY_1 = {
@@ -73,6 +103,23 @@ function resolveOneAdministration() {
 }
 
 describe('PropertiesPage', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    // Defaults for usePropertyOccupancy's own cross-referenced reads - most
+    // tests don't care about occupancy, only the ones that assert on the
+    // badge override these (same beforeEach-defaults convention as
+    // DashboardPage.test.tsx).
+    listRooms.mockResolvedValue([])
+    listRentalSubjects.mockResolvedValue([])
+    listSubjectLinks.mockResolvedValue([])
+    listRentals.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.clearAllMocks()
+  })
+
   it('shows a loading state while the current administration is still resolving', () => {
     listAccessibleAdministrations.mockReturnValueOnce(new Promise(() => {}))
     renderPage()
@@ -94,6 +141,36 @@ describe('PropertiesPage', () => {
     expect(await screen.findByText('Todavía no tienes una administración')).toBeInTheDocument()
     expect(listPropertiesByAdministration).not.toHaveBeenCalled()
     expect(listParkingsByAdministration).not.toHaveBeenCalled()
+  })
+
+  it('shows the AdministrationPicker for multiple administrations, without auto-selecting one', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    renderPage()
+
+    expect(await screen.findByText('Selecciona una administración')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Administración Uno, Activa' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Administración Dos, Activa' })).toBeInTheDocument()
+    expect(listPropertiesByAdministration).not.toHaveBeenCalled()
+    expect(listParkingsByAdministration).not.toHaveBeenCalled()
+  })
+
+  it('selecting an administration from the picker resolves the page to that administration', async () => {
+    listAccessibleAdministrations.mockResolvedValueOnce([
+      { id: 'admin-1', name: 'Administración Uno', status: 'ACTIVE' },
+      { id: 'admin-2', name: 'Administración Dos', status: 'ACTIVE' },
+    ])
+    listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1])
+    listParkingsByAdministration.mockResolvedValueOnce([])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Administración Dos, Activa' }))
+
+    expect(await screen.findByText('Apartamento 302')).toBeInTheDocument()
+    expect(listPropertiesByAdministration).toHaveBeenCalledWith('admin-2')
   })
 
   it('shows both section headers once resolved', async () => {
@@ -123,12 +200,54 @@ describe('PropertiesPage', () => {
     expect(screen.getByText('Inmueble completo')).toBeInTheDocument()
     expect(listPropertiesByAdministration).toHaveBeenCalledWith('admin-1')
 
-    // No invented occupancy copy anywhere on the page - properties doesn't
-    // carry that information yet (see Property's own doc comment).
-    expect(screen.queryByText('Arrendado')).not.toBeInTheDocument()
-    expect(screen.queryByText('Disponible')).not.toBeInTheDocument()
-    expect(screen.queryByText(/rented/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/available/i)).not.toBeInTheDocument()
+    // Occupancy is now the same real, shared cross-reference the Dashboard's
+    // PropertyCard uses (see usePropertyOccupancy's own doc comment) - with
+    // no matching rental_subject in this scenario, the honest status is
+    // "Disponible".
+    expect(await screen.findByText('Disponible')).toBeInTheDocument()
+  })
+
+  it('shows "Arrendado" for a property tied to an occupied rental subject, the same real occupancy cross-reference the Dashboard uses', async () => {
+    resolveOneAdministration()
+    listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1])
+    listParkingsByAdministration.mockResolvedValueOnce([])
+    listRentalSubjects.mockImplementation((_administrationId: string, subjectType: 'FULL_PROPERTY' | 'ROOM') =>
+      Promise.resolve(
+        subjectType === 'FULL_PROPERTY'
+          ? [
+              {
+                id: 'subject-1',
+                administrationId: 'admin-1',
+                subjectType: 'FULL_PROPERTY',
+                propertyId: 'prop-1',
+                roomId: null,
+                parkingId: null,
+                label: 'Apartamento 302',
+              },
+            ]
+          : [],
+      ),
+    )
+    listSubjectLinks.mockResolvedValueOnce([
+      { rentalRelationshipId: 'rel-1', rentalSubjectId: 'subject-1', subjectRole: 'PRIMARY' },
+    ])
+    listRentals.mockResolvedValueOnce([
+      {
+        id: 'rel-1',
+        administrationId: 'admin-1',
+        status: 'ACTIVE',
+        jurisdictionCountry: 'CO',
+        realStartDate: '2026-01-01',
+        trackingStartDate: '2026-01-01',
+        expectedEndDate: null,
+        actualEndDate: null,
+        paymentDay: 5,
+        paymentTiming: 'ADVANCE',
+      },
+    ])
+    renderPage()
+
+    expect(await screen.findByText('Arrendado')).toBeInTheDocument()
   })
 
   it('shows the empty state when the administration has no properties', async () => {

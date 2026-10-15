@@ -10,6 +10,7 @@ import {
 
 interface RoomRow {
   id: string
+  administration_id: string
   property_id: string
   name: string
   bathroom_type: BathroomType | null
@@ -18,7 +19,8 @@ interface RoomRow {
   is_enabled: boolean
 }
 
-const ROOM_COLUMNS = 'id, property_id, name, bathroom_type, furnished, description, is_enabled'
+/** Shared by listByProperty and listByAdministration - one column list, one toRoom mapper. */
+const ROOM_COLUMNS = 'id, administration_id, property_id, name, bathroom_type, furnished, description, is_enabled'
 
 /** Postgres' standard unique_violation SQLSTATE - not RPC-specific. */
 const POSTGRES_UNIQUE_VIOLATION = '23505'
@@ -26,6 +28,7 @@ const POSTGRES_UNIQUE_VIOLATION = '23505'
 function toRoom(row: RoomRow): Room {
   return {
     id: row.id,
+    administrationId: row.administration_id,
     propertyId: row.property_id,
     name: row.name,
     bathroomType: row.bathroom_type,
@@ -59,6 +62,24 @@ export const supabaseRoomRepository: RoomRepository = {
 
     if (error) {
       throw new RoomRepositoryError('Failed to list rooms for the property', 'unknown', error)
+    }
+
+    return (data as RoomRow[]).map(toRoom)
+  },
+
+  async listByAdministration(administrationId: string) {
+    // No property_id/is_enabled filter here - administration-wide read, RLS
+    // (is_administration_member(administration_id)) already permits this
+    // directly, no join through properties needed. Filtering "enabled" (or
+    // anything else business-specific) is the caller's own decision - see
+    // RoomRepository's own doc comment.
+    const { data, error } = await supabaseClient
+      .from('rooms')
+      .select(ROOM_COLUMNS)
+      .eq('administration_id', administrationId)
+
+    if (error) {
+      throw new RoomRepositoryError('Failed to list rooms for the administration', 'unknown', error)
     }
 
     return (data as RoomRow[]).map(toRoom)

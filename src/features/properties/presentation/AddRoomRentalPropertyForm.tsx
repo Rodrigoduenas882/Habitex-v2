@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { useManagementGate } from '@/features/administration/application/useManagementGate'
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
 import { useCreateRoomRentalProperty } from '../application/useCreateRoomRentalProperty'
@@ -26,9 +27,10 @@ export interface AddRoomRentalPropertyFormProps {
  * zero rooms isn't a usable state yet.
  */
 export function AddRoomRentalPropertyForm({ administrationId, onBack }: AddRoomRentalPropertyFormProps) {
-  const { t } = useTranslation('properties')
+  const { t } = useTranslation(['properties', 'administration'])
   const navigate = useNavigate()
   const createRoomRentalProperty = useCreateRoomRentalProperty(administrationId)
+  const managementGate = useManagementGate(administrationId)
 
   const schema = propertyBaseFormSchema(t)
   const {
@@ -78,9 +80,18 @@ export function AddRoomRentalPropertyForm({ administrationId, onBack }: AddRoomR
           hasAdministration={hasAdministration}
           disabled={createRoomRentalProperty.isPending}
         />
-        <Button type="submit" loading={createRoomRentalProperty.isPending} className={styles['submit']}>
+        <Button
+          type="submit"
+          loading={createRoomRentalProperty.isPending}
+          disabled={managementGate.blocked || createRoomRentalProperty.isPending}
+          aria-disabled={managementGate.blocked ? 'true' : undefined}
+          className={styles['submit']}
+        >
           {createRoomRentalProperty.isPending ? t('form.submitting') : t('form.submitRooms')}
         </Button>
+        {managementGate.blocked ? (
+          <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
+        ) : null}
       </form>
     </div>
   )

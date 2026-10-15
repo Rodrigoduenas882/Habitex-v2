@@ -21,6 +21,7 @@ describe('supabaseRoomRepository.listByProperty', () => {
       data: [
         {
           id: 'room-1',
+          administration_id: 'admin-1',
           property_id: 'prop-1',
           name: 'Habitación 1',
           bathroom_type: 'PRIVATE',
@@ -39,6 +40,7 @@ describe('supabaseRoomRepository.listByProperty', () => {
     expect(result).toEqual([
       {
         id: 'room-1',
+        administrationId: 'admin-1',
         propertyId: 'prop-1',
         name: 'Habitación 1',
         bathroomType: 'PRIVATE',
@@ -60,6 +62,80 @@ describe('supabaseRoomRepository.listByProperty', () => {
     eq.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
 
     await expect(supabaseRoomRepository.listByProperty('prop-1')).rejects.toBeInstanceOf(RoomRepositoryError)
+  })
+})
+
+describe('supabaseRoomRepository.listByAdministration', () => {
+  it('queries rooms scoped by administration_id (no property_id/is_enabled filter) and maps snake_case rows to the domain shape', async () => {
+    eq.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'room-1',
+          administration_id: 'admin-1',
+          property_id: 'prop-1',
+          name: 'Habitación 1',
+          bathroom_type: 'PRIVATE',
+          furnished: true,
+          description: 'Con balcón',
+          is_enabled: true,
+        },
+        {
+          id: 'room-2',
+          administration_id: 'admin-1',
+          property_id: 'prop-1',
+          name: 'Habitación 2',
+          bathroom_type: null,
+          furnished: false,
+          description: null,
+          is_enabled: false,
+        },
+      ],
+      error: null,
+    })
+
+    const result = await supabaseRoomRepository.listByAdministration('admin-1')
+
+    expect(from).toHaveBeenCalledWith('rooms')
+    expect(eq).toHaveBeenCalledWith('administration_id', 'admin-1')
+    expect(result).toEqual([
+      {
+        id: 'room-1',
+        administrationId: 'admin-1',
+        propertyId: 'prop-1',
+        name: 'Habitación 1',
+        bathroomType: 'PRIVATE',
+        furnished: true,
+        description: 'Con balcón',
+        isEnabled: true,
+      },
+      {
+        id: 'room-2',
+        administrationId: 'admin-1',
+        propertyId: 'prop-1',
+        name: 'Habitación 2',
+        bathroomType: null,
+        furnished: false,
+        description: null,
+        isEnabled: false,
+      },
+    ])
+  })
+
+  it('never selects every column with *', async () => {
+    eq.mockResolvedValueOnce({ data: [], error: null })
+
+    await supabaseRoomRepository.listByAdministration('admin-1')
+
+    for (const [columns] of select.mock.calls) {
+      expect(columns).not.toBe('*')
+      expect(columns).not.toContain('*')
+    }
+  })
+
+  it('wraps a Supabase failure in RoomRepositoryError instead of throwing the raw error', async () => {
+    eq.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    await expect(supabaseRoomRepository.listByAdministration('admin-1')).rejects.toBeInstanceOf(RoomRepositoryError)
   })
 })
 

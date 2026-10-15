@@ -1,0 +1,52 @@
+/* Standalone, auth-adjacent screen (no AppShell) - a brand-new tenant has no
+   session/Account yet, exactly like BootstrapAccountPage/LoginPage before
+   it. Mirrors BootstrapAccountPage's centered-card layout (.card/.header/
+   .subtitle/.form/.submit) deliberately without LoginPage's hero photo/
+   glass, which DESIGN.md §10 reserves for Login only. */
+.page {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-5);
+  background: var(--color-background);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  border-radius: var(--radius-lg);
+}
+
+.header {
+  margin-bottom: var(--space-6);
+}
+
+.subtitle {
+  margin-top: var(--space-2);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.submit {
+  margin-top: var(--space-2);
+  width: 100%;
+}
+
+.claimSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .page {
+    padding: var(--space-7);
+  }
+}

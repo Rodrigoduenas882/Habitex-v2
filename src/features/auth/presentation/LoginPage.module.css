@@ -214,7 +214,7 @@
 
 .card {
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
   border-radius: var(--radius-lg);
 }
 
@@ -300,7 +300,11 @@
   }
 
   .formPanel {
-    flex: 1;
+    /* Capped growth (not flex: 1) so the hero photo panel absorbs extra
+       viewport width instead of leaving dead space around a small centered
+       card on wide desktops - see HABITEX_DESIGN_AUDIT.md §16 P2 #13. Can
+       still shrink below 560px on a narrower desktop width. */
+    flex: 0 1 560px;
     padding: var(--space-8);
   }
 }

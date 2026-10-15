@@ -28,3 +28,17 @@
 .submit {
   align-self: flex-start;
 }
+
+.invitationLinkBox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.copyStatus {
+  color: var(--color-success);
+  font-size: var(--font-size-body-sm);
+  min-height: 1em;
+}
+

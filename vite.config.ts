@@ -15,7 +15,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/shared/testing/setup-tests.ts'],
     css: true,
-    exclude: ['node_modules', 'dist', 'e2e'],
+    exclude: ['node_modules', 'dist', 'e2e', 'e2e-authenticated'],
     env: {
       // Non-functional placeholders so env validation passes in tests.
       // No network calls happen against these during unit tests.

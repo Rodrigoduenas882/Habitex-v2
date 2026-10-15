@@ -1,11 +1,14 @@
 import { supabaseClient } from '@/infrastructure/supabase/client'
 import {
+  RentalActivationError,
+  RentalLifecycleError,
   RentalRepositoryError,
   type CreateRentalDraftInput,
   type CreateRentalDraftResult,
   type PaymentTiming,
   type RentalRelationship,
   type RentalRepository,
+  type RentalScheduleInput,
   type RentalStatus,
 } from '../domain/rental.types'
 
@@ -51,6 +54,73 @@ interface CreateRentalDraftRow {
 function firstRow<T>(data: T | T[] | null): T | null {
   if (Array.isArray(data)) return data[0] ?? null
   return data
+}
+
+/**
+ * Translates activate_rental_relationship's bare exception string into our
+ * own RentalActivationError so nothing above this repository ever depends
+ * on the raw Postgres error message. Unmatched cases (every RPC exception
+ * this frontend can't actually reach - see RentalActivationError's own doc
+ * comment) fall back to 'unknown' by design, same principle as
+ * toSessionAuthError. RENTAL_TERMS_INCOMPLETE and
+ * INITIAL_TERM_VERSION_REQUIRED both map to the single 'terms_incomplete'
+ * code - two raw RPC strings, one user-facing meaning.
+ */
+function toRentalActivationError(error: { message: string }): RentalActivationError {
+  if (error.message === 'MANAGEMENT_ACCESS_REQUIRED') {
+    return new RentalActivationError('management_access_required', error)
+  }
+
+  if (error.message === 'RELATIONSHIP_CAPACITY_REACHED') {
+    return new RentalActivationError('capacity_reached', error)
+  }
+
+  if (error.message === 'RENTAL_TERMS_INCOMPLETE' || error.message === 'INITIAL_TERM_VERSION_REQUIRED') {
+    return new RentalActivationError('terms_incomplete', error)
+  }
+
+  if (error.message === 'RENTAL_NOT_DRAFT') {
+    return new RentalActivationError('already_active', error)
+  }
+
+  if (error.message === 'RENTAL_SUBJECT_ALREADY_IN_USE') {
+    return new RentalActivationError('subject_in_use', error)
+  }
+
+  return new RentalActivationError('unknown', error)
+}
+
+/**
+ * Translates cancel_draft_rental/start_ending_rental/end_rental's bare
+ * exception string into our own RentalLifecycleError so nothing above this
+ * repository ever depends on the raw Postgres error message. Unmatched
+ * cases (RENTAL_NOT_FOUND, ADMINISTRATION_ROLE_REQUIRED - see
+ * RentalLifecycleErrorCode's own doc comment for why they're unreachable)
+ * fall back to 'unknown' by design, same principle as
+ * toRentalActivationError.
+ */
+function toRentalLifecycleError(error: { message: string }): RentalLifecycleError {
+  if (error.message === 'MANAGEMENT_ACCESS_REQUIRED') {
+    return new RentalLifecycleError('management_access_required', error)
+  }
+
+  if (error.message === 'ONLY_DRAFT_CAN_BE_CANCELLED') {
+    return new RentalLifecycleError('not_draft', error)
+  }
+
+  if (error.message === 'RENTAL_NOT_ACTIVE') {
+    return new RentalLifecycleError('not_active', error)
+  }
+
+  if (error.message === 'RENTAL_NOT_ENDABLE') {
+    return new RentalLifecycleError('not_endable', error)
+  }
+
+  if (error.message === 'END_BEFORE_START') {
+    return new RentalLifecycleError('end_before_start', error)
+  }
+
+  return new RentalLifecycleError('unknown', error)
 }
 
 function toRpcArgs(input: CreateRentalDraftInput) {
@@ -108,5 +178,119 @@ export const supabaseRentalRepository: RentalRepository = {
     }
 
     return { rentalRelationshipId: row.rental_relationship_id, tenantPersonId: row.tenant_person_id }
+  },
+
+  async activate(relationshipId: string): Promise<RentalRelationship> {
+    // MANAGEMENT_ACCESS_REQUIRED / RELATIONSHIP_CAPACITY_REACHED / DRAFT-only
+    // / terms-complete / primary-subject / active-tenant / active-lessor /
+    // initial-term-version / subject-not-already-occupied all happen inside
+    // the RPC (SECURITY DEFINER), atomically - no direct update, no service
+    // role, no bypass. RLS prevents a direct client UPDATE from ever setting
+    // status to ACTIVE, so this RPC is the only real path regardless of what
+    // any client-side gate computed beforehand.
+    const response = await supabaseClient.rpc('activate_rental_relationship', {
+      p_relationship_id: relationshipId,
+    })
+
+    if (response.error) {
+      throw toRentalActivationError(response.error)
+    }
+
+    const row = firstRow(response.data as RentalRow | RentalRow[] | null)
+    if (!row) {
+      throw new RentalRepositoryError('activate_rental_relationship returned no row')
+    }
+
+    return toRentalRelationship(row)
+  },
+
+  async updateSchedule(relationshipId: string, input: RentalScheduleInput): Promise<RentalRelationship> {
+    // Direct UPDATE, no RPC - RLS (rental_relationships_update_draft) is the
+    // real authority: it rejects this outright unless the row is still
+    // DRAFT and the caller can manage its administration. Same table
+    // listByAdministration/activate already read, just a different
+    // operation on it (see RentalRepository.updateSchedule's own doc
+    // comment).
+    const { data, error } = await supabaseClient
+      .from('rental_relationships')
+      .update({
+        real_start_date: input.realStartDate,
+        tracking_start_date: input.trackingStartDate,
+        payment_day: input.paymentDay,
+        payment_timing: input.paymentTiming,
+        expected_end_date: input.expectedEndDate,
+      })
+      .eq('id', relationshipId)
+      .select(RENTAL_COLUMNS)
+      .single()
+
+    if (error) {
+      throw new RentalRepositoryError('Failed to update the rental relationship schedule', error)
+    }
+
+    return toRentalRelationship(data)
+  },
+
+  async cancelDraft(relationshipId: string): Promise<RentalRelationship> {
+    // DRAFT-only / can_manage_administration() happen inside the RPC
+    // (SECURITY DEFINER), atomically - no direct update, no service role,
+    // no bypass.
+    const response = await supabaseClient.rpc('cancel_draft_rental', {
+      p_relationship_id: relationshipId,
+    })
+
+    if (response.error) {
+      throw toRentalLifecycleError(response.error)
+    }
+
+    const row = firstRow(response.data as RentalRow | RentalRow[] | null)
+    if (!row) {
+      throw new RentalRepositoryError('cancel_draft_rental returned no row')
+    }
+
+    return toRentalRelationship(row)
+  },
+
+  async startEnding(relationshipId: string): Promise<RentalRelationship> {
+    // ACTIVE-only / has_administration_management_role() happen inside the
+    // RPC (SECURITY DEFINER) - deliberately no subscription check, unlike
+    // activate/cancelDraft (see RentalRepository.startEnding's own doc
+    // comment).
+    const response = await supabaseClient.rpc('start_ending_rental', {
+      p_relationship_id: relationshipId,
+    })
+
+    if (response.error) {
+      throw toRentalLifecycleError(response.error)
+    }
+
+    const row = firstRow(response.data as RentalRow | RentalRow[] | null)
+    if (!row) {
+      throw new RentalRepositoryError('start_ending_rental returned no row')
+    }
+
+    return toRentalRelationship(row)
+  },
+
+  async end(relationshipId: string): Promise<RentalRelationship> {
+    // ACTIVE/ENDING-only / has_administration_management_role() happen
+    // inside the RPC (SECURITY DEFINER) - deliberately no subscription
+    // check. p_actual_end_date is never sent, so the RPC's own DEFAULT
+    // CURRENT_DATE applies - no backdated termination, no date argument
+    // from this frontend.
+    const response = await supabaseClient.rpc('end_rental', {
+      p_relationship_id: relationshipId,
+    })
+
+    if (response.error) {
+      throw toRentalLifecycleError(response.error)
+    }
+
+    const row = firstRow(response.data as RentalRow | RentalRow[] | null)
+    if (!row) {
+      throw new RentalRepositoryError('end_rental returned no row')
+    }
+
+    return toRentalRelationship(row)
   },
 }

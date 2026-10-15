@@ -37,7 +37,7 @@
   width: 6px;
   height: 6px;
   border-radius: var(--radius-full);
-  background: var(--color-primary);
+  background: var(--color-primary-accent);
   animation: dotRise 1.2s ease-in-out infinite;
 }
 

@@ -1,0 +1,46 @@
+{
+  "title": "Cargos",
+  "description": "Consulta los cargos generados para este arriendo y su estado de pago.",
+  "type": {
+    "RENT": "Renta",
+    "ADMINISTRATION": "Administración",
+    "UTILITY": "Servicio público",
+    "OTHER": "Otro"
+  },
+  "financialStatus": {
+    "PENDING": "Pendiente",
+    "OVERDUE": "Vencido",
+    "PARTIAL": "Pago parcial",
+    "PAID": "Pagado"
+  },
+  "list": {
+    "period": "Periodo: {{start}} - {{end}}",
+    "dueDate": "Vence el {{date}}",
+    "amount": "Valor: {{amount}}",
+    "paidAmount": "Pagado: {{amount}}",
+    "balance": "Saldo: {{amount}}"
+  },
+  "empty": {
+    "title": "Todavía no hay cargos para este arriendo",
+    "description": "Genera los cargos de renta para empezar a hacer seguimiento a los pagos de este arriendo."
+  },
+  "generate": {
+    "cta": "Generar cargos de renta",
+    "submitting": "Generando…",
+    "success": {
+      "created": "{{count}} cargo(s) generado(s).",
+      "none": "No había cargos nuevos por generar."
+    },
+    "errors": {
+      "management_access_required": "Tu acceso de administración venció. Elige un plan para seguir gestionando tu cuenta.",
+      "not_chargeable": "Este arriendo no admite generar cargos en su estado actual. Actualiza la página para ver su estado actual.",
+      "billing_configuration_incomplete": "Completa las fechas y el día de pago de este arriendo antes de generar cargos.",
+      "unknown": "No pudimos generar los cargos. Intenta de nuevo."
+    }
+  },
+  "errors": {
+    "chargesTitle": "No pudimos cargar los cargos",
+    "chargesDescription": "Ocurrió un error al consultar los cargos de este arriendo. Intenta de nuevo más tarde.",
+    "relationshipNotFound": "No encontramos este arriendo en tu administración."
+  }
+}

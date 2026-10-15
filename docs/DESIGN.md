@@ -40,7 +40,7 @@ excepciones documentadas en el §9 y §10.
 
 | Categoría | Tokens | Notas |
 |---|---|---|
-| Neutrales | `--color-background`, `--color-surface`, `--color-surface-hover`, `--color-foreground`, `--color-muted`, `--color-border` | Redefinidos por tema. |
+| Neutrales | `--color-background`, `--color-surface`, `--color-surface-hover`, `--color-foreground`, `--color-muted`, `--color-border`, `--color-control-border` | Redefinidos por tema. |
 | Brand | `--color-primary(-hover|-foreground|-subtle|-subtle-foreground)` | |
 | Semantic tones | `success` / `warning` / `danger` / `info`, cada uno con la misma tripleta base/subtle/subtle-foreground | Ver §6. |
 | Shadows | `--shadow-sm/md/lg` | Redefinidas por tema (más planas y oscuras en Dark — un blur claro no se ve sobre superficies oscuras). |
@@ -52,6 +52,17 @@ excepciones documentadas en el §9 y §10.
 **Cuándo reutilizar un token**: siempre que el valor exista ya y comunique lo
 mismo. Un `border` es siempre `--color-border`; un fondo tenue de éxito es
 siempre `--color-success-subtle`.
+
+**`--color-border` vs. `--color-control-border`**: dos tokens, dos
+propósitos distintos, no intercambiables. `--color-border` es un divisor
+estructural (borde de sidebar/topbar/card/drawer) — contraste bajo contra
+la superficie es aceptable ahí, es decoración de layout, no una superficie
+interactiva. `--color-control-border` es el límite de un control editable
+(`Input`/`Select`/`Textarea`, y el borde de `Button` `secondary`) — la única
+señal visual de que esa superficie es editable/accionable, por lo que debe
+alcanzar ~3:1 contra `--color-surface` (WCAG 1.4.11). Nunca usar
+`--color-border` en un control interactivo nuevo, ni `--color-control-border`
+en un divisor puramente estructural.
 
 **Cuándo se justifica crear uno nuevo**: cuando el valor existente cambiaría
 un significado establecido, y el nuevo uso lo documenta explícitamente. Los
@@ -178,6 +189,17 @@ shell de la app — lo usan tanto el layout autenticado real como `/ui-preview`
   corto en F5. No revertir a `min-height` en `.shell`.
 - **Sidebar** (desktop): ancho fijo `--sidebar-width` (248px), con
   `BrandLogo` arriba, navegación abajo.
+- **Ítem de navegación sin ruta todavía ("Próximamente")**: un
+  `AppShellNavItem` sin `to` (sección planeada, sin pantalla aún) se
+  renderiza como `<button disabled>` — nunca un `<Link>`/botón con la misma
+  apariencia que uno real. Tratamiento: opacidad reducida (`0.55`, igual
+  convención que `Button`'s `:disabled`), sin estado `:hover`, y en
+  sidebar/drawer un label secundario compacto ("Próximamente",
+  `AppShellProps.comingSoonLabel`) junto al nombre — en el bottom nav móvil
+  (sin espacio) esa misma etiqueta solo existe como descripción accesible
+  (`aria-describedby`, `sr-only`), nunca visible. `disabled` nativo ya
+  resuelve que no sea alcanzable por teclado ni dispare navegación — no se
+  simula con `aria-disabled` a mano.
 - **Topbar**: altura fija `--topbar-height` (64px), `ThemeControl` + email +
   `Avatar` + logout.
 - **Navegación móvil**: drawer (`position: fixed`, `inert` cuando está

@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
+import { clearSelectedAdministrationId } from '@/features/administration/infrastructure/administration-selection-storage'
 import { sessionRepository } from '../composition'
 import { authQueryKeys } from './auth-query-keys'
 
@@ -33,6 +34,17 @@ import { authQueryKeys } from './auth-query-keys'
  * getSession() call is still in flight) so the very first event this
  * listener ever sees is never treated as a change - there's nothing to
  * clean up yet on a fresh mount.
+ *
+ * Same identity-change branch also clears the persisted administration
+ * selection (administration-selection-storage.ts). That key lives in
+ * localStorage, not the query cache, so removeQueries() above never touches
+ * it - left alone, a stale id from the previous viewer could resolve
+ * useActiveAdministration straight to 'resolved' for the next viewer without
+ * them ever choosing it in their own session (possible whenever both
+ * viewers legitimately access the same administration, e.g.
+ * co-administrators). This listener is already the one place that reacts to
+ * an identity change (see ARCHITECTURE.md §6), so it owns this cleanup too
+ * instead of scattering identity-change logic elsewhere.
  */
 export function AuthSessionListener() {
   const queryClient = useQueryClient()
@@ -49,6 +61,7 @@ export function AuthSessionListener() {
         queryClient.removeQueries({
           predicate: (query) => query.queryKey[0] !== authQueryKeys.session[0],
         })
+        clearSelectedAdministrationId()
       }
 
       previousUserIdRef.current = currentUserId

@@ -93,6 +93,20 @@ No inventar tablas, RPCs, Edge Functions ni políticas. Si algo del backend
 no puede verificarse desde este repo, decirlo explícitamente en vez de
 asumirlo.
 
+El Supabase MCP configurado en este repo (`.mcp.json`) es **read-only**:
+solo para inspección (tablas, policies, advisors, migrations, logs). Nunca
+usarlo para modificar schema, datos, RLS, policies, Auth ni migrations.
+Esto es permanente — ningún cambio futuro de workflow lo debilita.
+
+`supabase/migrations/` versiona el historial de schema/RLS/RPC (ver
+`ARCHITECTURE.md §0.1`). Un agente puede **autorar** (proponer, escribir)
+un archivo de migration nueva ahí. Autorarlo no autoriza ejecutarlo:
+aplicar cualquier migration contra el proyecto real requiere aprobación
+humana explícita, por migration, separada de la aprobación de escribirla
+— nunca implícita por una autorización general previa, y nunca vía el MCP
+(que sigue siendo read-only). Las migrations ya aplicadas no se modifican
+nunca; un cambio siempre es una migration nueva.
+
 ---
 
 ## 6. Design

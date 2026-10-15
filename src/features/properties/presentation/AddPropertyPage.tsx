@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useCurrentAdministration } from '@/features/administration/application/useCurrentAdministration'
+import { useActiveAdministration } from '@/features/administration/application/useActiveAdministration'
+import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
 import { ParkingForm } from '@/features/parking/presentation/ParkingForm'
 import { Alert } from '@/shared/ui/Alert'
 import { EmptyState } from '@/shared/ui/EmptyState'
@@ -19,7 +20,7 @@ import { PropertyTypeSelector, type PropertyAddOption } from './PropertyTypeSele
  */
 export default function AddPropertyPage() {
   const { t } = useTranslation('properties')
-  const currentAdministration = useCurrentAdministration()
+  const currentAdministration = useActiveAdministration()
   const [selection, setSelection] = useState<PropertyAddOption | null>(null)
 
   if (currentAdministration.status === 'loading') {
@@ -56,10 +57,9 @@ export default function AddPropertyPage() {
   if (currentAdministration.status === 'selection-required') {
     return (
       <div className={styles['page']}>
-        <EmptyState
-          icon={<BuildingIcon size={24} />}
-          title={t('selectionRequired.title')}
-          description={t('selectionRequired.description')}
+        <AdministrationPicker
+          options={currentAdministration.options}
+          onSelect={currentAdministration.select}
         />
       </div>
     )

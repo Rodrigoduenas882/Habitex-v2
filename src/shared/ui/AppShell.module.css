@@ -73,10 +73,41 @@
   color: var(--color-foreground);
 }
 
+.navItemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .navItemActive {
   background: var(--color-primary-subtle);
   color: var(--color-primary-subtle-foreground);
   font-weight: 600;
+}
+
+/* "Próximamente" destinations: native `disabled` already removes them from
+   the tab order and from click/keyboard activation - this only adds the
+   matching visual treatment (same opacity Button.module.css's own
+   `:disabled` uses, for a consistent "this is off" language across the
+   product) and neutralizes :hover, since some browsers still match :hover
+   on a disabled control positionally even though it can't be activated. */
+.navItemDisabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.navItemDisabled:hover {
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.comingSoonLabel {
+  flex-shrink: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-muted);
+  white-space: nowrap;
 }
 
 /* Small accent bar instead of a bigger fill - a clearer "you are here"
@@ -89,7 +120,7 @@
   bottom: 8px;
   width: 3px;
   border-radius: var(--radius-full);
-  background: var(--color-primary);
+  background: var(--color-primary-accent);
 }
 
 /* ---------- Body (topbar + main) ---------- */
@@ -257,7 +288,16 @@
   }
 
   .bottomNavItemActive {
-    color: var(--color-primary);
+    color: var(--color-primary-accent);
+  }
+
+  /* No visible "Próximamente" text here - the row is already 11px/44px
+     tall with no spare room (see AppShellNavItem's own doc comment); the
+     coming-soon state is still announced via the sr-only description on
+     the button itself. */
+  .bottomNavItemDisabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 }
 
