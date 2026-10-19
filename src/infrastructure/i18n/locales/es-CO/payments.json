@@ -121,6 +121,7 @@
       "forbidden": "No tienes permiso para reportar un pago en este arriendo.",
       "invalid_amount": "Ingresa un valor de pago válido.",
       "invalid_proof_file": "El comprobante seleccionado no es válido. Intenta con otro archivo.",
+      "idempotency_key_reused": "Este reporte cambió respecto a un intento anterior que ya quedó registrado. Revisa la lista de pagos e intenta de nuevo si todavía necesitas reportar este pago.",
       "unknown": "No pudimos reportar este pago. Intenta de nuevo."
     }
   },

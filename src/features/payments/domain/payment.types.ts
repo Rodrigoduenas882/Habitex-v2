@@ -36,12 +36,19 @@ export interface Payment {
   updatedAt: string
 }
 
-/** Input for PaymentRepository.reportPayment - mirrors report_payment's own optional args. */
+/**
+ * Input for PaymentRepository.reportPayment - mirrors report_payment's own
+ * args. `idempotencyKey` is required (never optional): report_payment's own
+ * signature has no default for `p_idempotency_key`, so every call must
+ * supply one - see getOrCreatePendingIdempotencyKey's own doc comment for
+ * how the presentation layer generates/persists it per relationship.
+ */
 export interface ReportPaymentInput {
   administrationId: string
   rentalRelationshipId: string
   amount: number
   paymentDate: string
+  idempotencyKey: string
   paymentMethod?: PaymentMethod
   externalReference?: string
   proofFileId?: string
@@ -62,6 +69,13 @@ export interface ReportPaymentInput {
  *   (error.code === '23514') from payment_allocations' own CHECK(amount > 0).
  *   Same class of failure, so no second code.
  * - 'invalid_proof_file' <- INVALID_PROOF_FILE (report_payment only).
+ * - 'idempotency_key_reused' <- IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD
+ *   (report_payment only - the same idempotency key was already used for a
+ *   payment whose relationship/amount/date/method/reference/proof file/notes
+ *   don't all match this call's own values exactly. A replay with an
+ *   IDENTICAL payload never raises this - report_payment returns the
+ *   original payment instead, see that RPC's own doc comment in the
+ *   migration).
  * - 'payment_not_reported' <- PAYMENT_NOT_REPORTED (confirm_payment/
  *   reject_payment only - status isn't REPORTED anymore).
  * - 'payment_not_confirmed' <- PAYMENT_NOT_CONFIRMED (allocate_payment only -
@@ -100,6 +114,7 @@ export type PaymentErrorCode =
   | 'forbidden'
   | 'invalid_amount'
   | 'invalid_proof_file'
+  | 'idempotency_key_reused'
   | 'payment_not_reported'
   | 'payment_not_confirmed'
   | 'allocation_scope_mismatch'

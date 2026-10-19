@@ -19,6 +19,7 @@
 // second run. To re-seed cleanly, run `pnpm exec supabase db reset` first.
 
 import { createClient } from '@supabase/supabase-js'
+import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL
@@ -175,6 +176,7 @@ const payment = firstRow(
     p_relationship_id: paid.rentalRelationshipId,
     p_amount: paid.rentAmount,
     p_payment_date: new Date().toISOString().slice(0, 10),
+    p_idempotency_key: randomUUID(),
     p_method: 'BANK_TRANSFER',
     p_reference: 'E2E-LOCAL-SEED',
     p_proof_file_id: null,
@@ -200,6 +202,7 @@ await rpc('report_payment', {
   p_relationship_id: pending.rentalRelationshipId,
   p_amount: pending.rentAmount,
   p_payment_date: new Date().toISOString().slice(0, 10),
+  p_idempotency_key: randomUUID(),
   p_method: 'CASH',
   p_reference: null,
   p_proof_file_id: null,

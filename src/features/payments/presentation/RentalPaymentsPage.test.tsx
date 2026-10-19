@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { administrationQueryKeys } from '@/features/administration/application/administration-query-keys'
@@ -269,6 +269,12 @@ describe('RentalPaymentsPage', () => {
 
   afterEach(() => {
     window.localStorage.clear()
+    // Independent review (MEDIUM, fixed): PaymentReportForm's own
+    // idempotency key lives in sessionStorage (see idempotency-key.ts's own
+    // doc comment) - without clearing it here, every it() in this file
+    // shares one sessionStorage instance, making the key reuse/rotation
+    // tests implicitly order-dependent on whatever ran before them.
+    window.sessionStorage.clear()
     vi.clearAllMocks()
   })
 
@@ -336,7 +342,16 @@ describe('RentalPaymentsPage', () => {
       await waitFor(() => {
         expect(reportPayment).toHaveBeenCalledTimes(1)
       })
-      expect(reportPayment).toHaveBeenCalledWith({
+      const { idempotencyKey, ...callArgs } = reportPayment.mock.calls[0]?.[0] as {
+        idempotencyKey: string
+        administrationId: string
+        rentalRelationshipId: string
+        amount: number
+        paymentDate: string
+      }
+      expect(typeof idempotencyKey).toBe('string')
+      expect(idempotencyKey.length).toBeGreaterThan(0)
+      expect(callArgs).toEqual({
         administrationId: 'admin-1',
         rentalRelationshipId: 'rel-1',
         amount: 500000,
@@ -389,7 +404,7 @@ describe('RentalPaymentsPage', () => {
       })
     })
 
-    it('never re-uploads the proof file on a retry after reportPayment fails, reusing the same proofFileId on the second call', async () => {
+    it('never re-uploads the proof file on a retry after reportPayment fails, reusing the same proofFileId and idempotencyKey on the second call', async () => {
       resolveOneAdministration()
       listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
       listByRelationship.mockResolvedValueOnce([])
@@ -436,6 +451,145 @@ describe('RentalPaymentsPage', () => {
       })
       expect(uploadFile).toHaveBeenCalledTimes(1)
       expect(reportPayment).toHaveBeenNthCalledWith(2, expect.objectContaining({ proofFileId: 'file-9' }))
+
+      const firstCallKey = (reportPayment.mock.calls[0]?.[0] as { idempotencyKey: string }).idempotencyKey
+      const secondCallKey = (reportPayment.mock.calls[1]?.[0] as { idempotencyKey: string }).idempotencyKey
+      expect(typeof firstCallKey).toBe('string')
+      expect(secondCallKey).toBe(firstCallKey)
+    })
+
+    it('uses a brand-new idempotencyKey for a second, genuinely new payment reported after the first one succeeded', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      // Queued twice - useReportPayment's own onSuccess invalidates this
+      // relationship's payments list, so it refetches after each successful
+      // report, not just once.
+      listByRelationship.mockResolvedValueOnce([])
+      listByRelationship.mockResolvedValueOnce([makePayment()])
+      reportPayment.mockResolvedValueOnce(makePayment())
+      reportPayment.mockResolvedValueOnce(makePayment({ id: 'payment-2' }))
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.type(await screen.findByLabelText('Valor pagado'), '500000')
+      await user.type(screen.getByLabelText('Fecha de pago'), '2026-01-05')
+      await user.click(screen.getByRole('button', { name: 'Reportar pago' }))
+
+      await waitFor(() => {
+        expect(reportPayment).toHaveBeenCalledTimes(1)
+      })
+
+      await user.type(await screen.findByLabelText('Valor pagado'), '750000')
+      await user.type(screen.getByLabelText('Fecha de pago'), '2026-01-06')
+      await user.click(screen.getByRole('button', { name: 'Reportar pago' }))
+
+      await waitFor(() => {
+        expect(reportPayment).toHaveBeenCalledTimes(2)
+      })
+
+      const firstCallKey = (reportPayment.mock.calls[0]?.[0] as { idempotencyKey: string }).idempotencyKey
+      const secondCallKey = (reportPayment.mock.calls[1]?.[0] as { idempotencyKey: string }).idempotencyKey
+      expect(secondCallKey).not.toBe(firstCallKey)
+    })
+
+    it('rotates the idempotencyKey and refetches the payments list after an idempotency_key_reused rejection, so a corrected resubmission never repeats the same dead-end', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      // Queued three times: the page's own initial load, the failed
+      // attempt's own catch branch invalidating the list (same
+      // handleStaleState principle as PaymentCard's own confirm/reject
+      // actions), and useReportPayment's own onSuccess invalidation once
+      // the corrected resubmission succeeds.
+      listByRelationship.mockResolvedValueOnce([])
+      listByRelationship.mockResolvedValueOnce([])
+      listByRelationship.mockResolvedValueOnce([makePayment()])
+      reportPayment.mockRejectedValueOnce(new PaymentRepositoryError('idempotency_key_reused'))
+      reportPayment.mockResolvedValueOnce(makePayment())
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.type(await screen.findByLabelText('Valor pagado'), '500000')
+      await user.type(screen.getByLabelText('Fecha de pago'), '2026-01-05')
+      await user.click(screen.getByRole('button', { name: 'Reportar pago' }))
+
+      await waitFor(() => {
+        expect(reportPayment).toHaveBeenCalledTimes(1)
+      })
+      expect(
+        await screen.findByText(
+          'Este reporte cambió respecto a un intento anterior que ya quedó registrado. Revisa la lista de pagos e intenta de nuevo si todavía necesitas reportar este pago.',
+        ),
+      ).toBeInTheDocument()
+
+      // A corrected resubmission (same form, user didn't reload) must use a
+      // brand-new key, never the one report_payment just rejected.
+      await user.click(screen.getByRole('button', { name: 'Reportar pago' }))
+
+      await waitFor(() => {
+        expect(reportPayment).toHaveBeenCalledTimes(2)
+      })
+      await waitFor(() => {
+        // Initial load + the rejected attempt's own invalidation + the
+        // corrected resubmission's own success invalidation.
+        expect(listByRelationship).toHaveBeenCalledTimes(3)
+      })
+
+      const firstCallKey = (reportPayment.mock.calls[0]?.[0] as { idempotencyKey: string }).idempotencyKey
+      const secondCallKey = (reportPayment.mock.calls[1]?.[0] as { idempotencyKey: string }).idempotencyKey
+      expect(secondCallKey).not.toBe(firstCallKey)
+    })
+
+    it('never leaks an idempotencyKey between two different rental relationships reached via real in-app navigation (no full page reload)', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValue([RELATIONSHIP_ACTIVE, { ...RELATIONSHIP_ACTIVE, id: 'rel-2' }])
+      listByRelationship.mockResolvedValue([])
+      reportPayment.mockResolvedValueOnce(makePayment())
+      reportPayment.mockResolvedValueOnce(makePayment({ id: 'payment-2', rentalRelationshipId: 'rel-2' }))
+      const user = userEvent.setup()
+      const client = createTestQueryClient()
+
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={['/rentals/rel-1/payments']}>
+            <Routes>
+              <Route
+                path="/rentals/:id/payments"
+                element={
+                  <>
+                    <Link to="/rentals/rel-2/payments">Ir a rel-2</Link>
+                    <RentalPaymentsPage />
+                  </>
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      )
+
+      await user.type(await screen.findByLabelText('Valor pagado'), '500000')
+      await user.type(screen.getByLabelText('Fecha de pago'), '2026-01-05')
+      await user.click(screen.getByRole('button', { name: 'Reportar pago' }))
+      await waitFor(() => {
+        expect(reportPayment).toHaveBeenCalledTimes(1)
+      })
+
+      // Real in-app navigation to a DIFFERENT relationship - same mounted
+      // route element, React Router never remounts it on a param-only
+      // change. Without key={relationshipId} on PaymentReportForm, this is
+      // exactly the scenario that let rel-1's key leak into a rel-2 submission.
+      await user.click(screen.getByRole('link', { name: 'Ir a rel-2' }))
+      await user.type(await screen.findByLabelText('Valor pagado'), '750000')
+      await user.type(screen.getByLabelText('Fecha de pago'), '2026-01-06')
+      await user.click(screen.getByRole('button', { name: 'Reportar pago' }))
+      await waitFor(() => {
+        expect(reportPayment).toHaveBeenCalledTimes(2)
+      })
+
+      const firstCallArgs = reportPayment.mock.calls[0]?.[0] as { idempotencyKey: string; rentalRelationshipId: string }
+      const secondCallArgs = reportPayment.mock.calls[1]?.[0] as { idempotencyKey: string; rentalRelationshipId: string }
+      expect(firstCallArgs.rentalRelationshipId).toBe('rel-1')
+      expect(secondCallArgs.rentalRelationshipId).toBe('rel-2')
+      expect(secondCallArgs.idempotencyKey).not.toBe(firstCallArgs.idempotencyKey)
     })
 
     it('stays fully enabled and submittable for a participant/viewer whose management access is expired', async () => {

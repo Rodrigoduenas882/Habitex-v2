@@ -49,6 +49,7 @@ import { usePaymentReceipt } from '../application/usePaymentReceipt'
 import { usePayments } from '../application/usePayments'
 import { useRejectPayment } from '../application/useRejectPayment'
 import { useReportPayment } from '../application/useReportPayment'
+import { clearPendingIdempotencyKey, getOrCreatePendingIdempotencyKey } from '../domain/idempotency-key'
 import { PaymentRepositoryError, type Payment, type PaymentMethod, type PaymentStatus } from '../domain/payment.types'
 
 type PaymentsT = UseTranslationResponse<['payments', 'administration'], undefined>['t']
@@ -104,6 +105,8 @@ function reportPaymentErrorMessage(t: PaymentsT, error: unknown): string {
         return t('reportForm.errors.invalid_amount')
       case 'invalid_proof_file':
         return t('reportForm.errors.invalid_proof_file')
+      case 'idempotency_key_reused':
+        return t('reportForm.errors.idempotency_key_reused')
       default:
         return t('reportForm.errors.unknown')
     }
@@ -1047,10 +1050,18 @@ interface PaymentReportFormProps {
  */
 function PaymentReportForm({ administrationId, relationshipId }: PaymentReportFormProps) {
   const { t } = useTranslation('payments')
+  const queryClient = useQueryClient()
   const reportPayment = useReportPayment()
   const uploadProof = usePaymentProofUpload()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadedProof, setUploadedProof] = useState<FileMetadata | null>(null)
+  // Reused verbatim across a manual retry of the same logical submission
+  // (network error, timeout, or an uncertain result after a reload) - only
+  // refreshed once report_payment actually succeeds, so the NEXT report
+  // (a genuinely new logical attempt) gets a brand-new key. See
+  // getOrCreatePendingIdempotencyKey's own doc comment for why this is
+  // sessionStorage-backed rather than plain component state.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => getOrCreatePendingIdempotencyKey(relationshipId))
 
   const schema = paymentReportFormSchema(t)
   const {
@@ -1082,15 +1093,37 @@ function PaymentReportForm({ administrationId, relationshipId }: PaymentReportFo
           setUploadedProof(uploaded)
         }
 
-        const baseInput = toReportPaymentInput(values, administrationId, relationshipId)
+        const baseInput = toReportPaymentInput(values, administrationId, relationshipId, idempotencyKey)
         await reportPayment.mutateAsync(uploaded ? { ...baseInput, proofFileId: uploaded.id } : baseInput)
 
+        // Only clear/rotate the key once report_payment actually succeeded -
+        // a failed attempt must keep the exact same key for a manual retry.
+        clearPendingIdempotencyKey(relationshipId)
+        setIdempotencyKey(getOrCreatePendingIdempotencyKey(relationshipId))
         reset(PAYMENT_REPORT_FORM_DEFAULTS)
         setSelectedFile(null)
         setUploadedProof(null)
-      } catch {
+      } catch (error) {
         // reportPayment.isError / uploadProof.isError already reflect the
-        // failure - nothing else to do here.
+        // failure for every other case - nothing else to do there.
+        //
+        // Independent review (HIGH, fixed): idempotency_key_reused is the
+        // one error where reusing the same key on a retry is actively wrong,
+        // not merely unnecessary - the key itself is what's poisoned (it was
+        // already claimed, server-side, by a payload that no longer matches
+        // this form's current values, e.g. the user corrected the amount
+        // and resubmitted). Without rotating here, every subsequent
+        // resubmission in this tab would fail the exact same way forever -
+        // sessionStorage survives a reload, so "refresh the page" (the
+        // error copy's own suggestion) would not have helped either. Also
+        // refetches the list so the user sees the real, already-registered
+        // payment from the original attempt, same principle as PaymentCard's
+        // own handleStaleState.
+        if (error instanceof PaymentRepositoryError && error.code === 'idempotency_key_reused') {
+          clearPendingIdempotencyKey(relationshipId)
+          setIdempotencyKey(getOrCreatePendingIdempotencyKey(relationshipId))
+          void queryClient.invalidateQueries({ queryKey: paymentQueryKeys.list(administrationId, relationshipId) })
+        }
       }
     })()
   })
@@ -1238,7 +1271,16 @@ function RentalPaymentsView({ administrationId, relationshipId }: RentalPayments
 
       <section className={styles['reportSection']}>
         <h2 className="text-h3">{t('reportForm.title')}</h2>
-        <PaymentReportForm administrationId={administrationId} relationshipId={relationshipId} />
+        {/* Independent review (HIGH, fixed): React Router never remounts
+            this element on a relationshipId-only navigation (same route,
+            different :id param) - without an explicit key, PaymentReportForm's
+            own useState(() => getOrCreatePendingIdempotencyKey(relationshipId))
+            initializer would never re-run, letting a stale key generated for
+            a PREVIOUS relationship leak into a submission for this one.
+            key={relationshipId} forces a full remount (resetting the whole
+            form, not just the key) whenever the relationship actually
+            changes. */}
+        <PaymentReportForm key={relationshipId} administrationId={administrationId} relationshipId={relationshipId} />
       </section>
     </div>
   )
