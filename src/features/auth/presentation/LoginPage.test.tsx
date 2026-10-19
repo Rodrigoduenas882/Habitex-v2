@@ -1,6 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
@@ -18,11 +19,13 @@ vi.mock('../infrastructure/supabase-session.repository', () => ({
   },
 }))
 
-function renderLoginPage() {
+function renderLoginPage(initialEntries: Array<{ pathname: string; state?: unknown }> = [{ pathname: '/login' }]) {
   const client = createTestQueryClient()
   return render(
     <QueryClientProvider client={client}>
-      <LoginPage />
+      <MemoryRouter initialEntries={initialEntries}>
+        <LoginPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -127,5 +130,31 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Contraseña')).toBeDisabled()
 
     resolveLogin({ userId: 'user-1', email: 'camila@habitex.app', expiresAtUnix: null })
+  })
+
+  it('links to /signup and /forgot-password', () => {
+    renderLoginPage()
+
+    expect(screen.getByRole('link', { name: 'Crear cuenta' })).toHaveAttribute('href', '/signup')
+    expect(screen.getByRole('link', { name: '¿Olvidaste tu contraseña?' })).toHaveAttribute(
+      'href',
+      '/forgot-password',
+    )
+  })
+
+  it('shows a one-time success message after a password update, read off navigation state', () => {
+    renderLoginPage([{ pathname: '/login', state: { passwordUpdated: true } }])
+
+    expect(
+      screen.getByText('Tu contraseña se actualizó. Ingresa con tu nueva contraseña.'),
+    ).toBeInTheDocument()
+  })
+
+  it('never shows the password-updated message on an ordinary visit', () => {
+    renderLoginPage()
+
+    expect(
+      screen.queryByText('Tu contraseña se actualizó. Ingresa con tu nueva contraseña.'),
+    ).not.toBeInTheDocument()
   })
 })

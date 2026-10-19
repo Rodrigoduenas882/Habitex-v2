@@ -41,7 +41,12 @@ function mountListener() {
     </QueryClientProvider>,
   )
 
-  return { client, emit: (session: AuthSession) => { emit(session); } }
+  return {
+    client,
+    emit: (session: AuthSession) => {
+      emit(session, 'other')
+    },
+  }
 }
 
 describe('AuthSessionListener', () => {

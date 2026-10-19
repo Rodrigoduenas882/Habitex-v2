@@ -111,7 +111,17 @@ function InvitationLoginForm() {
       <Button type="submit" loading={login.isPending} className={styles['submit']}>
         {login.isPending ? t('auth.login.submitting') : t('auth.login.submit')}
       </Button>
-      {login.isError ? <Alert tone="danger">{t(`auth:login.errors.${login.error.code}`)}</Alert> : null}
+      {login.isError ? (
+        <Alert tone="danger">
+          {/* Same reasoning as LoginPage.tsx's own fix: signInWithPassword
+              can only ever produce invalid_credentials or unknown. */}
+          {t(
+            login.error.code === 'invalid_credentials'
+              ? 'auth:login.errors.invalid_credentials'
+              : 'auth:login.errors.unknown',
+          )}
+        </Alert>
+      ) : null}
     </form>
   )
 }
@@ -175,7 +185,17 @@ function InvitationSignUpForm() {
       <Button type="submit" loading={signUp.isPending} className={styles['submit']}>
         {signUp.isPending ? t('auth.signup.submitting') : t('auth.signup.submit')}
       </Button>
-      {errorCode ? <Alert tone="danger">{t(`auth.signup.errors.${errorCode}`)}</Alert> : null}
+      {errorCode ? (
+        <Alert tone="danger">
+          {/* Independent review (LOW, fixed): signUp never actually
+              produces 'invalid_credentials' (see toSessionAuthError's own
+              doc comment in supabase-session.repository.ts - that code is
+              signInWithPassword-only; a duplicate email on signUp folds
+              straight into 'unknown' for anti-enumeration). The previous
+              ternary here was dead code implying otherwise. */}
+          {t('auth.signup.errors.unknown')}
+        </Alert>
+      ) : null}
     </form>
   )
 }

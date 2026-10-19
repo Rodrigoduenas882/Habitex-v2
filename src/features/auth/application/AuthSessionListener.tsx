@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { clearSelectedAdministrationId } from '@/features/administration/infrastructure/administration-selection-storage'
 import { sessionRepository } from '../composition'
 import { authQueryKeys } from './auth-query-keys'
+import { setConfirmedRecoveryUserId } from './password-recovery-signal'
 
 /**
  * Bridges Supabase auth state changes into TanStack Query.
@@ -45,17 +46,39 @@ import { authQueryKeys } from './auth-query-keys'
  * co-administrators). This listener is already the one place that reacts to
  * an identity change (see ARCHITECTURE.md §6), so it owns this cleanup too
  * instead of scattering identity-change logic elsewhere.
+ *
+ * Also the one place that observes AuthChangeKind, and the one place that
+ * owns password-recovery-signal.ts's confirmed identity end to end:
+ *  - A 'password_recovery' transition pins THAT session's own userId as the
+ *    confirmed recovery identity - ResetPasswordPage/useRecoverySession may
+ *    only ever proceed for that exact identity, never "whichever session
+ *    exists now" (independent review, HIGH, fixed).
+ *  - Any OTHER identity change (a normal sign-in/out unrelated to recovery)
+ *    clears it, in the same branch that already clears business-data cache
+ *    and the administration selection for exactly the same reason: a later,
+ *    unrelated session must never inherit state that belonged to an
+ *    earlier identity. Without this, remounting /reset-password after such
+ *    a change could still resolve 'ready' for the new identity purely
+ *    because pageLoadedFromPasswordRecoveryLink (client.ts) never resets
+ *    itself for the rest of the tab's lifetime - see
+ *    password-recovery-signal.ts's own doc comment for the full chain.
  */
 export function AuthSessionListener() {
   const queryClient = useQueryClient()
   const previousUserIdRef = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
-    const unsubscribe = sessionRepository.onAuthStateChange((session) => {
+    const unsubscribe = sessionRepository.onAuthStateChange((session, kind) => {
       const previousUserId = previousUserIdRef.current
       const currentUserId = session?.userId ?? null
       const isFirstObservedEvent = previousUserId === undefined
       const identityChanged = !isFirstObservedEvent && previousUserId !== currentUserId
+
+      if (kind === 'password_recovery') {
+        setConfirmedRecoveryUserId(currentUserId)
+      } else if (identityChanged) {
+        setConfirmedRecoveryUserId(null)
+      }
 
       if (identityChanged) {
         queryClient.removeQueries({

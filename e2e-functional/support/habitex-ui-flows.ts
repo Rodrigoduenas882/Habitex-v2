@@ -60,13 +60,15 @@ export async function verifyDisposableStack(): Promise<DisposableStack> {
 }
 
 /**
- * Signs up a brand-new user (the one unavoidable non-UI step - Habitex has
- * no self-service "create an owner account" UI form anywhere in the
- * product; the only signup form that exists, InvitationClaimPage, is for a
- * different flow: a tenant claiming an already-issued invitation, not for
- * creating an administration owner), then drives the real login form and
- * the real bootstrap form. Leaves `page` on the authenticated shell
- * (`app-shell` visible), with a fresh Administration created.
+ * Signs up a brand-new user via a direct, non-UI supabase.auth.signUp call
+ * (deliberately bypassing the real public /signup form, which DOES exist -
+ * see support/habitex-auth-flows.ts's signUpThroughRealFormAndBootstrap for
+ * the real-UI version that specific suite exercises), then drives the real
+ * login form and the real bootstrap form. Used here purely as fast test
+ * setup for suites whose actual subject is something else (invitations,
+ * rentals, payments) - never as a substitute for testing signup itself.
+ * Leaves `page` on the authenticated shell (`app-shell` visible), with a
+ * fresh Administration created.
  */
 export async function signUpAndBootstrap(
   page: Page,

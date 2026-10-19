@@ -24,6 +24,9 @@ const RentalContractsPage = lazy(() => import('@/features/contracts/presentation
 const RentalChargesPage = lazy(() => import('@/features/charges/presentation/RentalChargesPage'))
 const RentalPaymentsPage = lazy(() => import('@/features/payments/presentation/RentalPaymentsPage'))
 const LoginPage = lazy(() => import('@/features/auth/presentation/LoginPage'))
+const SignUpPage = lazy(() => import('@/features/auth/presentation/SignUpPage'))
+const ForgotPasswordPage = lazy(() => import('@/features/auth/presentation/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('@/features/auth/presentation/ResetPasswordPage'))
 const InvitationClaimPage = lazy(() => import('@/features/invitations/presentation/InvitationClaimPage'))
 const UiPreviewPage = lazy(() => import('../pages/ui-preview/UiPreviewPage'))
 const NotFoundPage = lazy(() => import('@/shared/components/NotFoundPage'))
@@ -73,8 +76,19 @@ export const router = createBrowserRouter([
       },
       {
         element: <RedirectIfAuthenticated />,
-        children: [{ path: 'login', element: withSuspense(<LoginPage />) }],
+        children: [
+          { path: 'login', element: withSuspense(<LoginPage />) },
+          { path: 'signup', element: withSuspense(<SignUpPage />) },
+          { path: 'forgot-password', element: withSuspense(<ForgotPasswordPage />) },
+        ],
       },
+      // Public on purpose, and deliberately NOT under RedirectIfAuthenticated
+      // (unlike login/signup/forgot-password above): that guard only asks
+      // "does a session exist", which a password-recovery link's own session
+      // would satisfy, bouncing the visitor to '/' before they ever see the
+      // set-new-password form. See ResetPasswordPage's own doc comment for
+      // the full reasoning - useRecoverySession is this route's real guard.
+      { path: 'reset-password', element: withSuspense(<ResetPasswordPage />) },
       // Public on purpose: internal design-system tool, not authenticated
       // product surface. See UiPreviewPage's own doc comment.
       { path: 'ui-preview', element: withSuspense(<UiPreviewPage />) },
