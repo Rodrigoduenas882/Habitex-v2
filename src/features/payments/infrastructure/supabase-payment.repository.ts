@@ -122,6 +122,7 @@ function toReportPaymentRpcArgs(input: ReportPaymentInput) {
     p_relationship_id: input.rentalRelationshipId,
     p_amount: input.amount,
     p_payment_date: input.paymentDate,
+    p_idempotency_key: input.idempotencyKey,
     p_method: input.paymentMethod ?? null,
     p_reference: input.externalReference ?? null,
     p_proof_file_id: input.proofFileId ?? null,
@@ -164,6 +165,10 @@ function toPaymentRepositoryError(error: { message: string; code?: string }): Pa
 
   if (error.message === 'INVALID_PROOF_FILE') {
     return new PaymentRepositoryError('invalid_proof_file', error)
+  }
+
+  if (error.message === 'IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD') {
+    return new PaymentRepositoryError('idempotency_key_reused', error)
   }
 
   if (error.message === 'PAYMENT_NOT_REPORTED') {
@@ -239,11 +244,11 @@ export const supabasePaymentRepository: PaymentRepository = {
   },
 
   async reportPayment(input: ReportPaymentInput): Promise<Payment> {
-    // can_view_relationship(), amount/proof-file validation and the INSERT
-    // itself all happen inside the RPC (SECURITY DEFINER) - no direct
-    // INSERT, ever (see PaymentRepository's own doc comment). Always sends
-    // all 7 keys explicitly, mapping an unset optional to null, never
-    // omitting a key.
+    // can_view_relationship(), amount/proof-file validation, the
+    // idempotency-key claim/replay check, and the INSERT itself all happen
+    // inside the RPC (SECURITY DEFINER) - no direct INSERT, ever (see
+    // PaymentRepository's own doc comment). Always sends all 8 keys
+    // explicitly, mapping an unset optional to null, never omitting a key.
     const response = await supabaseClient.rpc('report_payment', toReportPaymentRpcArgs(input))
 
     if (response.error) {

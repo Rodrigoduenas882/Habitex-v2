@@ -154,7 +154,7 @@ describe('supabasePaymentRepository.listByRelationship', () => {
 })
 
 describe('supabasePaymentRepository.reportPayment', () => {
-  it('sends all 7 RPC keys explicitly for a minimal input (only required fields), mapping unset optionals to null', async () => {
+  it('sends all 8 RPC keys explicitly for a minimal input (only required fields), mapping unset optionals to null', async () => {
     rpc.mockResolvedValueOnce({ data: PAYMENT_ROW_REPORTED, error: null })
 
     await supabasePaymentRepository.reportPayment({
@@ -162,12 +162,14 @@ describe('supabasePaymentRepository.reportPayment', () => {
       rentalRelationshipId: 'rel-1',
       amount: 1_000_000,
       paymentDate: '2026-01-05',
+      idempotencyKey: 'key-1',
     })
 
     expect(rpc).toHaveBeenCalledWith('report_payment', {
       p_relationship_id: 'rel-1',
       p_amount: 1_000_000,
       p_payment_date: '2026-01-05',
+      p_idempotency_key: 'key-1',
       p_method: null,
       p_reference: null,
       p_proof_file_id: null,
@@ -178,6 +180,7 @@ describe('supabasePaymentRepository.reportPayment', () => {
       'p_relationship_id',
       'p_amount',
       'p_payment_date',
+      'p_idempotency_key',
       'p_method',
       'p_reference',
       'p_proof_file_id',
@@ -185,7 +188,7 @@ describe('supabasePaymentRepository.reportPayment', () => {
     ])
   })
 
-  it('sends all 7 RPC keys explicitly for a full input (every optional field set)', async () => {
+  it('sends all 8 RPC keys explicitly for a full input (every optional field set)', async () => {
     rpc.mockResolvedValueOnce({ data: PAYMENT_ROW_REPORTED, error: null })
 
     await supabasePaymentRepository.reportPayment({
@@ -193,6 +196,7 @@ describe('supabasePaymentRepository.reportPayment', () => {
       rentalRelationshipId: 'rel-1',
       amount: 1_000_000,
       paymentDate: '2026-01-05',
+      idempotencyKey: 'key-1',
       paymentMethod: 'BANK_TRANSFER',
       externalReference: 'ref-123',
       proofFileId: 'file-1',
@@ -203,6 +207,7 @@ describe('supabasePaymentRepository.reportPayment', () => {
       p_relationship_id: 'rel-1',
       p_amount: 1_000_000,
       p_payment_date: '2026-01-05',
+      p_idempotency_key: 'key-1',
       p_method: 'BANK_TRANSFER',
       p_reference: 'ref-123',
       p_proof_file_id: 'file-1',
@@ -213,6 +218,7 @@ describe('supabasePaymentRepository.reportPayment', () => {
       'p_relationship_id',
       'p_amount',
       'p_payment_date',
+      'p_idempotency_key',
       'p_method',
       'p_reference',
       'p_proof_file_id',
@@ -228,6 +234,7 @@ describe('supabasePaymentRepository.reportPayment', () => {
       rentalRelationshipId: 'rel-1',
       amount: 1_000_000,
       paymentDate: '2026-01-05',
+      idempotencyKey: 'key-1',
     })
 
     expect(result).toEqual(PAYMENT_DOMAIN_REPORTED)
@@ -242,6 +249,7 @@ describe('supabasePaymentRepository.reportPayment', () => {
         rentalRelationshipId: 'rel-1',
         amount: 1_000_000,
         paymentDate: '2026-01-05',
+        idempotencyKey: 'key-1',
       })
       .catch((e: unknown) => e)
 
@@ -253,7 +261,13 @@ describe('supabasePaymentRepository.reportPayment', () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'FORBIDDEN' } })
 
     const error = await supabasePaymentRepository
-      .reportPayment({ administrationId: 'admin-1', rentalRelationshipId: 'rel-1', amount: 1_000_000, paymentDate: '2026-01-05' })
+      .reportPayment({
+        administrationId: 'admin-1',
+        rentalRelationshipId: 'rel-1',
+        amount: 1_000_000,
+        paymentDate: '2026-01-05',
+        idempotencyKey: 'key-1',
+      })
       .catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(PaymentRepositoryError)
@@ -264,7 +278,13 @@ describe('supabasePaymentRepository.reportPayment', () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'INVALID_AMOUNT' } })
 
     const error = await supabasePaymentRepository
-      .reportPayment({ administrationId: 'admin-1', rentalRelationshipId: 'rel-1', amount: -1, paymentDate: '2026-01-05' })
+      .reportPayment({
+        administrationId: 'admin-1',
+        rentalRelationshipId: 'rel-1',
+        amount: -1,
+        paymentDate: '2026-01-05',
+        idempotencyKey: 'key-1',
+      })
       .catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(PaymentRepositoryError)
@@ -280,6 +300,7 @@ describe('supabasePaymentRepository.reportPayment', () => {
         rentalRelationshipId: 'rel-1',
         amount: 1_000_000,
         paymentDate: '2026-01-05',
+        idempotencyKey: 'key-1',
         proofFileId: 'not-scoped',
       })
       .catch((e: unknown) => e)
@@ -288,11 +309,34 @@ describe('supabasePaymentRepository.reportPayment', () => {
     expect((error as PaymentRepositoryError).code).toBe('invalid_proof_file')
   })
 
+  it('maps IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD to code idempotency_key_reused', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD' } })
+
+    const error = await supabasePaymentRepository
+      .reportPayment({
+        administrationId: 'admin-1',
+        rentalRelationshipId: 'rel-1',
+        amount: 1_000_000,
+        paymentDate: '2026-01-05',
+        idempotencyKey: 'already-used-key',
+      })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(PaymentRepositoryError)
+    expect((error as PaymentRepositoryError).code).toBe('idempotency_key_reused')
+  })
+
   it('maps ACCOUNT_REQUIRED (unreachable in this app - every payments route sits behind the RequiresAccount router guard) to code unknown', async () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'ACCOUNT_REQUIRED' } })
 
     const error = await supabasePaymentRepository
-      .reportPayment({ administrationId: 'admin-1', rentalRelationshipId: 'rel-1', amount: 1_000_000, paymentDate: '2026-01-05' })
+      .reportPayment({
+        administrationId: 'admin-1',
+        rentalRelationshipId: 'rel-1',
+        amount: 1_000_000,
+        paymentDate: '2026-01-05',
+        idempotencyKey: 'key-1',
+      })
       .catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(PaymentRepositoryError)
@@ -303,7 +347,13 @@ describe('supabasePaymentRepository.reportPayment', () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'SOMETHING_ELSE' } })
 
     const error = await supabasePaymentRepository
-      .reportPayment({ administrationId: 'admin-1', rentalRelationshipId: 'rel-1', amount: 1_000_000, paymentDate: '2026-01-05' })
+      .reportPayment({
+        administrationId: 'admin-1',
+        rentalRelationshipId: 'rel-1',
+        amount: 1_000_000,
+        paymentDate: '2026-01-05',
+        idempotencyKey: 'key-1',
+      })
       .catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(PaymentRepositoryError)

@@ -55,11 +55,17 @@ export const PAYMENT_REPORT_FORM_DEFAULTS: PaymentReportFormValues = {
  * assigning an explicit `undefined`) since ReportPaymentInput's optional
  * fields are plain `?:` under this project's exactOptionalPropertyTypes -
  * an absent property, not a present-but-undefined one.
+ *
+ * `idempotencyKey` is required, supplied by the caller (see
+ * getOrCreatePendingIdempotencyKey) - this function never generates one
+ * itself, so the same key can be reused verbatim across a manual retry of
+ * the same logical submission.
  */
 export function toReportPaymentInput(
   values: PaymentReportFormValues,
   administrationId: string,
   relationshipId: string,
+  idempotencyKey: string,
 ): ReportPaymentInput {
   const externalReference = values.externalReference.trim()
   const notes = values.notes.trim()
@@ -69,6 +75,7 @@ export function toReportPaymentInput(
     rentalRelationshipId: relationshipId,
     amount: Number(values.amount),
     paymentDate: values.paymentDate,
+    idempotencyKey,
     ...(values.paymentMethod !== '' ? { paymentMethod: values.paymentMethod } : {}),
     ...(externalReference !== '' ? { externalReference } : {}),
     ...(notes !== '' ? { notes } : {}),

@@ -54,7 +54,13 @@ describe('useReportPayment', () => {
     reportPayment.mockResolvedValueOnce(PAYMENT)
     const { result } = renderHook(() => useReportPayment(), { wrapper: wrapperFor(createClient()) })
 
-    const input = { administrationId: 'admin-1', rentalRelationshipId: 'rel-1', amount: 1_000_000, paymentDate: '2026-01-05' }
+    const input = {
+      administrationId: 'admin-1',
+      rentalRelationshipId: 'rel-1',
+      amount: 1_000_000,
+      paymentDate: '2026-01-05',
+      idempotencyKey: 'key-1',
+    }
     result.current.mutate(input)
 
     await waitFor(() => {
@@ -71,7 +77,13 @@ describe('useReportPayment', () => {
     const invalidateSpy = vi.spyOn(client, 'invalidateQueries')
     const { result } = renderHook(() => useReportPayment(), { wrapper: wrapperFor(client) })
 
-    result.current.mutate({ administrationId: 'admin-1', rentalRelationshipId: 'rel-1', amount: 1_000_000, paymentDate: '2026-01-05' })
+    result.current.mutate({
+      administrationId: 'admin-1',
+      rentalRelationshipId: 'rel-1',
+      amount: 1_000_000,
+      paymentDate: '2026-01-05',
+      idempotencyKey: 'key-1',
+    })
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true)
@@ -83,7 +95,13 @@ describe('useReportPayment', () => {
     reportPayment.mockRejectedValueOnce(new PaymentRepositoryError('invalid_amount'))
     const { result } = renderHook(() => useReportPayment(), { wrapper: wrapperFor(createClient()) })
 
-    result.current.mutate({ administrationId: 'admin-1', rentalRelationshipId: 'rel-1', amount: -1, paymentDate: '2026-01-05' })
+    result.current.mutate({
+      administrationId: 'admin-1',
+      rentalRelationshipId: 'rel-1',
+      amount: -1,
+      paymentDate: '2026-01-05',
+      idempotencyKey: 'key-1',
+    })
 
     await waitFor(() => {
       expect(result.current.isError).toBe(true)
