@@ -89,7 +89,7 @@ function captureAuthStateListener() {
     return () => {}
   })
   return (session: AuthSession) => {
-    emit(session)
+    emit(session, 'other')
   }
 }
 

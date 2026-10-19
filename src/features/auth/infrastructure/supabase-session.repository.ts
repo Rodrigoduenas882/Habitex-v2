@@ -1,7 +1,8 @@
-import type { AuthError, Session } from '@supabase/supabase-js'
+import type { AuthChangeEvent, AuthError, Session } from '@supabase/supabase-js'
 import { supabaseClient } from '@/infrastructure/supabase/client'
 import {
   SessionAuthError,
+  type AuthChangeKind,
   type AuthSession,
   type AuthStateListener,
   type SessionCredentials,
@@ -18,6 +19,10 @@ function toAuthSession(session: Session | null): AuthSession {
   }
 }
 
+function toAuthChangeKind(event: AuthChangeEvent): AuthChangeKind {
+  return event === 'PASSWORD_RECOVERY' ? 'password_recovery' : 'other'
+}
+
 /**
  * Translates Supabase's raw AuthError into our own SessionAuthError so
  * nothing above this repository ever depends on Supabase's error shape or
@@ -27,6 +32,19 @@ function toAuthSession(session: Session | null): AuthSession {
 function toSessionAuthError(error: AuthError): SessionAuthError {
   if (error.message === 'Invalid login credentials') {
     return new SessionAuthError('invalid_credentials', error)
+  }
+
+  // updatePassword only - duck-typed on `code` (never instanceof, matching
+  // this function's own established style above) since these three cases
+  // are unambiguous Supabase error codes, not messages we need to guess at.
+  if (error.code === 'weak_password') {
+    return new SessionAuthError('weak_password', error)
+  }
+  if (error.code === 'same_password') {
+    return new SessionAuthError('same_password', error)
+  }
+  if (error.code === 'session_not_found' || error.code === 'session_expired') {
+    return new SessionAuthError('session_expired', error)
   }
 
   // signUp only - the email already belongs to an existing Supabase Auth
@@ -96,7 +114,7 @@ export const supabaseSessionRepository: SessionRepository = {
           `[auth-timing] onAuthStateChange event=${event} userId=${session?.user.id ?? 'null'} at ${performance.now().toFixed(0)}ms`,
         )
       }
-      listener(toAuthSession(session))
+      listener(toAuthSession(session), toAuthChangeKind(event))
     })
 
     return () => {
@@ -111,6 +129,28 @@ export const supabaseSessionRepository: SessionRepository = {
 
     if (error) {
       throw error
+    }
+  },
+
+  async requestPasswordReset(email: string) {
+    const startedAt = performance.now()
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    logTiming('requestPasswordReset', startedAt)
+
+    if (error) {
+      throw error
+    }
+  },
+
+  async updatePassword(newPassword: string) {
+    const startedAt = performance.now()
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword })
+    logTiming('updatePassword', startedAt)
+
+    if (error) {
+      throw toSessionAuthError(error)
     }
   },
 }

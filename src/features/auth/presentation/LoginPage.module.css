@@ -241,6 +241,28 @@
   width: 100%;
 }
 
+.forgotPasswordLink {
+  text-align: right;
+}
+
+.footer {
+  margin-top: var(--space-5);
+  text-align: center;
+}
+
+.forgotPasswordLink a,
+.footer a {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.forgotPasswordLink a:hover,
+.footer a:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
 /* ---------- Tablet: compact photo banner with brand + headline only ---------- */
 
 @media (min-width: 640px) {

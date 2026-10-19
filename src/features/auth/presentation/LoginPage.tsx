@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { Link, useLocation } from 'react-router-dom'
 import { z } from 'zod'
 import { cx } from '@/shared/lib/cx'
 import { ThemeControl } from '@/shared/theme/ThemeControl'
@@ -17,10 +18,18 @@ import styles from './LoginPage.module.css'
  * crossfade) with a compact metrics preview, next to a simple email/password
  * form. Approved after a side-by-side comparison against an earlier
  * split-screen concept (kept briefly as LoginPreviewPage, now removed).
+ *
+ * `location.state.passwordUpdated` is the one-time flag ResetPasswordPage's
+ * navigate() sets after a successful password change (see that page's own
+ * doc comment) - read directly off history state rather than a query
+ * param/persisted flag, so it naturally disappears on any subsequent
+ * navigation instead of needing explicit cleanup.
  */
 export default function LoginPage() {
   const { t } = useTranslation(['auth', 'common'])
+  const location = useLocation()
   const login = useLogin()
+  const passwordUpdated = (location.state as { passwordUpdated?: boolean } | null)?.passwordUpdated === true
 
   const schema = z.object({
     email: z
@@ -114,9 +123,22 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {passwordUpdated && !login.isError ? (
+            <Alert tone="success" className={styles['alert']}>
+              {t('login.passwordUpdated')}
+            </Alert>
+          ) : null}
+
           {login.isError ? (
             <Alert tone="danger" className={styles['alert']}>
-              {t(`login.errors.${login.error.code}`)}
+              {/* signInWithPassword can only ever produce invalid_credentials
+                  or unknown (see session.types.ts's AuthErrorCode doc
+                  comment: weak_password/same_password/session_expired are
+                  updatePassword-only) - an explicit check rather than a
+                  dynamic `errors.${code}` key, so this stays correct without
+                  needing a login.errors entry for codes this call can never
+                  produce. */}
+              {t(login.error.code === 'invalid_credentials' ? 'login.errors.invalid_credentials' : 'login.errors.unknown')}
             </Alert>
           ) : null}
 
@@ -143,10 +165,17 @@ export default function LoginPage() {
               disabled={login.isPending}
               {...register('password')}
             />
+            <p className={cx('text-body-sm', styles['forgotPasswordLink'])}>
+              <Link to="/forgot-password">{t('login.forgotPasswordLink')}</Link>
+            </p>
             <Button type="submit" loading={login.isPending} className={styles['submit']}>
               {login.isPending ? t('login.submitting') : t('login.submit')}
             </Button>
           </form>
+
+          <p className={cx('text-body-sm', styles['footer'])}>
+            {t('login.signupPrompt')} <Link to="/signup">{t('login.signupLink')}</Link>
+          </p>
         </Card>
       </main>
     </div>

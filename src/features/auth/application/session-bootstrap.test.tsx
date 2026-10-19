@@ -74,7 +74,7 @@ describe('session bootstrap race (AuthSessionListener + useAuthSession)', () => 
     // Supabase's INITIAL_SESSION arrives first (the exact race on a real
     // browser refresh while authenticated), before our own getSession()
     // call - started by useAuthSession's queryFn - has resolved.
-    emit(session)
+    emit(session, 'other')
     resolveGetSession(session)
 
     await waitFor(() => {
@@ -108,7 +108,7 @@ describe('session bootstrap race (AuthSessionListener + useAuthSession)', () => 
 
     // The subsequent INITIAL_SESSION event for the same identity must not
     // wipe the session that already resolved.
-    emit(session)
+    emit(session, 'other')
     expect(screen.getByTestId('data').textContent).toBe('user-A')
   })
 })
