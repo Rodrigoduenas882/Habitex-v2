@@ -32,7 +32,7 @@ const CREDENTIALS = { email: 'new@habitex.app', password: 'secret123' }
 describe('supabaseSessionRepository.signUp', () => {
   it('calls auth.signUp with exactly the given email/password', async () => {
     signUp.mockResolvedValueOnce({
-      data: { session: { user: { id: 'user-1', email: 'new@habitex.app' }, expires_at: 1234 } },
+      data: { session: { user: { id: 'user-1', email: 'new@habitex.app', user_metadata: {} }, expires_at: 1234 } },
       error: null,
     })
 
@@ -41,15 +41,77 @@ describe('supabaseSessionRepository.signUp', () => {
     expect(signUp).toHaveBeenCalledWith({ email: 'new@habitex.app', password: 'secret123' })
   })
 
+  it('forwards fullName into auth.signUp\'s own options.data.full_name mechanism when given', async () => {
+    signUp.mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-1', email: 'new@habitex.app', user_metadata: {} }, expires_at: 1234 } },
+      error: null,
+    })
+
+    await supabaseSessionRepository.signUp(CREDENTIALS, { fullName: 'Camila Restrepo Gómez' })
+
+    expect(signUp).toHaveBeenCalledWith({
+      email: 'new@habitex.app',
+      password: 'secret123',
+      options: { data: { full_name: 'Camila Restrepo Gómez' } },
+    })
+  })
+
   it('maps a returned session into domain AuthSession shape, mirroring signInWithPassword', async () => {
     signUp.mockResolvedValueOnce({
-      data: { session: { user: { id: 'user-1', email: 'new@habitex.app' }, expires_at: 1234 } },
+      data: { session: { user: { id: 'user-1', email: 'new@habitex.app', user_metadata: {} }, expires_at: 1234 } },
       error: null,
     })
 
     const result = await supabaseSessionRepository.signUp(CREDENTIALS)
 
-    expect(result).toEqual({ userId: 'user-1', email: 'new@habitex.app', expiresAtUnix: 1234 })
+    expect(result).toEqual({ userId: 'user-1', email: 'new@habitex.app', expiresAtUnix: 1234, fullNameFromMetadata: null })
+  })
+
+  it('maps a real user_metadata.full_name string into fullNameFromMetadata', async () => {
+    signUp.mockResolvedValueOnce({
+      data: {
+        session: {
+          user: { id: 'user-1', email: 'new@habitex.app', user_metadata: { full_name: 'Camila Restrepo Gómez' } },
+          expires_at: 1234,
+        },
+      },
+      error: null,
+    })
+
+    const result = await supabaseSessionRepository.signUp(CREDENTIALS)
+
+    expect(result).toEqual({
+      userId: 'user-1',
+      email: 'new@habitex.app',
+      expiresAtUnix: 1234,
+      fullNameFromMetadata: 'Camila Restrepo Gómez',
+    })
+  })
+
+  it('maps a whitespace-only user_metadata.full_name to null, not the blank string', async () => {
+    signUp.mockResolvedValueOnce({
+      data: {
+        session: { user: { id: 'user-1', email: 'new@habitex.app', user_metadata: { full_name: '   ' } }, expires_at: 1234 },
+      },
+      error: null,
+    })
+
+    const result = await supabaseSessionRepository.signUp(CREDENTIALS)
+
+    expect(result).toEqual({ userId: 'user-1', email: 'new@habitex.app', expiresAtUnix: 1234, fullNameFromMetadata: null })
+  })
+
+  it('maps a non-string user_metadata.full_name to null - user_metadata is free-form, never trusted by shape', async () => {
+    signUp.mockResolvedValueOnce({
+      data: {
+        session: { user: { id: 'user-1', email: 'new@habitex.app', user_metadata: { full_name: 42 } }, expires_at: 1234 },
+      },
+      error: null,
+    })
+
+    const result = await supabaseSessionRepository.signUp(CREDENTIALS)
+
+    expect(result).toEqual({ userId: 'user-1', email: 'new@habitex.app', expiresAtUnix: 1234, fullNameFromMetadata: null })
   })
 
   it('maps a null session (no immediate session case) to null, without throwing', async () => {
@@ -155,10 +217,10 @@ describe('supabaseSessionRepository.onAuthStateChange', () => {
     supabaseSessionRepository.onAuthStateChange(listener)
 
     const registeredCallback = onAuthStateChange.mock.calls.at(-1)?.[0] as (event: string, session: unknown) => void
-    registeredCallback('PASSWORD_RECOVERY', { user: { id: 'user-1', email: 'a@habitex.app' }, expires_at: 1 })
+    registeredCallback('PASSWORD_RECOVERY', { user: { id: 'user-1', email: 'a@habitex.app', user_metadata: {} }, expires_at: 1 })
 
     expect(listener).toHaveBeenCalledWith(
-      { userId: 'user-1', email: 'a@habitex.app', expiresAtUnix: 1 },
+      { userId: 'user-1', email: 'a@habitex.app', expiresAtUnix: 1, fullNameFromMetadata: null },
       'password_recovery',
     )
   })
@@ -168,10 +230,10 @@ describe('supabaseSessionRepository.onAuthStateChange', () => {
     supabaseSessionRepository.onAuthStateChange(listener)
 
     const registeredCallback = onAuthStateChange.mock.calls.at(-1)?.[0] as (event: string, session: unknown) => void
-    registeredCallback('SIGNED_IN', { user: { id: 'user-1', email: 'a@habitex.app' }, expires_at: 1 })
+    registeredCallback('SIGNED_IN', { user: { id: 'user-1', email: 'a@habitex.app', user_metadata: {} }, expires_at: 1 })
 
     expect(listener).toHaveBeenCalledWith(
-      { userId: 'user-1', email: 'a@habitex.app', expiresAtUnix: 1 },
+      { userId: 'user-1', email: 'a@habitex.app', expiresAtUnix: 1, fullNameFromMetadata: null },
       'other',
     )
   })

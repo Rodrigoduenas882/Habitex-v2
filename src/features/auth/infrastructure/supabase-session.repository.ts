@@ -7,7 +7,21 @@ import {
   type AuthStateListener,
   type SessionCredentials,
   type SessionRepository,
+  type SignUpOptions,
 } from '../domain/session.types'
+
+/**
+ * Narrow, defensive extraction - user_metadata is a free-form object the
+ * SDK types as Record<string, any>, and it's writable by the authenticated
+ * user themselves (supabase.auth.updateUser), so this never assumes the
+ * shape beyond "a string under 'full_name', or nothing usable".
+ */
+function fullNameFromUserMetadata(session: Session): string | null {
+  // user_metadata itself is always present (at least {}) on the real SDK's
+  // User type - only the 'full_name' key under it is ever actually absent.
+  const value: unknown = session.user.user_metadata['full_name']
+  return typeof value === 'string' && value.trim() !== '' ? value : null
+}
 
 function toAuthSession(session: Session | null): AuthSession {
   if (!session) return null
@@ -16,6 +30,7 @@ function toAuthSession(session: Session | null): AuthSession {
     userId: session.user.id,
     email: session.user.email ?? null,
     expiresAtUnix: session.expires_at ?? null,
+    fullNameFromMetadata: fullNameFromUserMetadata(session),
   }
 }
 
@@ -93,9 +108,21 @@ export const supabaseSessionRepository: SessionRepository = {
     return toAuthSession(data.session)
   },
 
-  async signUp({ email, password }: SessionCredentials) {
+  async signUp({ email, password }: SessionCredentials, options?: SignUpOptions) {
     const startedAt = performance.now()
-    const { data, error } = await supabaseClient.auth.signUp({ email, password })
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      // Supabase's own official mechanism for attaching arbitrary profile
+      // data to the auth user at creation time - written to auth.users
+      // immediately, regardless of whether email confirmation later gates
+      // issuing a session (verified: confirmation only gates the SESSION,
+      // never the user row or its metadata). Omitted entirely (not sent as
+      // an empty object) when no fullName is given, so e.g.
+      // InvitationClaimPage's sign-up tab - which never passes options -
+      // behaves byte-for-byte as before.
+      ...(options?.fullName ? { options: { data: { full_name: options.fullName } } } : {}),
+    })
     logTiming('signUp', startedAt)
 
     if (error) {
