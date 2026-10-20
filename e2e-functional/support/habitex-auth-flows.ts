@@ -9,18 +9,28 @@ import { expect, type Page } from '@playwright/test'
  * on every local/disposable stack - enable_confirmations is false in
  * supabase/config.toml), landing on /bootstrap exactly like
  * signUpAndBootstrap's own second half.
+ *
+ * firstName/lastName are collected at /signup itself (Stage 1 of the
+ * multi-provider auth plan) and stored via signUp's own fullName option
+ * (Supabase user_metadata) - /bootstrap's own name field arrives already
+ * pre-filled with the concatenated value, which this helper asserts rather
+ * than re-typing, confirming the real pre-fill behavior end to end on
+ * every call site that uses it.
  */
 export async function signUpThroughRealFormAndBootstrap(
   page: Page,
-  { email, password, fullName }: { email: string; password: string; fullName: string },
+  { email, password, firstName, lastName }: { email: string; password: string; firstName: string; lastName: string },
 ): Promise<void> {
   await page.goto('/signup')
+  await page.getByLabel('Nombres').fill(firstName)
+  await page.getByLabel('Apellidos').fill(lastName)
   await page.getByLabel('Correo electrónico').fill(email)
-  await page.getByLabel('Contraseña').fill(password)
+  await page.getByLabel('Contraseña', { exact: true }).fill(password)
+  await page.getByLabel('Confirma tu contraseña').fill(password)
   await page.getByRole('button', { name: 'Crear cuenta' }).click()
 
   await expect(page.getByRole('heading', { name: 'Crea tu cuenta' })).toBeVisible()
-  await page.getByLabel('Nombre completo').fill(fullName)
+  await expect(page.getByLabel('Nombre completo')).toHaveValue(`${firstName} ${lastName}`)
   await page.getByRole('button', { name: 'Crear cuenta' }).click()
 
   await expect(page.getByTestId('app-shell')).toBeVisible()

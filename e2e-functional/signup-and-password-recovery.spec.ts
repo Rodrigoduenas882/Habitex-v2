@@ -45,9 +45,15 @@ test('un propietario nuevo se registra desde /signup, crea su administración y 
   const RUN_ID = uniqueRunId()
   const EMAIL = `e2e-signup-${RUN_ID}@habitex.test`
   const PASSWORD = `Habitex-E2E-Signup-${RUN_ID}!`
-  const FULL_NAME = `Propietario Nuevo ${RUN_ID}`
+  const FIRST_NAME = 'Propietario'
+  const LAST_NAME = `Nuevo ${RUN_ID}`
 
-  await signUpThroughRealFormAndBootstrap(page, { email: EMAIL, password: PASSWORD, fullName: FULL_NAME })
+  await signUpThroughRealFormAndBootstrap(page, {
+    email: EMAIL,
+    password: PASSWORD,
+    firstName: FIRST_NAME,
+    lastName: LAST_NAME,
+  })
 
   // Independent, read-only verification using the owner's own real,
   // authenticated session - never service_role. RLS
@@ -58,6 +64,13 @@ test('un propietario nuevo se registra desde /signup, crea su administración y 
   })
   const signIn = await supabase.auth.signInWithPassword({ email: EMAIL, password: PASSWORD })
   expect(signIn.error, signIn.error?.message).toBeNull()
+
+  // Confirms the actual mechanism Stage 1 relies on end to end: signUp's
+  // fullName option really did persist into auth.users' own user_metadata,
+  // not just into this test's in-memory expectations.
+  const getUser = await supabase.auth.getUser()
+  expect(getUser.error, getUser.error?.message).toBeNull()
+  expect(getUser.data.user?.user_metadata['full_name']).toBe(`${FIRST_NAME} ${LAST_NAME}`)
 
   const { data, error } = await supabase
     .from('administration_subscriptions')
@@ -92,9 +105,13 @@ test('recupera su contraseña desde /forgot-password, abre el enlace real del co
   const EMAIL = `e2e-recovery-${RUN_ID}@habitex.test`
   const OLD_PASSWORD = `Habitex-E2E-Recovery-Old-${RUN_ID}!`
   const NEW_PASSWORD = `Habitex-E2E-Recovery-New-${RUN_ID}!`
-  const FULL_NAME = `Propietario Recuperacion ${RUN_ID}`
 
-  await signUpThroughRealFormAndBootstrap(page, { email: EMAIL, password: OLD_PASSWORD, fullName: FULL_NAME })
+  await signUpThroughRealFormAndBootstrap(page, {
+    email: EMAIL,
+    password: OLD_PASSWORD,
+    firstName: 'Propietario',
+    lastName: `Recuperacion ${RUN_ID}`,
+  })
 
   // A real visitor requesting recovery is signed OUT on this browser (that
   // is the whole reason they need recovery) - /forgot-password is wrapped
@@ -122,6 +139,50 @@ test('recupera su contraseña desde /forgot-password, abre el enlace real del co
 
   // The NEW password does.
   await loginThroughRealForm(page, { email: EMAIL, password: NEW_PASSWORD })
+
+  expectNoPageErrors(pageErrors)
+})
+
+test('el nombre precargado en /bootstrap sigue siendo editable, y lo que el dueño deja ahí es lo que persiste', async ({
+  page,
+}) => {
+  const pageErrors: Error[] = []
+  page.on('pageerror', (error) => {
+    pageErrors.push(error)
+  })
+
+  const RUN_ID = uniqueRunId()
+  const EMAIL = `e2e-signup-edit-${RUN_ID}@habitex.test`
+  const PASSWORD = `Habitex-E2E-SignupEdit-${RUN_ID}!`
+  const CORRECTED_NAME = `Propietario Corregido ${RUN_ID}`
+
+  await page.goto('/signup')
+  await page.getByLabel('Nombres').fill('Propietaria')
+  await page.getByLabel('Apellidos').fill(`Con Error De Tipeo ${RUN_ID}`)
+  await page.getByLabel('Correo electrónico').fill(EMAIL)
+  await page.getByLabel('Contraseña', { exact: true }).fill(PASSWORD)
+  await page.getByLabel('Confirma tu contraseña').fill(PASSWORD)
+  await page.getByRole('button', { name: 'Crear cuenta' }).click()
+
+  const nameInput = page.getByLabel('Nombre completo')
+  await expect(nameInput).toHaveValue(`Propietaria Con Error De Tipeo ${RUN_ID}`)
+  await nameInput.fill(CORRECTED_NAME)
+  await page.getByRole('button', { name: 'Crear cuenta' }).click()
+
+  await expect(page.getByTestId('app-shell')).toBeVisible()
+
+  const supabase = createClient(stack.url, stack.publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+  const signIn = await supabase.auth.signInWithPassword({ email: EMAIL, password: PASSWORD })
+  expect(signIn.error, signIn.error?.message).toBeNull()
+
+  // bootstrap_account persists whatever the owner actually submitted
+  // (people.full_name), never the stale user_metadata value from signup -
+  // confirmed via the owner's own real, authenticated session.
+  const { data, error } = await supabase.from('people').select('full_name').maybeSingle()
+  expect(error, error?.message).toBeNull()
+  expect(data?.full_name).toBe(CORRECTED_NAME)
 
   expectNoPageErrors(pageErrors)
 })
