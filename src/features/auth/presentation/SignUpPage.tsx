@@ -32,18 +32,34 @@ import styles from './SignUpPage.module.css'
  *    duplicated here.
  *  - Supabase returns session: null (email confirmation required) -> show
  *    a "check your email" state instead, and never retry/resubmit from it.
+ *
+ * firstName/lastName are concatenated into one fullName string before
+ * being sent - people.full_name stays a single column (verified: nothing
+ * else in this codebase reads a split name), and the concatenated value is
+ * passed to signUp's own fullName option, which Supabase stores in
+ * user_metadata purely as a UX convenience for BootstrapAccountPage to
+ * pre-fill later (see that page's own doc comment) - never as legal
+ * evidence of anything.
  */
 export default function SignUpPage() {
   const { t } = useTranslation(['auth', 'common'])
   const signUp = useSignUp()
 
-  const schema = z.object({
-    email: z
-      .string()
-      .min(1, t('signup.validation.emailRequired'))
-      .pipe(z.email(t('signup.validation.emailInvalid'))),
-    password: z.string().min(MINIMUM_PASSWORD_LENGTH, t('signup.validation.passwordMinLength', { count: MINIMUM_PASSWORD_LENGTH })),
-  })
+  const schema = z
+    .object({
+      firstName: z.string().trim().min(1, t('signup.validation.firstNameRequired')),
+      lastName: z.string().trim().min(1, t('signup.validation.lastNameRequired')),
+      email: z
+        .string()
+        .min(1, t('signup.validation.emailRequired'))
+        .pipe(z.email(t('signup.validation.emailInvalid'))),
+      password: z.string().min(MINIMUM_PASSWORD_LENGTH, t('signup.validation.passwordMinLength', { count: MINIMUM_PASSWORD_LENGTH })),
+      confirmPassword: z.string().min(1, t('signup.validation.confirmPasswordRequired')),
+    })
+    .refine((values) => values.password === values.confirmPassword, {
+      message: t('signup.validation.passwordMismatch'),
+      path: ['confirmPassword'],
+    })
 
   type SignUpFormValues = z.infer<typeof schema>
 
@@ -54,7 +70,11 @@ export default function SignUpPage() {
   } = useForm<SignUpFormValues>({ resolver: zodResolver(schema) })
 
   const onSubmit = handleSubmit((values) => {
-    signUp.mutate(values)
+    signUp.mutate({
+      email: values.email,
+      password: values.password,
+      fullName: `${values.firstName.trim()} ${values.lastName.trim()}`,
+    })
   })
 
   const confirmationRequired = signUp.isSuccess && signUp.data === null
@@ -99,6 +119,20 @@ export default function SignUpPage() {
               className={styles['form']}
             >
               <Input
+                label={t('signup.firstNameLabel')}
+                autoComplete="given-name"
+                error={errors.firstName?.message}
+                disabled={signUp.isPending}
+                {...register('firstName')}
+              />
+              <Input
+                label={t('signup.lastNameLabel')}
+                autoComplete="family-name"
+                error={errors.lastName?.message}
+                disabled={signUp.isPending}
+                {...register('lastName')}
+              />
+              <Input
                 type="email"
                 label={t('signup.emailLabel')}
                 autoComplete="email"
@@ -113,6 +147,14 @@ export default function SignUpPage() {
                 error={errors.password?.message}
                 disabled={signUp.isPending}
                 {...register('password')}
+              />
+              <Input
+                type="password"
+                label={t('signup.confirmPasswordLabel')}
+                autoComplete="new-password"
+                error={errors.confirmPassword?.message}
+                disabled={signUp.isPending}
+                {...register('confirmPassword')}
               />
               <Button type="submit" loading={signUp.isPending} className={styles['submit']}>
                 {signUp.isPending ? t('signup.submitting') : t('signup.submit')}

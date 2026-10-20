@@ -1,11 +1,22 @@
 /**
  * Domain-level representation of an authenticated session, decoupled from
  * Supabase's own Session shape so the rest of the app never depends on it directly.
+ *
+ * fullNameFromMetadata is optional (not just nullable): plenty of existing
+ * sessions - real ones predating this field, and every test-constructed
+ * literal across the suite - never populate it, and nothing should be
+ * forced to care. A UX convenience only (pre-filling BootstrapAccountPage's
+ * name field) - never treated as verified identity or legal evidence of
+ * anything, because Supabase's own user_metadata is writable by the
+ * authenticated user themselves via updateUser(), so it can't serve as a
+ * trustworthy record on its own (see the separate, still-pending legal
+ * consent design for the durable alternative).
  */
 export type AuthSession = {
   userId: string
   email: string | null
   expiresAtUnix: number | null
+  fullNameFromMetadata?: string | null
 } | null
 
 /**
@@ -23,6 +34,20 @@ export type AuthStateListener = (session: AuthSession, kind: AuthChangeKind) => 
 export interface SessionCredentials {
   email: string
   password: string
+}
+
+/**
+ * Additive, optional extra data for signUp only - never required, never
+ * part of SessionCredentials itself, so every other caller (notably
+ * InvitationClaimPage's own sign-up tab, a different flow entirely) keeps
+ * calling signUp with exactly {email, password} and needs no change.
+ * fullName is stored via Supabase's own official options.data mechanism
+ * (user_metadata) purely as a UX convenience for later pre-filling a name
+ * field - deliberately NOT a legal-consent carrier (see AuthSession's own
+ * doc comment on fullNameFromMetadata for why).
+ */
+export interface SignUpOptions {
+  fullName?: string
 }
 
 /**
@@ -64,11 +89,14 @@ export interface SessionRepository {
   signInWithPassword(credentials: SessionCredentials): Promise<AuthSession>
   /**
    * Creates a new Supabase Auth user via auth.signUp. Verified operationally
-   * against this project: signUp returns an immediate session (no
-   * email-confirmation gate configured), so the returned AuthSession is
-   * populated on success, same as signInWithPassword.
+   * against this project's local/dev stacks: signUp returns an immediate
+   * session when email confirmation is disabled, so the returned
+   * AuthSession is populated on success, same as signInWithPassword - but
+   * this repo cannot verify the real remote project's confirmation setting
+   * (CLAUDE.md §5), so callers must also handle a null session (see
+   * SignUpPage's own doc comment for how).
    */
-  signUp(credentials: SessionCredentials): Promise<AuthSession>
+  signUp(credentials: SessionCredentials, options?: SignUpOptions): Promise<AuthSession>
   onAuthStateChange(listener: AuthStateListener): () => void
   signOut(): Promise<void>
   /**
