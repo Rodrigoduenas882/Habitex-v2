@@ -5,11 +5,11 @@ import { Link } from 'react-router-dom'
 import { z } from 'zod'
 import { cx } from '@/shared/lib/cx'
 import { Alert } from '@/shared/ui/Alert'
-import { BrandLogo } from '@/shared/ui/BrandLogo'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { Input } from '@/shared/ui/Input'
 import { useRequestPasswordReset } from '../application/useRequestPasswordReset'
+import { AuthPageLayout } from './AuthPageLayout'
 import styles from './ForgotPasswordPage.module.css'
 
 /**
@@ -20,7 +20,8 @@ import styles from './ForgotPasswordPage.module.css'
  * Supabase itself never distinguishes those two cases in its response. A
  * form that branched its UI on "account not found" would be the actual
  * enumeration vector; the single success state is the fix, not a
- * simplification.
+ * simplification. Shares the property-photo hero with every other public
+ * auth screen via AuthPageLayout (DESIGN.md §10, amended).
  */
 export default function ForgotPasswordPage() {
   const { t } = useTranslation(['auth', 'common'])
@@ -46,9 +47,7 @@ export default function ForgotPasswordPage() {
   })
 
   return (
-    <div className={styles['page']}>
-      <BrandLogo name={t('common:home.title')} />
-
+    <AuthPageLayout heroHeadline={t('forgotPassword.heroHeadline')} heroTagline={t('forgotPassword.heroTagline')}>
       <Card className={styles['card']}>
         {requestReset.isSuccess ? (
           <>
@@ -98,6 +97,6 @@ export default function ForgotPasswordPage() {
           <Link to="/login">{t('forgotPassword.backToLogin')}</Link>
         </p>
       </Card>
-    </div>
+    </AuthPageLayout>
   )
 }

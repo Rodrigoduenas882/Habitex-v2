@@ -1,0 +1,84 @@
+/* Shared page chrome for every public auth screen (DESIGN.md §10, amended) -
+   extracted from the original LoginPage.module.css's own `.page`/
+   `.formPanel` rules, unchanged in substance. Each page still owns its own
+   Card/form content (and that Card's own max-width) as `children` here -
+   this file only owns the hero+form split and its responsive behavior. */
+
+.page {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+}
+
+/* Mobile (<640px): natural-height composition (mobile-refinement round).
+   The round-2 fix here still gave .formPanel `flex: 1`, stretching it to
+   fill the entire remaining viewport height and leaving short forms
+   (Forgot/Reset password) floating inside that leftover space - patched
+   back then by switching `align-items` from `center` to `flex-start` (see
+   AuthHeroPanel.module.css's own note on why `align-items`, not
+   `justify-content`, is the vertical axis here: .formPanel is a
+   row-direction flex container - never given an explicit direction - with
+   one child). That was a patch on top of the real problem: forcing the
+   panel to occupy the full remaining height at all. Dropping `flex: 1`
+   removes the leftover space outright, so there's nothing left to anchor
+   around - the card just sits at its natural height, directly under the
+   collapsed green hero bar, with a small negative top margin so it reads as
+   layered with that bar rather than gapped from it. Long forms (Signup,
+   once Stage 1 adds more fields) simply grow past the viewport and the
+   page scrolls normally - nothing here caps height or relies on everything
+   fitting in one screen. */
+.formPanel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-5) var(--space-8);
+  margin-top: calc(-1 * var(--space-4));
+}
+
+@media (min-width: 640px) {
+  /* Tablet (mobile-refinement round, follow-up): the round-2 behavior kept
+     here was `flex: 1`, which stretches .formPanel to fill the full
+     remaining height under the fixed 280px photo banner - the exact same
+     problem the mobile fix below 640px already solves, just not yet
+     applied here. On a tall tablet viewport (e.g. 820x1180) that reads as a
+     large dead gap above AND below the card for any short form
+     (Forgot/Reset password), and a smaller but still real one for
+     Login/Signup. Dropping `flex: 1` and anchoring to the top removes that
+     - the card sits at a consistent distance under the banner regardless
+     of form length, and any leftover height falls to the bottom, same
+     reasoning as the mobile fix. */
+  .formPanel {
+    align-items: flex-start;
+    justify-content: center;
+    padding: var(--space-6) var(--space-7) var(--space-9);
+    margin-top: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page {
+    flex-direction: row;
+  }
+
+  .formPanel {
+    /* Capped growth (not flex: 1) so the hero photo panel absorbs extra
+       viewport width instead of leaving dead space around a small centered
+       card on wide desktops. Can still shrink below 640px on a narrower
+       desktop width. Widened from 560px/space-8 (independent review, round
+       2: the card read as too small next to the hero photo) to give the
+       form column more presence without making any single card excessively
+       wide - each page's own .card max-width is the real width cap. */
+    flex: 0 1 640px;
+    /* Explicit, not inherited: the two-column desktop split is tall and
+       full-height (.page switches to flex-direction: row above), so
+       vertical centering is correct and approved here - unlike the tablet
+       rule just above, which deliberately anchors to the top instead. A
+       1024px+ viewport still matches that tablet media query too, so
+       without this override desktop would silently inherit
+       `align-items: flex-start` from it (caught while verifying the
+       tablet fix didn't leak into the approved desktop layout). */
+    align-items: center;
+    padding: var(--space-9);
+  }
+}

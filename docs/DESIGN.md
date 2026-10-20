@@ -116,7 +116,8 @@ Escala en `src/shared/theme/typography.css`: `display` (40px) / `h1` (30px) /
 (`--font-size-X`, `--line-height-X`, `--font-weight-X`) y una clase utilitaria
 (`.text-h1`, etc.).
 
-- **Jerarquía**: `display` solo en el hero del Login; `h1` para el valor
+- **Jerarquía**: `display` solo en el hero de las pantallas públicas de auth
+  (§10); `h1` para el valor
   protagonista de una KPI card; `h2` para títulos de página; `h3` para
   títulos de sección/card; `body`/`body-sm` para contenido; `caption` para
   metadatos secundarios.
@@ -216,15 +217,16 @@ Desktop, tablet y mobile son **decisiones de diseño explícitas**, no un
 desktop comprimido con media queries genéricas.
 
 - **Desktop** (≥1024px): experiencia completa — sidebar persistente, hero
-  fotográfico completo en Login, controles de carrusel visibles.
+  fotográfico completo en las cuatro pantallas públicas de auth (§10),
+  controles de carrusel visibles.
 - **Tablet** (640–1023px): sidebar se reemplaza por hamburguesa + drawer; el
-  hero del Login se reduce a un banner fijo (280px) con marca + headline,
-  sin tagline ni tarjeta de métricas — no porque no quepan, sino porque a
-  ese tamaño compiten con el formulario.
-- **Mobile** (<640px): el formulario/contenido es protagonista. El Login no
-  muestra foto en absoluto por debajo de 640px; el AppShell usa bottom nav en
-  vez de drawer. "Mobile" nunca significa "el mismo layout de desktop, más
-  angosto".
+  hero de auth se reduce a un banner fijo (280px) con marca + headline, sin
+  tagline (ni tarjeta de métricas, exclusiva del Login) — no porque no
+  quepan, sino porque a ese tamaño compiten con el formulario.
+- **Mobile** (<640px): el formulario/contenido es protagonista. Ninguna
+  pantalla de auth muestra foto por debajo de 640px; el AppShell usa bottom
+  nav en vez de drawer. "Mobile" nunca significa "el mismo layout de
+  desktop, más angosto".
 - El carrusel de `PropertiesOverview` es el ejemplo de referencia:
   desktop tiene flechas de scroll (solo cuando hay overflow real en esa
   dirección); táctil confía en swipe nativo — no se duplica la flecha en
@@ -237,7 +239,7 @@ desktop comprimido con media queries genéricas.
 - **Tokens**: `--transition-fast` (120ms), `--transition-base` (180ms),
   `--transition-slow` (280ms) — hover, drawers, fades de UI en general.
 - **Excepción explícita**: `--transition-hero-crossfade` (400ms), solo para
-  el crossfade día/noche del Login. No reutilizar este token para otra cosa;
+  el crossfade día/noche del hero de auth público (§10). No reutilizar este token para otra cosa;
   si algo más necesita una transición "cinematográfica", esa es señal de que
   merece su propia excepción documentada, no de reusar esta.
 - **Reduced motion es global y automático**: `global.css` tiene una sola
@@ -262,11 +264,17 @@ desktop comprimido con media queries genéricas.
 
 ---
 
-## 10. Login / fotografía
+## 10. Fotografía del auth público / Login
 
-El Login (`src/features/auth/presentation/LoginPage.tsx`) es la única
-pantalla con fotografía y glass en todo Habitex — no es el punto de partida
-para ningún otro dashboard o formulario.
+**Actualizado**: el hero fotográfico (`AuthHeroPanel`/`AuthPageLayout`,
+`src/features/auth/presentation/`) es el lenguaje visual compartido de
+**toda la superficie pública de autenticación de Habitex** — `/login`,
+`/signup`, `/forgot-password` y `/reset-password` — no solo de Login. Decisión
+explícita y documentada (no una deriva accidental): unifica la experiencia
+entre las cuatro pantallas reutilizando los mismos assets ya existentes, sin
+fotografía nueva ni dependencia de terceros. Sigue sin ser el punto de
+partida para ningún dashboard ni formulario autenticado — solo para estas
+cuatro pantallas públicas.
 
 - **Hero fotográfico**: par `property-light.webp` / `property-dark.webp`
   (`public/images/auth/`) — misma propiedad, mismo encuadre, día vs. noche.
@@ -282,9 +290,13 @@ para ningún otro dashboard o formulario.
 - **Glass card** (tarjeta de métricas flotante): `--hero-card-*`, vidrio
   oscuro + `backdrop-filter: blur(14px)`, **deliberadamente el mismo en
   Light y Dark** (una versión "vidrio claro" se probó y se veía lavada
-  sobre la foto de día). Esta es una excepción localizada y documentada en
-  `tokens.css` — **no generalizar glassmorphism al resto del producto.**
-  Ningún otro componente de Habitex usa `backdrop-filter`.
+  sobre la foto de día). **El glassmorphism en sí sigue siendo exclusivo de
+  Login** — `/signup`, `/forgot-password` y `/reset-password` comparten el
+  hero fotográfico pero nunca muestran esta tarjeta ni ningún otro elemento
+  de vidrio; sus propios formularios siguen siendo tarjetas sólidas
+  (`Card` normal, sin `backdrop-filter`). Esta es una excepción localizada y
+  documentada en `tokens.css` — **no generalizar glassmorphism al resto del
+  producto.** Ningún otro componente de Habitex usa `backdrop-filter`.
 
 ---
 
@@ -295,8 +307,8 @@ para ningún otro dashboard o formulario.
   fondo transparente verificado). Tamaño configurable vía `size`.
 - **`BrandLogo`**: `BrandMark` + wordmark "Habitex", con el espaciado/
   tipografía ya resueltos. El wordmark usa `color: inherit` — se adapta al
-  contexto (oscuro en el sidebar, blanco sobre la foto del Login) sin que el
-  componente conozca temas.
+  contexto (oscuro en el sidebar, blanco sobre la foto del hero de auth
+  público) sin que el componente conozca temas.
 - **Símbolo vs. logo completo**: usar `BrandMark` solo cuando aparece
   completamente aislado y necesita su propio nombre accesible (ej.
   `HabitexBootScreen`, vía `aria-label`). Usar `BrandLogo` en cualquier
@@ -347,7 +359,10 @@ Mínimos ya vigentes en todo el código, no aspiracionales:
   anti-FOUC de `index.html` y los píxeles del propio `habitex-mark.png`).
 - No gradientes decorativos como lenguaje general de la interfaz.
 - No neón.
-- No glassmorphism generalizado — solo la tarjeta del Login (§10).
+- No glassmorphism generalizado — solo la tarjeta de métricas del Login
+  (§10). El hero fotográfico en sí ya es compartido por las cuatro
+  pantallas públicas de auth; el vidrio (`backdrop-filter`) no — eso sigue
+  siendo exclusivo de esa tarjeta.
 - No sombras exageradas — `--shadow-sm/md/lg` son el techo.
 - No mezclar icon packs — todo ícono sale de `src/shared/ui/icons.tsx`.
 - No duplicar un componente cuando ya existe un primitive (§5).
@@ -356,6 +371,8 @@ Mínimos ya vigentes en todo el código, no aspiracionales:
 - No diseño genérico de dashboard/SaaS por defecto — cada pantalla se mide
   contra §1.
 
-Las excepciones ya existentes y justificadas (glass del Login, crossfade,
-scrim) son casos cerrados y documentados — **no son precedente** para pedir
+Las excepciones ya existentes y justificadas (glass de la tarjeta de
+métricas del Login — exclusivo de esa tarjeta; crossfade y scrim —
+compartidos por las cuatro pantallas públicas de auth, §10) son casos
+cerrados y documentados — **no son precedente** para pedir
 una excepción nueva en otra pantalla sin la misma justificación explícita.

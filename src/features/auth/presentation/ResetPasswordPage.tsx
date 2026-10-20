@@ -6,7 +6,6 @@ import { z } from 'zod'
 import { cx } from '@/shared/lib/cx'
 import { HabitexBootScreen } from '@/shared/components/HabitexBootScreen'
 import { Alert } from '@/shared/ui/Alert'
-import { BrandLogo } from '@/shared/ui/BrandLogo'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { Input } from '@/shared/ui/Input'
@@ -14,6 +13,7 @@ import { MINIMUM_PASSWORD_LENGTH } from '../domain/password-policy'
 import { useRecoverySession } from '../application/useRecoverySession'
 import { useUpdatePassword } from '../application/useUpdatePassword'
 import { SessionAuthError } from '../domain/session.types'
+import { AuthPageLayout } from './AuthPageLayout'
 import styles from './ResetPasswordPage.module.css'
 
 /**
@@ -37,6 +37,14 @@ import styles from './ResetPasswordPage.module.css'
  * the recovery session out (see that hook's doc comment) - this page's own
  * job is just to navigate to /login afterward, with a flag the login screen
  * uses to show a one-time success message.
+ *
+ * Shares the property-photo hero with every other public auth screen via
+ * AuthPageLayout (DESIGN.md §10, amended) - including the invalid-link
+ * state, which still renders through the same layout but with its own
+ * hero copy (resetPassword.invalidLink.heroHeadline/heroTagline): the
+ * normal-state copy promises "one step away" from managing your rentals,
+ * which would be actively wrong advice next to an error saying the link
+ * expired and a new one must be requested (independent review, round 2).
  */
 export default function ResetPasswordPage() {
   const { t } = useTranslation(['auth', 'common'])
@@ -76,10 +84,13 @@ export default function ResetPasswordPage() {
     return <HabitexBootScreen />
   }
 
-  return (
-    <div className={styles['page']}>
-      <BrandLogo name={t('common:home.title')} />
+  const heroHeadline =
+    recoverySession.status === 'invalid' ? t('resetPassword.invalidLink.heroHeadline') : t('resetPassword.heroHeadline')
+  const heroTagline =
+    recoverySession.status === 'invalid' ? t('resetPassword.invalidLink.heroTagline') : t('resetPassword.heroTagline')
 
+  return (
+    <AuthPageLayout heroHeadline={heroHeadline} heroTagline={heroTagline}>
       <Card className={styles['card']}>
         {recoverySession.status === 'invalid' ? (
           <>
@@ -138,7 +149,7 @@ export default function ResetPasswordPage() {
           </>
         )}
       </Card>
-    </div>
+    </AuthPageLayout>
   )
 }
 
