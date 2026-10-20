@@ -34,6 +34,13 @@ function renderSignUpPage() {
 }
 
 describe('SignUpPage', () => {
+  it('shares the commercial hero tagline with Login, and never renders the Login-only stats card', () => {
+    renderSignUpPage()
+
+    expect(screen.getByText('Todo en un solo lugar para que tu propiedad trabaje por ti.')).toBeInTheDocument()
+    expect(screen.queryByText('Vista general de tu operación')).not.toBeInTheDocument()
+  })
+
   it('shows validation errors instead of submitting when the form is empty', async () => {
     const user = userEvent.setup()
     renderSignUpPage()

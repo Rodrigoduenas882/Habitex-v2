@@ -92,7 +92,8 @@
   --transition-fast: 120ms ease;
   --transition-base: 180ms ease;
   --transition-slow: 280ms ease;
-  /* Longer, dedicated duration for the Login hero photo's day/night
+  /* Longer, dedicated duration for the public auth hero photo's (Login,
+     Signup, ForgotPassword, ResetPassword - DESIGN.md §10) day/night
      crossfade - a deliberately slower, more cinematic fade than any UI
      chrome transition, not reused elsewhere. */
   --transition-hero-crossfade: 400ms ease;

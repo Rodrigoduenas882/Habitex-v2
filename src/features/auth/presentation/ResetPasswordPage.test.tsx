@@ -68,6 +68,12 @@ describe('ResetPasswordPage - no recovery intent detected at all', () => {
       'href',
       '/forgot-password',
     )
+    // Independent review (round 2): the invalid-link sub-state must not reuse the
+    // normal-state hero copy, which promises "one step away" right next to an
+    // error saying the link expired - nor the Login/Signup commercial headline.
+    expect(screen.getByText('Solicita un nuevo enlace')).toBeInTheDocument()
+    expect(screen.queryByText('Protege el acceso a tu cuenta')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vista general de tu operación')).not.toBeInTheDocument()
   })
 })
 
@@ -87,6 +93,8 @@ describe('ResetPasswordPage - recovery intent observed (AuthSessionListener alre
 
     expect(await screen.findByLabelText('Nueva contraseña')).toBeInTheDocument()
     expect(screen.queryByText('Enlace no válido')).not.toBeInTheDocument()
+    expect(screen.getByText('Protege el acceso a tu cuenta')).toBeInTheDocument()
+    expect(screen.queryByText('Vista general de tu operación')).not.toBeInTheDocument()
   })
 
   it('shows the invalid-link state when the intent was there but no session was ever established (expired, reused, or tampered token)', async () => {

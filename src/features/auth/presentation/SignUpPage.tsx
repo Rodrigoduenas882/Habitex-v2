@@ -5,12 +5,12 @@ import { Link } from 'react-router-dom'
 import { z } from 'zod'
 import { cx } from '@/shared/lib/cx'
 import { Alert } from '@/shared/ui/Alert'
-import { BrandLogo } from '@/shared/ui/BrandLogo'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { Input } from '@/shared/ui/Input'
 import { MINIMUM_PASSWORD_LENGTH } from '../domain/password-policy'
 import { useSignUp } from '../application/useSignUp'
+import { AuthPageLayout } from './AuthPageLayout'
 import styles from './SignUpPage.module.css'
 
 /**
@@ -18,7 +18,10 @@ import styles from './SignUpPage.module.css'
  * audit found missing. Everything this page calls already existed and is
  * reused exactly as-is: useSignUp, bootstrap_account, the 14-day trial
  * trigger. Standalone, no AppShell - same reasoning as BootstrapAccountPage
- * (nothing to show in a shell nav before an Account exists).
+ * (nothing to show in a shell nav before an Account exists). Shares the
+ * property-photo hero with every other public auth screen via
+ * AuthPageLayout (DESIGN.md §10, amended) - no glass stats card here, that
+ * stays Login-exclusive.
  *
  * Two outcomes after a successful signUp, both already representable by the
  * existing AuthSession | null domain type with no change to it:
@@ -59,10 +62,16 @@ export default function SignUpPage() {
 
   const confirmationRequired = signUp.isSuccess && signUp.data === null
 
-  return (
-    <div className={styles['page']}>
-      <BrandLogo name={t('common:home.title')} />
+  const heroHeadline = (
+    <>
+      {t('authHero.headlineLine1')}
+      <br />
+      {t('authHero.headlineLine2')}
+    </>
+  )
 
+  return (
+    <AuthPageLayout heroHeadline={heroHeadline} heroTagline={t('authHero.tagline')}>
       <Card className={styles['card']}>
         {confirmationRequired ? (
           <>
@@ -125,6 +134,6 @@ export default function SignUpPage() {
           </>
         )}
       </Card>
-    </div>
+    </AuthPageLayout>
   )
 }

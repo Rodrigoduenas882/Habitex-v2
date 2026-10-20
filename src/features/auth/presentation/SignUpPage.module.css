@@ -1,28 +1,19 @@
-/* Standalone, auth-adjacent screen (no AppShell), same molde as
-   BootstrapAccountPage.module.css: mirrors LoginPage's centered-card panel
-   (.card/.header/.subtitle/.alert/.form/.submit) but skips its hero
-   photo/glass, which DESIGN.md §10 reserves for Login only. Shared verbatim
-   by SignUpPage/ForgotPasswordPage/ResetPasswordPage - same reasoning
-   BootstrapAccountPage already established for this exact layout. */
-.page {
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-6);
-  padding: var(--space-5);
-  background: var(--color-background);
-}
+/* Page/hero chrome now lives in AuthPageLayout/AuthHeroPanel, shared with
+   every public auth screen (DESIGN.md §10, amended). This file only keeps
+   this page's own form-card content - same molde as LoginPage.module.css's
+   own form-panel rules, shared verbatim by SignUpPage/ForgotPasswordPage/
+   ResetPasswordPage. */
 
 .card {
   width: 100%;
-  max-width: 420px;
+  /* 420px -> 480px (independent review, round 2): felt small next to the
+     hero photo on wide desktops. */
+  max-width: 480px;
   border-radius: var(--radius-lg);
 }
 
 .header {
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-7);
 }
 
 .subtitle {
@@ -36,7 +27,7 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
 
 .submit {
@@ -58,10 +49,4 @@
 .footer a:hover {
   color: var(--color-primary-hover);
   text-decoration: underline;
-}
-
-@media (min-width: 640px) {
-  .page {
-    padding: var(--space-7);
-  }
 }

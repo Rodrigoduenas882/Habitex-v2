@@ -1,144 +1,9 @@
-.page {
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-background);
-}
-
-/* ---------- Hero panel (photo + brand + copy + stats card) ---------- */
-
-.heroPanel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--color-primary);
-}
-
-/* Two full-bleed image layers, crossfaded via opacity - never a filter on a
-   single photo (that reads as "night mode", not as a different time of
-   day). Both files are the exact same property/framing (day vs. night), so
-   `background-position`/`background-size` live on the shared .heroPhotoLayer
-   rule below and apply identically to both - that's what keeps the two
-   layers perfectly aligned during the crossfade. */
-.heroPhoto {
-  display: none;
-  position: absolute;
-  inset: 0;
-}
-
-.heroPhotoLayer {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  /* Biased toward the house (right ~55% of the source photo) so a tall
-     desktop crop keeps the building as the subject instead of centering on
-     the garden/mountains; the wider tablet crop shows the full width
-     regardless, so this only really steers the desktop framing. */
-  background-position: 72% 42%;
-  opacity: 0;
-  transition: opacity var(--transition-hero-crossfade);
-}
-
-.heroPhotoDay {
-  background-image: url('/images/auth/property-light.webp');
-  opacity: 1;
-}
-
-.heroPhotoNight {
-  background-image: url('/images/auth/property-dark.webp');
-  opacity: 0;
-}
-
-:root[data-theme='dark'] .heroPhotoDay {
-  opacity: 0;
-}
-
-:root[data-theme='dark'] .heroPhotoNight {
-  opacity: 1;
-}
-
-/* Keeps the overlaid text legible against either photo - necessary for
-   contrast, not decorative, so it's not one of the "exaggerated gradient"
-   effects the brief rules out. Same scrim for both themes on purpose - a
-   theme-dependent overlay would make the crossfade read as two different
-   photos instead of one property at two times of day (and the real photos
-   showed this matters: the daytime one is bright enough that white text
-   needs real help, not just a thin fade).
-
-   Two layers, both fixed regardless of background-position:
-   1. A radial "pool" anchored bottom-left, where the headline/tagline
-      actually sit (short lines, left-aligned) - darkens that specific area
-      generously and fades smoothly outward, instead of a flat wash over
-      the whole photo.
-   2. A gentle top-to-bottom band so the brand row/wordmark (top) and the
-      area around the stats card (bottom) also keep a baseline of contrast;
-      the stats card itself supplies most of its own contrast via its dark
-      glass surface, so this band stays light through the middle on
-      purpose, to keep the architecture/lit windows visible. */
-.heroScrim {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(85% 70% at 20% 82%, rgb(4 6 6 / 76%) 0%, rgb(4 6 6 / 36%) 45%, rgb(4 6 6 / 0%) 78%),
-    linear-gradient(
-      180deg,
-      rgb(4 6 6 / 54%) 0%,
-      rgb(4 6 6 / 6%) 20%,
-      rgb(4 6 6 / 10%) 50%,
-      rgb(4 6 6 / 48%) 100%
-    );
-}
-
-.heroContent {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 100%;
-  padding: var(--space-5);
-  gap: var(--space-5);
-}
-
-.heroTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-/* BrandLogo's wordmark uses color:inherit, so this is the one place that
-   needs to say "white over the photo" - the mark itself is unaffected by
-   color (it's a raster asset). */
-.brandMarkRow {
-  color: var(--color-primary-foreground);
-}
-
-.heroBottom {
-  display: none;
-}
-
-.heroCopy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.heroHeadline {
-  margin: 0;
-  font-size: var(--font-size-h1);
-  line-height: var(--line-height-h1);
-  font-weight: var(--font-weight-h1);
-  letter-spacing: var(--letter-spacing-h1);
-  color: var(--color-primary-foreground);
-}
-
-.heroTagline {
-  display: none;
-  max-width: 34ch;
-  color: rgb(255 255 255 / 82%);
-}
+/* The hero (photo/scrim/brand/headline) and page/form-panel split now live
+   in AuthPageLayout/AuthHeroPanel, shared with every other public auth
+   screen (DESIGN.md §10, amended). This file only keeps what's genuinely
+   Login-specific: the floating glass stats-card preview (DESIGN.md §10
+   keeps glassmorphism itself exclusive to Login) and this page's own
+   form-card content. */
 
 /* ---------- Floating stats card - a preview, not a second dashboard ---------- */
 
@@ -202,24 +67,25 @@
   color: var(--hero-card-trend-foreground);
 }
 
-/* ---------- Form panel ---------- */
-
-.formPanel {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4) var(--space-5) var(--space-8);
+@media (min-width: 1024px) {
+  .statsCard {
+    display: block;
+  }
 }
+
+/* ---------- Form panel ---------- */
 
 .card {
   width: 100%;
-  max-width: 460px;
+  /* 460px -> 500px (independent review, round 2): felt small next to the
+     hero photo on wide desktops. Still well short of AuthPageLayout's own
+     640px column cap, so this never reads as "excessively wide". */
+  max-width: 500px;
   border-radius: var(--radius-lg);
 }
 
 .header {
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-7);
 }
 
 .subtitle {
@@ -233,7 +99,7 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
 
 .submit {
@@ -261,72 +127,4 @@
 .footer a:hover {
   color: var(--color-primary-hover);
   text-decoration: underline;
-}
-
-/* ---------- Tablet: compact photo banner with brand + headline only ---------- */
-
-@media (min-width: 640px) {
-  .heroPanel {
-    height: 280px;
-  }
-
-  .heroPhoto {
-    display: block;
-  }
-
-  .heroContent {
-    padding: var(--space-6) var(--space-7);
-  }
-
-  .heroBottom {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  .formPanel {
-    padding: var(--space-6) var(--space-7) var(--space-9);
-  }
-}
-
-/* ---------- Desktop: true split-screen, full hero experience ---------- */
-
-@media (min-width: 1024px) {
-  .page {
-    flex-direction: row;
-  }
-
-  .heroPanel {
-    flex: 1;
-    height: auto;
-  }
-
-  .heroContent {
-    padding: var(--space-8) var(--space-9);
-    gap: var(--space-8);
-  }
-
-  .heroHeadline {
-    font-size: var(--font-size-display);
-    line-height: var(--line-height-display);
-    font-weight: var(--font-weight-display);
-    letter-spacing: var(--letter-spacing-display);
-  }
-
-  .heroTagline {
-    display: block;
-  }
-
-  .statsCard {
-    display: block;
-  }
-
-  .formPanel {
-    /* Capped growth (not flex: 1) so the hero photo panel absorbs extra
-       viewport width instead of leaving dead space around a small centered
-       card on wide desktops - see HABITEX_DESIGN_AUDIT.md §16 P2 #13. Can
-       still shrink below 560px on a narrower desktop width. */
-    flex: 0 1 560px;
-    padding: var(--space-8);
-  }
 }

@@ -33,6 +33,14 @@ function renderForgotPasswordPage() {
 }
 
 describe('ForgotPasswordPage', () => {
+  it('shows its own contextual hero copy, not the commercial Login/Signup headline, and never renders the stats card', () => {
+    renderForgotPasswordPage()
+
+    expect(screen.getByText('Recupera el acceso a tu cuenta')).toBeInTheDocument()
+    expect(screen.queryByText('Más que arriendos,')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vista general de tu operación')).not.toBeInTheDocument()
+  })
+
   it('shows a validation error instead of submitting when the email is empty', async () => {
     const user = userEvent.setup()
     renderForgotPasswordPage()
