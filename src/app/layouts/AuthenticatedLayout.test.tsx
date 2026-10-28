@@ -96,13 +96,13 @@ describe('AuthenticatedLayout navigation', () => {
     expect(sidebar.getByRole('link', { name: 'Arriendos' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('keeps a route-less item ("Personas") inert as a disabled button, not a link, and labels it "Próximamente"', async () => {
+  it('keeps a route-less item ("Configuración") inert as a disabled button, not a link, and labels it "Próximamente"', async () => {
     getSession.mockResolvedValueOnce({ userId: 'user-1', email: 'a@habitex.app', expiresAtUnix: null })
     const sidebar = renderLayout('/')
     await screen.findByText('Home page')
 
-    expect(sidebar.queryByRole('link', { name: 'Personas' })).not.toBeInTheDocument()
-    const button = sidebar.getByRole('button', { name: 'Personas' })
+    expect(sidebar.queryByRole('link', { name: 'Configuración' })).not.toBeInTheDocument()
+    const button = sidebar.getByRole('button', { name: 'Configuración' })
     expect(button).toBeInTheDocument()
     expect(button).toBeDisabled()
     expect(button).toHaveAccessibleDescription('Próximamente')
