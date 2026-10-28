@@ -41,7 +41,7 @@ excepciones documentadas en el §9 y §10.
 | Categoría | Tokens | Notas |
 |---|---|---|
 | Neutrales | `--color-background`, `--color-surface`, `--color-surface-hover`, `--color-foreground`, `--color-muted`, `--color-border`, `--color-control-border` | Redefinidos por tema. |
-| Brand | `--color-primary(-hover|-foreground|-subtle|-subtle-foreground)` | |
+| Brand | `--color-primary(-hover\|-foreground\|-subtle\|-subtle-foreground\|-accent)`, `--color-link(-hover)` | Acento aprobado en Figma ("Habitex - Design Lab", 2026-10): `#4667a9` claro / `#91b4eb` oscuro. En Dark, Figma dio un solo hex por tema pero `tokens.css` lo reparte en dos roles — igual que ya hacía con el verde anterior — porque ese valor claro falla contraste (2.11:1) usado directamente como fondo de botón con texto blanco: `--color-primary-accent` se queda en el valor exacto de Figma (usos no-fondo: borde activo, foco, gráficos), y `--color-primary` usa un azul más oscuro calculado aparte, solo para fondo de botón. Ver `tokens.css` para los contrastes medidos de cada uno. |
 | Semantic tones | `success` / `warning` / `danger` / `info`, cada uno con la misma tripleta base/subtle/subtle-foreground | Ver §6. |
 | Shadows | `--shadow-sm/md/lg` | Redefinidas por tema (más planas y oscuras en Dark — un blur claro no se ve sobre superficies oscuras). |
 | Spacing | `--space-1` (4px) … `--space-10` (64px) | Escala de 4px. |
@@ -66,10 +66,18 @@ en un divisor puramente estructural.
 
 **Cuándo se justifica crear uno nuevo**: cuando el valor existente cambiaría
 un significado establecido, y el nuevo uso lo documenta explícitamente. Los
-únicos dos precedentes son `--transition-hero-crossfade` y el grupo
-`--hero-card-*` (tarjeta flotante del Login) — ambos con un comentario en
-`tokens.css` explicando por qué no podían ser un token existente. Un token
-nuevo sin ese tipo de justificación escrita no se acepta.
+precedentes son `--transition-hero-crossfade`, el grupo `--hero-card-*`
+(tarjeta flotante del Login), y el par `--color-link`/`--color-link-hover`
+(enlaces de texto en las pantallas de autenticación) — los tres con un
+comentario en `tokens.css` explicando por qué no podían ser un token
+existente. `--color-link(-hover)` existe porque un enlace de texto es
+contenido normal sobre `--color-surface`, y necesita el mismo 4.5:1 de
+cualquier texto — `--color-primary`/`--color-primary-hover` están afinados
+para texto blanco encima de un botón del color de marca, no para sí mismos
+como color de texto; reutilizarlos así midió 2.49:1/2.09:1 en Dark,
+encontrado en una revisión independiente del incremento de navegación+color
+(2026-10). Un token nuevo sin ese tipo de justificación escrita no se
+acepta.
 
 **Por qué evitar hardcode**: un color/spacing literal no reacciona a
 Light/Dark, no se puede auditar de un solo lugar, y es exactamente el tipo de
