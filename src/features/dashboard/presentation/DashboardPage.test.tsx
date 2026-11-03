@@ -12,6 +12,13 @@ import type { RentalRelationship } from '@/features/rentals/domain/rental.types'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import DashboardPage from './DashboardPage'
 
+const { listParkings } = vi.hoisted(() => ({ listParkings: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/features/parking/infrastructure/supabase-parking.repository', () => ({ supabaseParkingRepository: { listByAdministration: listParkings } }))
+
+vi.mock('@/features/rentals/application/useRentalIdentities', () => ({
+  useRentalIdentities: () => ({ status: 'ready', byRelationshipId: new Map([['rel-1', { subjectLabel: 'Apartamento 302', tenantName: null, rentAmount: null }]]) }),
+}))
+
 vi.mock('@/features/auth/application/useAuthSession', () => ({
   useAuthSession: () => ({
     data: { userId: 'user-1', email: 'rodrigo.duenas@gmail.com', expiresAtUnix: null },
@@ -237,6 +244,8 @@ describe('DashboardPage', () => {
     render(<DashboardPage />)
 
     expect(await screen.findByRole('heading', { name: /Hola, Rodrigo/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Vista de demostración/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ver estados vacíos' })).not.toBeInTheDocument()
   })
 
   it('never imports/renders a dashboard-mock-data business value - a real, distinctly-computed value renders instead', async () => {
@@ -321,7 +330,7 @@ describe('DashboardPage', () => {
     render(<DashboardPage />)
 
     expect(await screen.findByText('Todo al día')).toBeInTheDocument()
-    await screen.findByTestId('properties-row')
+    await screen.findByText('Tu portafolio empieza aquí')
     expect(screen.getAllByRole('button', { name: 'Agregar inmueble' })).toHaveLength(2)
     expect(screen.queryByText('Apartamento 302')).not.toBeInTheDocument()
   })
@@ -399,6 +408,21 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('Gastos')).not.toBeInTheDocument()
   })
 
+  it('uses the reported subject and only the backend OVERDUE status for the overdue charge link', async () => {
+    resolveOneAdministration()
+    listReportedPayments.mockResolvedValue([makePayment({ id: 'reported', rentalRelationshipId: 'rel-1' })])
+    listCharges.mockResolvedValue([
+      makeCharge({ id: 'overdue', rentalRelationshipId: 'rel-1', balance: 780_000, financialStatus: 'OVERDUE' }),
+      makeCharge({ id: 'partial', rentalRelationshipId: 'rel-2', balance: 123_000, financialStatus: 'PARTIAL' }),
+    ])
+    render(<DashboardPage />)
+    expect(await screen.findByText('Cobro vencido')).toBeInTheDocument()
+    expect(screen.getAllByText('Apartamento 302')).toHaveLength(2)
+    expect(screen.getByText('$780.000')).toBeInTheDocument()
+    const links = screen.getAllByRole('link', { name: 'Ver' })
+    expect(links.map(link => link.getAttribute('href'))).toEqual(['/rentals/rel-1/payments', '/rentals/rel-1/charges'])
+  })
+
   it('renders all four KPI labels and the four quick action buttons', async () => {
     resolveOneAdministration()
     render(<DashboardPage />)
@@ -411,7 +435,7 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('button', { name: 'Crear arriendo' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Subir documento' })).toBeInTheDocument()
-    await screen.findByTestId('properties-row')
+    await screen.findByText('Tu portafolio empieza aquí')
     expect(screen.getAllByRole('button', { name: 'Agregar inmueble' })).toHaveLength(2)
   })
 

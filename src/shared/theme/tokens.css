@@ -82,6 +82,9 @@
   --color-link: var(--color-primary-accent);
   --color-link-hover: var(--color-primary-hover);
 
+  /* Increment 2: near-opaque glass limited to Dashboard KPI cards. */
+  --dashboard-glass-surface: rgb(255 255 255 / 90%);
+
   /* Focus */
   --color-focus-ring: var(--color-primary-accent);
 
@@ -142,6 +145,7 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+  --dashboard-glass-surface: rgb(27 31 30 / 92%);
 
   /* Neutrals - graphite, not pure black */
   --color-background: #121514;
@@ -152,14 +156,14 @@
   --color-border: #2b302e;
   --color-control-border: #6d7672;
 
-  /* Brand - blue, approved 2026-10. #91b4eb (the approved Dark accent
-     value) measured 2.11:1 for white button text - far below WCAG AA's
+  /* Brand - steel blue, updated by user 2026-11-03. #79a9d1 (the approved Dark accent
+     value) measured 2.50:1 for white button text - far below WCAG AA's
      4.5:1 - so, same principle as the original teal's Dark split: a
      separately darkened value handles Button backgrounds (and anything
      else drawing --color-primary-foreground text/icons on top of it),
-     while #91b4eb itself is kept at its own value below for every
-     non-background use, where it measures 7.87:1 against --color-surface /
-     8.69:1 against --color-background (both >= the 3:1 WCAG 1.4.11 needs
+     while #79a9d1 itself is kept at its own value below for every
+     non-background use, where it measures 6.67:1 against --color-surface /
+     7.36:1 against --color-background (both >= the 3:1 WCAG 1.4.11 needs
      for a non-text indicator - wide margin). Hover darkens further rather
      than brightening, same rationale as the original teal: brightening a
      background only ever lowers its contrast against white text. */
@@ -174,7 +178,7 @@
      the focus ring) - see the comment above for the measured contrast.
      Reusing the darkened --color-primary above there instead would trade
      the Button-text-contrast fix for a set of new, unmeasured regressions. */
-  --color-primary-accent: #91b4eb;
+  --color-primary-accent: #79a9d1;
 
   /* Semantic */
   --color-success: #33b37b;
@@ -199,8 +203,8 @@
   --color-info-subtle-foreground: #9cc5f0;
 
   /* Text links - see the :root block's own comment for why this is a
-     dedicated pair. --color-link (= --color-primary-accent, #91b4eb)
-     measures 7.87:1 against --color-surface. --color-link-hover must NOT
+     dedicated pair. --color-link (= --color-primary-accent, #79a9d1)
+     measures 6.67:1 against --color-surface. --color-link-hover must NOT
      reuse --color-primary-hover here (that measures 2.09:1 as foreground
      text - it's tuned as a darkened BUTTON background instead). A text
      link sitting on a fixed dark surface gets safer with hover by going

@@ -1,3 +1,7 @@
+import { useMemo } from 'react'
+import { useRentalIdentities } from '@/features/rentals/application/useRentalIdentities'
+import { useAdministrationCharges } from '@/features/charges/application/useAdministrationCharges'
+import { lastNMonthRanges } from '../domain/month-range'
 import { useTranslation } from 'react-i18next'
 import { useActiveAdministration } from '@/features/administration/application/useActiveAdministration'
 import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
@@ -49,7 +53,6 @@ export interface DashboardViewProps {
  */
 function DashboardView({ administrationId }: DashboardViewProps) {
   const { data: session } = useAuthSession()
-  const { t } = useTranslation('dashboard')
   const displayName = getDisplayNameFromEmail(session?.email)
 
   const propertiesQuery = useProperties(administrationId)
@@ -57,14 +60,53 @@ function DashboardView({ administrationId }: DashboardViewProps) {
   const financials = useDashboardFinancials(administrationId)
   const attention = useDashboardAttention(administrationId)
   const propertyOccupancy = usePropertyOccupancy(administrationId)
+  const identities = useRentalIdentities(administrationId)
+  // Same bounded read as the financial chart; status comes from charge_balances.
+  // This is NOT an all-time arrears total and never infers OVERDUE from dates.
+  const attentionRange = useMemo(() => {
+    const ranges = lastNMonthRanges(6)
+    return { from: ranges[0]?.from ?? '', toExclusive: ranges[ranges.length - 1]?.toExclusive ?? '' }
+  }, [])
+  const overdueChargesQuery = useAdministrationCharges(administrationId, attentionRange)
 
+  return <DashboardContent name={displayName} propertiesQuery={propertiesQuery} occupancy={occupancy}
+    financials={financials} attention={attention} propertyOccupancy={propertyOccupancy}
+    identities={identities} overdueChargesQuery={overdueChargesQuery} />
+}
+
+/** Shared presentation; queries remain exclusively in DashboardView. */
+export interface DashboardContentProps {
+  name: string | null
+  identities?: ReturnType<typeof useRentalIdentities>
+  overdueChargesQuery?: Pick<ReturnType<typeof useAdministrationCharges>, 'data' | 'isLoading' | 'isError'>
+  propertiesQuery: Pick<ReturnType<typeof useProperties>, 'data' | 'isLoading' | 'isError'>
+  occupancy: ReturnType<typeof useDashboardOccupancy>
+  financials: ReturnType<typeof useDashboardFinancials>
+  attention: ReturnType<typeof useDashboardAttention>
+  propertyOccupancy: ReturnType<typeof usePropertyOccupancy>
+}
+export function DashboardContent({ name, propertiesQuery, occupancy, financials, attention, propertyOccupancy, identities, overdueChargesQuery }: DashboardContentProps) {
+  const { t } = useTranslation('dashboard')
   const attentionItems: AttentionItem[] = attention.reportedPayments.map((payment) => ({
     id: payment.id,
     kind: 'payment',
+    identityLabel: identities?.byRelationshipId.get(payment.rentalRelationshipId)?.subjectLabel ?? t('attention.rentalReference', { id: payment.rentalRelationshipId }),
     subtitle: formatDate(payment.paymentDate),
     meta: formatCurrency(payment.amount),
     rentalRelationshipId: payment.rentalRelationshipId,
   }))
+
+  const overdueItems: AttentionItem[] = (overdueChargesQuery?.data ?? [])
+    .filter(charge => charge.financialStatus === 'OVERDUE')
+    .map(charge => ({
+      id: charge.id,
+      kind: 'overdue',
+      identityLabel: identities?.byRelationshipId.get(charge.rentalRelationshipId)?.subjectLabel ?? t('attention.rentalReference', { id: charge.rentalRelationshipId }),
+      subtitle: formatDate(charge.dueDate),
+      meta: formatCurrency(charge.balance),
+      rentalRelationshipId: charge.rentalRelationshipId,
+    }))
+  const overdueState = overdueChargesQuery?.isError ? 'error' : overdueChargesQuery?.isLoading ? 'loading' : 'ready'
 
   const occupancyTrend =
     occupancy.status === 'error'
@@ -77,7 +119,7 @@ function DashboardView({ administrationId }: DashboardViewProps) {
 
   return (
     <div className={styles['page']}>
-      <DashboardHeader name={displayName} />
+      <DashboardHeader name={name} />
 
       <div className={styles['kpiGrid']}>
         <KpiCard
@@ -93,7 +135,7 @@ function DashboardView({ administrationId }: DashboardViewProps) {
               formatCurrency(financials.monthlyIncome)
             )
           }
-          trend={financials.status === 'error' ? t('kpis.loadError') : undefined}
+          trend={financials.status === 'error' ? t('kpis.loadError') : financials.status === 'ready' ? t('kpis.incomeScope') : undefined}
         />
         <KpiCard
           icon={<AlertTriangleIcon size={18} />}
@@ -108,7 +150,7 @@ function DashboardView({ administrationId }: DashboardViewProps) {
               formatCurrency(financials.monthlyReceivable)
             )
           }
-          trend={financials.status === 'error' ? t('kpis.loadError') : undefined}
+          trend={financials.status === 'error' ? t('kpis.loadError') : financials.status === 'ready' ? t('kpis.receivableScope') : undefined}
         />
         <KpiCard
           icon={<UsersIcon size={18} />}
@@ -145,19 +187,14 @@ function DashboardView({ administrationId }: DashboardViewProps) {
 
       <QuickActions />
 
-      {/* DS-004: AttentionPanel (actionable) renders before FinancialOverview
-          (informational) so mobile's single-column stack shows the
-          actionable list first - `.analytics`'s own grid-template-columns
-          is mirrored (1fr 2fr instead of 2fr 1fr) to keep desktop's visual
-          weight distribution identical; the wider column still goes to the
-          richer chart, it's now just the second/right child. */}
+      {/* Attention stays first on mobile; finances occupy the wider desktop column. */}
       <div className={styles['analytics']}>
         {attention.status === 'loading' ? (
           <Skeleton height={280} radius="lg" data-testid="attention-panel-loading" />
         ) : attention.status === 'error' ? (
           <Alert tone="danger">{t('attention.loadError')}</Alert>
         ) : (
-          <AttentionPanel items={attentionItems} />
+          <AttentionPanel items={attentionItems} overdueItems={overdueItems} overdueState={overdueState} />
         )}
 
         {financials.status === 'loading' ? (

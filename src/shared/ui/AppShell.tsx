@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { cx } from '@/shared/lib/cx'
 import styles from './AppShell.module.css'
 import { Avatar } from './Avatar'
+import { Button } from './Button'
 import { BrandLogo } from './BrandLogo'
-import { CloseIcon, LogOutIcon, MenuIcon } from './icons'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, LogOutIcon, MenuIcon } from './icons'
 import { IconButton } from './IconButton'
 
 export interface AppShellNavItem {
@@ -32,18 +33,22 @@ export interface AppShellProps {
    * has no inert items (or doesn't care to label them) isn't forced to pass
    * a string that's never used. */
   comingSoonLabel?: string
+  userName?: string
+  collapseNavLabel?: string
+  expandNavLabel?: string
+  userMenuLabel?: string
   userEmail: string
   onLogout: () => void
   logoutLabel: string
   logoutPending?: boolean
-  /** Rendered in the topbar, before the user email/avatar. Optional slot so
+  /** Rendered inside the floating user menu. Optional slot so
    * this component stays free of any specific control's own i18n/logic. */
   themeControl?: ReactNode
   children: ReactNode
 }
 
 /**
- * The Habitex app shell: sidebar (desktop) + topbar + drawer/bottom nav
+ * The Habitex app shell: collapsible sidebar + floating user menu + drawer/bottom nav
  * (mobile/tablet). Pure presentation - no i18n, no auth, no mock data - so
  * both the real authenticated layout and /ui-preview render the exact same
  * component instead of two parallel implementations.
@@ -57,6 +62,10 @@ export function AppShell({
   openNavLabel,
   closeNavLabel,
   comingSoonLabel,
+  userName,
+  collapseNavLabel = 'Contraer panel lateral',
+  expandNavLabel = 'Expandir panel lateral',
+  userMenuLabel = 'Menú de usuario',
   userEmail,
   onLogout,
   logoutLabel,
@@ -65,6 +74,29 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const [isDrawerOpen, setDrawerOpen] = useState(false)
+  const [isSidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const userMenuRef = useRef<HTMLDetailsElement>(null)
+  const location = useLocation()
+  useEffect(() => {
+    userMenuRef.current?.removeAttribute('open')
+  }, [location])
+  useEffect(() => {
+    function closeOutside(event: PointerEvent) {
+      if (event.target instanceof Node && !userMenuRef.current?.contains(event.target)) userMenuRef.current?.removeAttribute('open')
+    }
+    function closeWithEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape' && userMenuRef.current?.open) {
+        userMenuRef.current.removeAttribute('open')
+        userMenuRef.current.querySelector('summary')?.focus()
+      }
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    document.addEventListener('keydown', closeWithEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside)
+      document.removeEventListener('keydown', closeWithEscape)
+    }
+  }, [])
 
   useEffect(() => {
     if (!isDrawerOpen) return
@@ -83,7 +115,7 @@ export function AppShell({
     .map((key) => navItems.find((item) => item.key === key))
     .filter((item): item is AppShellNavItem => item != null)
 
-  const navList = (onNavigate?: () => void) => (
+  const navList = (onNavigate?: () => void, region = 'sidebar') => (
     <nav className={styles['nav']}>
       {navItems.map((item) => {
         if (item.to) {
@@ -91,6 +123,8 @@ export function AppShell({
             <Link
               key={item.key}
               to={item.to}
+              aria-label={item.label}
+              title={item.label}
               className={cx(styles['navItem'], item.active && styles['navItemActive'])}
               aria-current={item.active ? 'page' : undefined}
               onClick={onNavigate}
@@ -101,7 +135,7 @@ export function AppShell({
           )
         }
 
-        const descriptionId = `${item.key}-coming-soon`
+        const descriptionId = `${region}-${item.key}-coming-soon`
         return (
           // The sr-only description lives OUTSIDE the button on purpose: an
           // element's accessible name is computed from its own subtree's
@@ -113,6 +147,8 @@ export function AppShell({
             <button
               type="button"
               className={cx(styles['navItem'], styles['navItemDisabled'])}
+              aria-label={item.label}
+              title={item.label}
               disabled
               aria-describedby={comingSoonLabel ? descriptionId : undefined}
             >
@@ -137,11 +173,15 @@ export function AppShell({
 
   return (
     <div className={cx(styles['shell'], className)} data-testid="app-shell">
-      <aside className={styles['sidebar']} data-testid="app-shell-sidebar">
+      <aside className={cx(styles['sidebar'], isSidebarCollapsed && styles['sidebarCollapsed'])} data-testid="app-shell-sidebar">
         <div className={cx(styles['brand'], styles['sidebarBrand'])}>
-          <BrandLogo name={brandName} />
+          <BrandLogo name={brandName} className={cx(styles['sidebarBrandLogo'])} />
         </div>
         {navList()}
+        <IconButton className={styles['collapseButton']}
+          icon={isSidebarCollapsed ? <ChevronRightIcon size={18} /> : <ChevronLeftIcon size={18} />}
+          aria-label={isSidebarCollapsed ? expandNavLabel : collapseNavLabel} aria-expanded={!isSidebarCollapsed}
+          onClick={() => { setSidebarCollapsed(!isSidebarCollapsed) }} />
       </aside>
 
       <div
@@ -171,33 +211,27 @@ export function AppShell({
         </div>
         {navList(() => {
           setDrawerOpen(false)
-        })}
+        }, 'drawer')}
       </div>
 
       <div className={styles['body']}>
-        <header className={styles['topbar']} data-testid="app-shell-topbar">
-          <div className={styles['topbarStart']}>
-            <IconButton
-              icon={<MenuIcon size={20} />}
-              aria-label={openNavLabel}
-              className={styles['menuButton']}
-              onClick={() => {
-                setDrawerOpen(true)
-              }}
-            />
-          </div>
-          <div className={styles['topbarEnd']}>
+        <div className={styles['mobileNavTrigger']}>
+          <IconButton icon={<MenuIcon size={20} />} aria-label={openNavLabel} onClick={() => { setDrawerOpen(true) }} />
+        </div>
+        <details className={styles['userMenu']} ref={userMenuRef} data-testid="app-shell-user-menu">
+          <summary className={styles['userMenuTrigger']} aria-label={userMenuLabel}>
+            <Avatar name={userName || userEmail} size={32} />
+            <span className={styles['userName']}>{userName || userEmail}</span>
+            <ChevronDownIcon size={16} aria-hidden="true" />
+          </summary>
+          <div className={styles['userMenuPanel']}>
+            <div className={styles['userIdentity']}>
+              <strong>{userName || userEmail}</strong><span className="text-caption">{userEmail}</span>
+            </div>
             {themeControl}
-            <span className={styles['userEmail']}>{userEmail}</span>
-            <Avatar name={userEmail} size={32} />
-            <IconButton
-              icon={<LogOutIcon size={18} />}
-              aria-label={logoutLabel}
-              onClick={onLogout}
-              disabled={logoutPending}
-            />
+            <Button variant="ghost" onClick={onLogout} disabled={logoutPending}><LogOutIcon size={18} />{logoutLabel}</Button>
           </div>
-        </header>
+        </details>
 
         <main className={styles['main']} data-testid="app-shell-main">
           {children}

@@ -5,6 +5,7 @@ import { SubscriptionStatusBanner } from '@/features/administration/presentation
 import { useLogout } from '@/features/auth/application/useLogout'
 import { useAuthSession } from '@/features/auth/application/useAuthSession'
 import { HabitexBootScreen } from '@/shared/components/HabitexBootScreen'
+import { getDisplayNameFromEmail } from '@/features/dashboard/presentation/getDisplayNameFromEmail'
 import { ThemeControl } from '@/shared/theme/ThemeControl'
 import { AppShell, type AppShellNavItem } from '@/shared/ui/AppShell'
 import { BuildingIcon, HomeIcon, KeyIcon, SettingsIcon, type IconProps } from '@/shared/ui/icons'
@@ -68,6 +69,10 @@ export function AuthenticatedLayout() {
       closeNavLabel={t('common:nav.closeMenu')}
       comingSoonLabel={t('common:nav.comingSoon')}
       userEmail={session?.email ?? ''}
+      userName={getDisplayNameFromEmail(session?.email) ?? session?.email ?? ''}
+      collapseNavLabel={t('common:nav.collapse')}
+      expandNavLabel={t('common:nav.expand')}
+      userMenuLabel={t('common:nav.userMenu')}
       themeControl={<ThemeControl />}
       logoutLabel={t('auth:logout.action')}
       logoutPending={logout.isPending}

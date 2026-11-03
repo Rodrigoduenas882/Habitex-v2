@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ThemeControl } from '@/shared/theme/ThemeControl'
@@ -14,6 +15,8 @@ import { StatusBadgesSection } from './StatusBadgesSection'
 import { TypographySection } from './TypographySection'
 import styles from './UiPreviewPage.module.css'
 
+const DashboardVisualPreview = lazy(() => import('./DashboardVisualPreview'))
+
 /**
  * Internal design-system evaluation tool. Public on purpose (see router.tsx):
  * it exists to review the visual language, not to expose product data, and
@@ -25,6 +28,10 @@ export default function UiPreviewPage() {
   useEffect(() => {
     document.title = t('meta.title')
   }, [t])
+
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('view') === 'dashboard') {
+    return <Suspense fallback={null}><DashboardVisualPreview /></Suspense>
+  }
 
   return (
     <div className={styles['page']}>

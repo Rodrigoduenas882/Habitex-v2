@@ -1,14 +1,15 @@
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--sidebar-width)), 1fr));
   gap: var(--space-3);
 }
 
 .action {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  height: 52px;
+  min-height: 52px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
@@ -53,7 +54,13 @@
 
 @media (max-width: 639px) {
   .grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-2);
   }
+}
+
+@media (max-width: 639px) {
+  .action { padding: var(--space-3); gap: var(--space-2); }
+  .label { white-space: normal; overflow: visible; }
+  .arrow { display: none; }
 }

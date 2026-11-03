@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { cx } from '@/shared/lib/cx'
+import { BuildingIcon, HomeIcon } from '@/shared/ui/icons'
 import { Badge, type BadgeTone } from '@/shared/ui/Badge'
 import { Card } from '@/shared/ui/Card'
 import type { Property } from '@/features/properties/domain/property.types'
@@ -36,29 +37,6 @@ const STATUS_LABEL_KEY: Record<
 }
 
 /**
- * Abstract skyline silhouette used as a placeholder in place of a real
- * property photo - no storage/media integration exists yet. Flat shapes at
- * varying opacity of a single token color, no gradients or imagery.
- */
-function PropertySkyline() {
-  return (
-    <svg
-      className={styles['skyline']}
-      viewBox="0 0 240 120"
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      <rect x="14" y="74" width="28" height="46" opacity="0.85" />
-      <rect x="48" y="52" width="34" height="68" opacity="0.5" />
-      <rect x="88" y="82" width="24" height="38" opacity="0.35" />
-      <rect x="118" y="36" width="40" height="84" opacity="1" />
-      <rect x="164" y="66" width="30" height="54" opacity="0.5" />
-      <rect x="200" y="78" width="26" height="42" opacity="0.3" />
-    </svg>
-  )
-}
-
-/**
  * Real Property card, decoupled from the mock PropertySummary shape.
  * `location` is composed here from the real Property fields (address, city)
  * since Property has no single pre-formatted location string - `status`/
@@ -68,12 +46,14 @@ function PropertySkyline() {
  */
 export function PropertyCard({ property, status, detail }: PropertyCardProps) {
   const { t } = useTranslation('dashboard')
+  const { t: propertyT } = useTranslation('properties')
+  const PropertyIcon = property.propertyType === 'HOUSE' ? HomeIcon : BuildingIcon
   const location = `${property.address}, ${property.city}`
 
   return (
-    <Card interactive className={styles['card']}>
+    <Card className={styles['card']}>
       <div className={styles['image']}>
-        <PropertySkyline />
+        <div className={styles['propertyType']}><PropertyIcon size={40} aria-hidden="true" /></div>
         <span className={styles['badgeOverlay']}>
           <Badge tone={STATUS_TONE[status]}>{t(STATUS_LABEL_KEY[status])}</Badge>
         </span>
@@ -81,6 +61,7 @@ export function PropertyCard({ property, status, detail }: PropertyCardProps) {
       <div className={styles['body']}>
         <p className={styles['name']}>{property.name}</p>
         <p className="text-caption">{location}</p>
+        {property.rentalMode === 'BY_ROOMS' ? <p className="text-caption">{propertyT(property.propertyType === 'HOUSE' ? 'propertyType.HOUSE' : 'propertyType.APARTMENT')}</p> : null}
         <p className={cx('text-caption', styles['detail'])}>{detail}</p>
       </div>
     </Card>

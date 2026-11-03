@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ThemeControl } from '@/shared/theme/ThemeControl'
 import { cx } from '@/shared/lib/cx'
 import { AppShell, type AppShellNavItem } from '@/shared/ui/AppShell'
 import { BuildingIcon, HomeIcon, KeyIcon, SettingsIcon, type IconProps } from '@/shared/ui/icons'
@@ -24,6 +25,7 @@ const ACTIVE_KEY: NavKey = 'home'
 
 export interface AppShellPreviewProps {
   children: ReactNode
+  fullViewport?: boolean
 }
 
 /**
@@ -32,7 +34,7 @@ export interface AppShellPreviewProps {
  * real authenticated app renders the same AppShell component with real data
  * (see app/layouts/AuthenticatedLayout.tsx).
  */
-export function AppShellPreview({ children }: AppShellPreviewProps) {
+export function AppShellPreview({ children, fullViewport = false }: AppShellPreviewProps) {
   const { t } = useTranslation(['common', 'auth'])
 
   const navItems: AppShellNavItem[] = NAV_KEYS.map(({ key, icon: Icon, to }) => ({
@@ -41,13 +43,15 @@ export function AppShellPreview({ children }: AppShellPreviewProps) {
     icon: <Icon size={18} />,
     // exactOptionalPropertyTypes: only include `to` when it actually has a
     // route, same pattern as AuthenticatedLayout's own navItems mapping.
-    ...(to ? { to } : {}),
+    ...(fullViewport && key !== 'settings'
+      ? { to: key === 'home' ? '/ui-preview?view=dashboard' : '/' + key }
+      : to ? { to } : {}),
     active: key === ACTIVE_KEY,
   }))
 
   return (
     <AppShell
-      className={cx(styles['previewShell'])}
+      className={cx(!fullViewport && styles['previewShell'])}
       brandName={t('common:home.title')}
       navItems={navItems}
       bottomNavKeys={BOTTOM_NAV_KEYS}
@@ -56,6 +60,11 @@ export function AppShellPreview({ children }: AppShellPreviewProps) {
       closeNavLabel={t('common:nav.closeMenu')}
       comingSoonLabel={t('common:nav.comingSoon')}
       userEmail={uiPreviewMockData.userEmail}
+      userName="Rodrigo"
+      collapseNavLabel={t('common:nav.collapse')}
+      expandNavLabel={t('common:nav.expand')}
+      userMenuLabel={t('common:nav.userMenu')}
+      themeControl={fullViewport ? <ThemeControl /> : undefined}
       // Not passing themeControl here on purpose: the page already has one
       // ThemeControl in its own header (source of truth for this preview),
       // and useTheme() instances don't share live state across each other -

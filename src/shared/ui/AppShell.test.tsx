@@ -138,3 +138,47 @@ describe('AppShell navigation items without a route ("Próximamente")', () => {
     expect(button).toHaveAccessibleDescription('Próximamente')
   })
 })
+
+
+describe('AppShell account and sidebar controls', () => {
+  it('keeps navigation available when the sidebar collapses', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const sidebar = within(screen.getByTestId('app-shell-sidebar'))
+    await user.click(sidebar.getByRole('button', { name: 'Contraer panel lateral' }))
+    expect(sidebar.getByRole('button', { name: 'Expandir panel lateral' })).toHaveAttribute('aria-expanded', 'false')
+    expect(sidebar.getByRole('link', { name: 'Inicio' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('closes the floating menu on an outside click and a route change', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const menu = screen.getByTestId('app-shell-user-menu')
+    const trigger = screen.getByLabelText('Menú de usuario')
+    await user.click(trigger)
+    expect(menu).toHaveAttribute('open')
+    await user.click(screen.getByText('Contenido'))
+    expect(menu).not.toHaveAttribute('open')
+    await user.click(trigger)
+    // Keyboard activation changes route without the outside pointer handler.
+    const link = within(screen.getByTestId('app-shell-sidebar')).getByRole('link', { name: 'Arriendos' })
+    link.focus()
+    await user.keyboard('{Enter}')
+    expect(menu).not.toHaveAttribute('open')
+  })
+
+  it('opens the account controls and returns focus after Escape', async () => {
+    const user = userEvent.setup()
+    const onLogout = vi.fn()
+    renderShell({ overrides: { onLogout, userName: 'Rodrigo' } })
+    const menu = screen.getByTestId('app-shell-user-menu')
+    const trigger = screen.getByLabelText('Menú de usuario')
+    await user.click(trigger)
+    expect(menu).toHaveAttribute('open')
+    await user.click(within(menu).getByRole('button', { name: 'Cerrar sesión' }))
+    expect(onLogout).toHaveBeenCalledOnce()
+    await user.keyboard('{Escape}')
+    expect(menu).not.toHaveAttribute('open')
+    expect(trigger).toHaveFocus()
+  })
+})
