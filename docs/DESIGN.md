@@ -41,7 +41,7 @@ excepciones documentadas en el §9 y §10.
 | Categoría | Tokens | Notas |
 |---|---|---|
 | Neutrales | `--color-background`, `--color-surface`, `--color-surface-hover`, `--color-foreground`, `--color-muted`, `--color-border`, `--color-control-border` | Redefinidos por tema. |
-| Brand | `--color-primary(-hover\|-foreground\|-subtle\|-subtle-foreground\|-accent)`, `--color-link(-hover)` | Acento aprobado en Figma ("Habitex - Design Lab", 2026-10): `#4667a9` claro / `#91b4eb` oscuro. En Dark, Figma dio un solo hex por tema pero `tokens.css` lo reparte en dos roles — igual que ya hacía con el verde anterior — porque ese valor claro falla contraste (2.11:1) usado directamente como fondo de botón con texto blanco: `--color-primary-accent` se queda en el valor exacto de Figma (usos no-fondo: borde activo, foco, gráficos), y `--color-primary` usa un azul más oscuro calculado aparte, solo para fondo de botón. Ver `tokens.css` para los contrastes medidos de cada uno. |
+| Brand | `--color-primary(-hover\|-foreground\|-subtle\|-subtle-foreground\|-accent)`, `--color-link(-hover)` | Acento aprobado en Figma ("Habitex - Design Lab", actualizado por el usuario 2026-11-03): `#4667a9` claro / `#79A9D1` oscuro. En Dark, Figma dio un solo hex por tema pero `tokens.css` lo reparte en dos roles — igual que ya hacía con el verde anterior — porque ese valor claro falla contraste (2.50:1) usado directamente como fondo de botón con texto blanco: `--color-primary-accent` se queda en el valor exacto de Figma (usos no-fondo: borde activo, foco, gráficos), y `--color-primary` usa un azul más oscuro calculado aparte, solo para fondo de botón. Ver `tokens.css` para los contrastes medidos de cada uno. |
 | Semantic tones | `success` / `warning` / `danger` / `info`, cada uno con la misma tripleta base/subtle/subtle-foreground | Ver §6. |
 | Shadows | `--shadow-sm/md/lg` | Redefinidas por tema (más planas y oscuras en Dark — un blur claro no se ve sobre superficies oscuras). |
 | Spacing | `--space-1` (4px) … `--space-10` (64px) | Escala de 4px. |
@@ -55,7 +55,7 @@ siempre `--color-success-subtle`.
 
 **`--color-border` vs. `--color-control-border`**: dos tokens, dos
 propósitos distintos, no intercambiables. `--color-border` es un divisor
-estructural (borde de sidebar/topbar/card/drawer) — contraste bajo contra
+estructural (borde de sidebar/card/drawer) — contraste bajo contra
 la superficie es aceptable ahí, es decoración de layout, no una superficie
 interactiva. `--color-control-border` es el límite de un control editable
 (`Input`/`Select`/`Textarea`, y el borde de `Button` `secondary`) — la única
@@ -191,7 +191,7 @@ shell de la app — lo usan tanto el layout autenticado real como `/ui-preview`
 
 - **Shell fijo**: `height: 100dvh` por defecto (configurable vía
   `--app-shell-height` solo para el caso contenido de `/ui-preview`),
-  `overflow: hidden`. El sidebar y el topbar nunca se mueven.
+  `overflow: hidden`. El sidebar y el menú de usuario conservan su posición.
 - **`.main` es la única zona de scroll** (`overflow-y: auto`, `min-height: 0`
   en toda la cadena de flex hasta ahí). Esto corrigió un bug real: antes, el
   shell crecía con el contenido y dejaba una columna vacía bajo un sidebar
@@ -209,8 +209,9 @@ shell de la app — lo usan tanto el layout autenticado real como `/ui-preview`
   (`aria-describedby`, `sr-only`), nunca visible. `disabled` nativo ya
   resuelve que no sea alcanzable por teclado ni dispare navegación — no se
   simula con `aria-disabled` a mano.
-- **Topbar**: altura fija `--topbar-height` (64px), `ThemeControl` + email +
-  `Avatar` + logout.
+- **Menú de usuario flotante**: nombre y avatar arriba a la derecha. Al abrir,
+  muestra correo, `ThemeControl` y cierre de sesión. Sin barra superior.
+  En escritorio el sidebar se contrae a un riel con un chevrón.
 - **Navegación móvil**: drawer (`position: fixed`, `inert` cuando está
   cerrado — no solo oculto visualmente) + bottom nav fijo (<640px).
 - **Breakpoints existentes: 640px y 1024px.** Son los únicos en toda la app
@@ -384,3 +385,20 @@ métricas del Login — exclusivo de esa tarjeta; crossfade y scrim —
 compartidos por las cuatro pantallas públicas de auth, §10) son casos
 cerrados y documentados — **no son precedente** para pedir
 una excepción nueva en otra pantalla sin la misma justificación explícita.
+
+
+## 14. Primer corte del Dashboard — incremento 2
+
+La instrucción del usuario de 2026-11-03 actualiza el acento oscuro a
+#79A9D1. Los fondos primarios de botón siguen separados para conservar
+contraste de texto blanco. Esta decisión sustituye el azul oscuro anterior
+del incremento 1.
+
+Como excepción a §10/§13, se permite vidrio moderado exclusivamente en las
+cuatro KPI cards del Dashboard y el disparador del menú de usuario:
+--dashboard-glass-surface, casi opaco, con borde y blur de 12px. El panel
+del menú y las tablas conservan fondos sólidos.
+
+El Dashboard de producción conserva sus consultas existentes y los estados
+loading/error/empty. El preview local usa la misma presentación con datos
+de demostración, marcados visiblemente y sin consultas de producto.

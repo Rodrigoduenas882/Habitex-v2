@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { cx } from '@/shared/lib/cx'
+import { EmptyState } from '@/shared/ui/EmptyState'
+import { WalletIcon } from '@/shared/ui/icons'
 import { Card } from '@/shared/ui/Card'
 import styles from './FinancialOverview.module.css'
 import type { DashboardFinancialMonth } from '../application/useDashboardFinancials'
@@ -23,7 +25,7 @@ export function FinancialOverview({ months }: FinancialOverviewProps) {
   const totalIncome = months.reduce((sum, month) => sum + month.income, 0)
 
   return (
-    <Card>
+    <Card className={styles['panel']}>
       <div className={styles['header']}>
         <div>
           <h2 className="text-h3">{t('financialOverview.title')}</h2>
@@ -41,10 +43,10 @@ export function FinancialOverview({ months }: FinancialOverviewProps) {
         </div>
       </div>
 
-      <div className={styles['chart']}>
+      {totalIncome === 0 ? <EmptyState icon={<WalletIcon size={24} />} title={t('financialOverview.emptyTitle')} description={t('financialOverview.emptyDescription')} /> : <div className={styles['chart']} role="list" aria-label={t('financialOverview.title')}>
         {months.map((month) => (
-          <div key={month.label} className={styles['month']}>
-            <div className={styles['bars']}>
+          <div key={month.label} className={styles['month']} role="listitem" aria-label={month.label + ': ' + formatCurrency(month.income)}>
+            <span className={styles['amount']} aria-hidden="true">{new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(month.income)}</span><div className={styles['bars']} aria-hidden="true">
               <span
                 className={cx(styles['bar'], styles['barIncome'])}
                 style={{ height: `${String((month.income / maxValue) * 100)}%` }}
@@ -53,7 +55,7 @@ export function FinancialOverview({ months }: FinancialOverviewProps) {
             <span className={cx('text-caption', styles['monthLabel'])}>{month.label}</span>
           </div>
         ))}
-      </div>
+      </div>}
     </Card>
   )
 }

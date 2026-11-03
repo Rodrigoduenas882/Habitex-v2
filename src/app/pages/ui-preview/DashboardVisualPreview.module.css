@@ -1,0 +1,1 @@
+.notice { max-width: var(--container-max-width); margin: 0 auto var(--space-6); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }

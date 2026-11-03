@@ -1,9 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { fireEvent, render as rtlRender, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import type { PropertyOccupancyMap } from '@/features/properties/application/usePropertyOccupancy'
 import type { Property } from '@/features/properties/domain/property.types'
 import { PropertiesOverview } from './PropertiesOverview'
+
+function render(ui: Parameters<typeof rtlRender>[0]) {
+  return rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+}
 
 function makeProperty(overrides: Partial<Property> = {}): Property {
   return {

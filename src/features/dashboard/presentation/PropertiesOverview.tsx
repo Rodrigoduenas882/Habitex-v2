@@ -3,6 +3,10 @@ import { useTranslation, type UseTranslationResponse } from 'react-i18next'
 import { derivePropertyOccupancyStatus, type PropertyOccupancyMap } from '@/features/properties/application/usePropertyOccupancy'
 import type { Property } from '@/features/properties/domain/property.types'
 import { cx } from '@/shared/lib/cx'
+import { useNavigate } from 'react-router-dom'
+import { EmptyState } from '@/shared/ui/EmptyState'
+import { Button } from '@/shared/ui/Button'
+import { BuildingIcon } from '@/shared/ui/icons'
 import { IconBadge } from '@/shared/ui/IconBadge'
 import { IconButton } from '@/shared/ui/IconButton'
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '@/shared/ui/icons'
@@ -72,6 +76,7 @@ function getScrollStep(row: HTMLDivElement): number {
  * second, redundant affordance.
  */
 export function PropertiesOverview({ properties, occupancy }: PropertiesOverviewProps) {
+  const navigate = useNavigate()
   const { t } = useTranslation(['dashboard', 'properties'])
   const rowRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -114,7 +119,7 @@ export function PropertiesOverview({ properties, occupancy }: PropertiesOverview
   return (
     <div>
       <h2 className={cx('text-h3', styles['title'])}>{t('properties.title')}</h2>
-      <div
+      {properties.length === 0 ? <EmptyState icon={<BuildingIcon size={24} />} title={t('properties.emptyTitle')} description={t('properties.emptyDescription')} action={<Button variant="secondary" onClick={() => { void navigate('/properties/new') }}>{t('properties.addProperty')}</Button>} /> : <div
         className={cx(styles['carousel'], hasControls && styles['hasControls'])}
         data-testid="properties-carousel"
       >
@@ -136,7 +141,7 @@ export function PropertiesOverview({ properties, occupancy }: PropertiesOverview
             const { status, detail } = derivePropertyDisplay(property, occupancy, t)
             return <PropertyCard key={property.id} property={property} status={status} detail={detail} />
           })}
-          <button type="button" className={propertyCardStyles['addCard']}>
+          <button type="button" className={propertyCardStyles['addCard']} onClick={() => { void navigate('/properties/new') }}>
             <span className={propertyCardStyles['addImage']} aria-hidden="true">
               <IconBadge
                 icon={<PlusIcon size={20} />}
@@ -166,7 +171,7 @@ export function PropertiesOverview({ properties, occupancy }: PropertiesOverview
             }}
           />
         ) : null}
-      </div>
+      </div>}
     </div>
   )
 }

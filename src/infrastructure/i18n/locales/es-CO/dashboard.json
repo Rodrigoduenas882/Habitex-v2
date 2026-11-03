@@ -1,9 +1,10 @@
 {
   "greeting": {
-    "hello": "Hola, {{name}} 👋",
-    "helloGeneric": "Hola 👋",
-    "subtitle": "Aquí tienes un resumen de tu operación inmobiliaria.",
-    "period": "Hoy"
+    "hello": "Hola, {{name}}",
+    "helloGeneric": "Tu operación, de un vistazo",
+    "subtitle": "Lo que necesitas saber para administrar tus arriendos hoy.",
+    "period": "Hoy",
+    "eyebrow": "INICIO / RESUMEN GENERAL"
   },
   "kpis": {
     "monthlyIncome": "Ingresos del mes",
@@ -12,7 +13,9 @@
     "properties": "Inmuebles",
     "occupancyTrend": "{{occupied}} de {{total}} ocupados",
     "occupancyNoData": "Sin unidades registradas",
-    "loadError": "No pudimos cargar este dato"
+    "loadError": "No pudimos cargar este dato",
+    "incomeScope": "Abonos confirmados de arriendos del mes",
+    "receivableScope": "Saldo pendiente de arriendos del mes"
   },
   "quickActions": {
     "title": "Acciones rápidas",
@@ -22,10 +25,12 @@
     "uploadDocument": "Subir documento"
   },
   "financialOverview": {
-    "title": "Ingresos del mes",
+    "title": "Evolución de ingresos",
     "subtitle": "Últimos 6 meses",
     "income": "Ingresos",
-    "loadError": "No pudimos cargar el resumen financiero."
+    "loadError": "No pudimos cargar el resumen financiero.",
+    "emptyTitle": "Aún no hay ingresos registrados",
+    "emptyDescription": "Los abonos confirmados de tus cargos de arriendo aparecerán aquí."
   },
   "attention": {
     "title": "Requiere tu atención",
@@ -34,8 +39,21 @@
     "documentPending": "Documento pendiente",
     "view": "Ver",
     "emptyTitle": "Todo al día",
-    "emptyDescription": "No tienes pendientes por revisar en este momento.",
-    "loadError": "No pudimos cargar tus pendientes."
+    "emptyDescription": "Sin pagos por confirmar ni cobros vencidos en los últimos 6 meses.",
+    "loadError": "No pudimos cargar tus pendientes.",
+    "subtitle": "Reportes por revisar y cobros vencidos",
+    "paymentColumn": "Reporte",
+    "amountColumn": "Valor",
+    "actionColumn": "Acción",
+    "reportedTitle": "Pagos reportados por confirmar",
+    "overdueTitle": "Cobros vencidos",
+    "overdueScope": "Vencimientos de los últimos 6 meses. No incluye cartera anterior.",
+    "propertyColumn": "Inmueble / arriendo",
+    "rentalReference": "Arriendo {{id}}",
+    "chargeOverdue": "Cobro vencido",
+    "noReported": "Sin pagos reportados por confirmar.",
+    "noOverdue": "Sin cobros vencidos en este período.",
+    "overdueError": "No pudimos cargar los cobros vencidos."
   },
   "properties": {
     "title": "Mis inmuebles",
@@ -46,7 +64,9 @@
     "addProperty": "Agregar inmueble",
     "previous": "Ver inmuebles anteriores",
     "next": "Ver más inmuebles",
-    "loadError": "No pudimos cargar tus inmuebles."
+    "loadError": "No pudimos cargar tus inmuebles.",
+    "emptyTitle": "Tu portafolio empieza aquí",
+    "emptyDescription": "Agrega tu primer inmueble para empezar a organizar su operación."
   },
   "errors": {
     "administrationTitle": "No pudimos cargar tu administración",

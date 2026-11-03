@@ -19,6 +19,9 @@ const {
   rentalsListByAdministration: vi.fn(),
 }))
 
+const { listParkings } = vi.hoisted(() => ({ listParkings: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/features/parking/infrastructure/supabase-parking.repository', () => ({ supabaseParkingRepository: { listByAdministration: listParkings } }))
+
 vi.mock('@/features/properties/infrastructure/supabase-property.repository', () => ({
   supabasePropertyRepository: { listByAdministration: propertiesListByAdministration },
 }))
@@ -148,7 +151,84 @@ function setUpRealisticFixture() {
   ])
 }
 
+function parkingSubject(id: string, parkingId: string) {
+  return {
+    id,
+    administrationId: 'admin-1',
+    subjectType: 'PARKING' as const,
+    propertyId: null,
+    roomId: null,
+    parkingId,
+    label: parkingId,
+  }
+}
+
 describe('useDashboardOccupancy', () => {
+  /**
+   * Covers the full parking matrix (independent/associated x
+   * vacant/occupied, plus INCLUDED bundled with the parent property's own
+   * lease) - the exact combinations the HIGH finding (associated parkings
+   * silently excluded) and the MEDIUM finding (INCLUDED treated as always
+   * vacant) were missing.
+   */
+  it('counts every parking as its own unit, associated or not, and treats a live PRIMARY or INCLUDED link as occupied', async () => {
+    propertiesListByAdministration.mockResolvedValueOnce([property('prop-full-1', 'FULL_PROPERTY')])
+    roomsListByAdministration.mockResolvedValueOnce([])
+    listParkings.mockResolvedValueOnce([
+      { id: 'indep-vacant', propertyId: null },
+      { id: 'indep-rented', propertyId: null },
+      { id: 'attached-included', propertyId: 'prop-full-1' },
+      { id: 'attached-own-lease', propertyId: 'prop-full-1' },
+      { id: 'attached-vacant', propertyId: 'prop-full-1' },
+    ])
+    subjectsListByAdministration.mockImplementation((_id: string, type: string) => {
+      if (type === 'FULL_PROPERTY') return Promise.resolve([fullPropertySubject('subj-full-1', 'prop-full-1')])
+      if (type === 'PARKING') {
+        return Promise.resolve([
+          parkingSubject('subj-indep-vacant', 'indep-vacant'),
+          parkingSubject('subj-indep-rented', 'indep-rented'),
+          parkingSubject('subj-attached-included', 'attached-included'),
+          parkingSubject('subj-attached-own-lease', 'attached-own-lease'),
+          parkingSubject('subj-attached-vacant', 'attached-vacant'),
+        ])
+      }
+      return Promise.resolve([])
+    })
+    linksListByAdministration.mockResolvedValueOnce([
+      // prop-full-1's own lease, bundled together with its attached parking as INCLUDED.
+      { rentalRelationshipId: 'rel-full-1', rentalSubjectId: 'subj-full-1', subjectRole: 'PRIMARY' },
+      { rentalRelationshipId: 'rel-full-1', rentalSubjectId: 'subj-attached-included', subjectRole: 'INCLUDED' },
+      // An independent parking rented on its own.
+      { rentalRelationshipId: 'rel-indep-rented', rentalSubjectId: 'subj-indep-rented', subjectRole: 'PRIMARY' },
+      // An associated parking rented separately from its parent property's lease.
+      { rentalRelationshipId: 'rel-attached-own-lease', rentalSubjectId: 'subj-attached-own-lease', subjectRole: 'PRIMARY' },
+    ])
+    rentalsListByAdministration.mockResolvedValueOnce([
+      rental('rel-full-1', 'ACTIVE'),
+      rental('rel-indep-rented', 'ACTIVE'),
+      rental('rel-attached-own-lease', 'ACTIVE'),
+    ])
+    const { result } = renderHook(() => useDashboardOccupancy('admin-1'), { wrapper })
+    await waitFor(() => {
+      // totalUnits: prop-full-1 (1) + 5 parkings = 6.
+      // occupiedUnits: prop-full-1, indep-rented, attached-included (via INCLUDED), attached-own-lease = 4.
+      // indep-vacant and attached-vacant stay unoccupied - having a parent property never implies occupied.
+      expect(result.current).toEqual({ status: 'ready', totalUnits: 6, occupiedUnits: 4, percentage: 67 })
+    })
+  })
+
+  it('does not count a parking with no matching rental_subjects row as an error, nor as occupied', async () => {
+    propertiesListByAdministration.mockResolvedValueOnce([])
+    roomsListByAdministration.mockResolvedValueOnce([])
+    listParkings.mockResolvedValueOnce([{ id: 'orphan', propertyId: null }])
+    subjectsListByAdministration.mockResolvedValue([])
+    linksListByAdministration.mockResolvedValueOnce([])
+    rentalsListByAdministration.mockResolvedValueOnce([])
+    const { result } = renderHook(() => useDashboardOccupancy('admin-1'), { wrapper })
+    await waitFor(() => {
+      expect(result.current).toEqual({ status: 'ready', totalUnits: 1, occupiedUnits: 0, percentage: 0 })
+    })
+  })
   it('computes occupiedUnits/totalUnits/percentage exactly, per the human-approved occupancy definition', async () => {
     setUpRealisticFixture()
 

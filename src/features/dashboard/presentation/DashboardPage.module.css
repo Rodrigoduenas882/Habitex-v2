@@ -1,34 +1,12 @@
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  /* Prevent the horizontally-scrolling properties row from ever widening
-     the page itself. */
-  min-width: 0;
-  overflow-x: hidden;
-}
-
-.kpiGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-4);
-}
-
-/* DS-004: children are AttentionPanel (actionable) then FinancialOverview
-   (informational), in that DOM order, so mobile's single-column stack shows
-   the actionable list first. On desktop the columns are mirrored (1fr 2fr
-   instead of 2fr 1fr) so the wider column still goes to FinancialOverview -
-   desktop's visual weight distribution is unchanged, only left/right swap. */
-.analytics {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
+.page { display: flex; flex-direction: column; gap: var(--space-6); max-width: var(--container-max-width); margin: 0 auto; min-width: 0; }
+.kpiGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.analytics { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); min-width: 0; }
+.analytics > * { min-width: 0; }
+@media (min-width: 640px) { .kpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1024px) {
-  .analytics {
-    grid-template-columns: 1fr 2fr;
-    gap: var(--space-6);
-  }
+  .page { gap: var(--space-7); }
+  .kpiGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .analytics { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+  .analytics > :first-child { grid-column: 2; grid-row: 1; }
+  .analytics > :last-child { grid-column: 1; grid-row: 1; }
 }

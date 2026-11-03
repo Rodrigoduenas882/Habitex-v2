@@ -42,6 +42,9 @@
     "more": "Más",
     "openMenu": "Abrir menú",
     "closeMenu": "Cerrar menú",
-    "comingSoon": "Próximamente"
+    "comingSoon": "Próximamente",
+    "collapse": "Contraer panel lateral",
+    "expand": "Expandir panel lateral",
+    "userMenu": "Menú de usuario"
   }
 }
