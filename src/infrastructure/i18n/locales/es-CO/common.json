@@ -36,11 +36,8 @@
   },
   "nav": {
     "home": "Inicio",
-    "rentals": "Arriendos",
     "properties": "Inmuebles",
-    "people": "Personas",
-    "finances": "Finanzas",
-    "documents": "Documentos",
+    "rentals": "Arriendos",
     "settings": "Configuración",
     "more": "Más",
     "openMenu": "Abrir menú",

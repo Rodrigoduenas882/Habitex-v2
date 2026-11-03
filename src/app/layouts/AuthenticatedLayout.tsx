@@ -7,24 +7,20 @@ import { useAuthSession } from '@/features/auth/application/useAuthSession'
 import { HabitexBootScreen } from '@/shared/components/HabitexBootScreen'
 import { ThemeControl } from '@/shared/theme/ThemeControl'
 import { AppShell, type AppShellNavItem } from '@/shared/ui/AppShell'
-import {
-  BuildingIcon,
-  FileTextIcon,
-  HomeIcon,
-  KeyIcon,
-  SettingsIcon,
-  UsersIcon,
-  WalletIcon,
-  type IconProps,
-} from '@/shared/ui/icons'
+import { BuildingIcon, HomeIcon, KeyIcon, SettingsIcon, type IconProps } from '@/shared/ui/icons'
 
-type NavKey = 'home' | 'rentals' | 'properties' | 'people' | 'finances' | 'documents' | 'settings'
+type NavKey = 'home' | 'properties' | 'rentals' | 'settings'
 
 /**
- * "Inicio", "Arriendos" and "Inmuebles" are real routes; the rest are
- * planned sections shown for navigation context, matching the approved
- * Design System shell. They don't navigate anywhere yet - that's
- * intentional, not a bug.
+ * Unified navigation (approved 2026-10, Figma "Habitex - Design Lab"):
+ * exactly these 4 destinations, in this order - Inicio, Inmuebles,
+ * Arriendos, Configuración. "Inicio", "Inmuebles" and "Arriendos" are real
+ * routes; "Configuración" stays inert (no `to`) because implementing that
+ * screen is explicitly out of scope for this increment - same "Próximamente"
+ * treatment AppShell already gives any route-less item, not a new pattern.
+ * Personas/Finanzas/Documentos were removed entirely (not just hidden) -
+ * they had no real route before either, and the approved navigation has no
+ * place for them.
  */
 const NAV_KEYS: ReadonlyArray<{
   key: NavKey
@@ -32,15 +28,12 @@ const NAV_KEYS: ReadonlyArray<{
   to?: string
 }> = [
   { key: 'home', icon: HomeIcon, to: '/' },
-  { key: 'rentals', icon: KeyIcon, to: '/rentals' },
   { key: 'properties', icon: BuildingIcon, to: '/properties' },
-  { key: 'people', icon: UsersIcon },
-  { key: 'finances', icon: WalletIcon },
-  { key: 'documents', icon: FileTextIcon },
+  { key: 'rentals', icon: KeyIcon, to: '/rentals' },
   { key: 'settings', icon: SettingsIcon },
 ]
 
-const BOTTOM_NAV_KEYS = ['home', 'rentals', 'properties', 'finances']
+const BOTTOM_NAV_KEYS = ['home', 'properties', 'rentals', 'settings']
 
 export function AuthenticatedLayout() {
   const { t } = useTranslation(['common', 'auth'])

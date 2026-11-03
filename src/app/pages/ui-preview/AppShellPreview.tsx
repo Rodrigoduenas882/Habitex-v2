@@ -2,37 +2,24 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cx } from '@/shared/lib/cx'
 import { AppShell, type AppShellNavItem } from '@/shared/ui/AppShell'
-import {
-  BuildingIcon,
-  FileTextIcon,
-  HomeIcon,
-  KeyIcon,
-  SettingsIcon,
-  UsersIcon,
-  WalletIcon,
-  type IconProps,
-} from '@/shared/ui/icons'
+import { BuildingIcon, HomeIcon, KeyIcon, SettingsIcon, type IconProps } from '@/shared/ui/icons'
 import styles from './AppShellPreview.module.css'
 import { uiPreviewMockData } from './mock-data'
 
-type NavKey = 'home' | 'rentals' | 'properties' | 'people' | 'finances' | 'documents' | 'settings'
+type NavKey = 'home' | 'properties' | 'rentals' | 'settings'
 
+/** Mirrors the real AuthenticatedLayout's unified navigation (approved
+ * 2026-10) - same 4 keys, same order, same single real link ('home') so
+ * this preview still demonstrates AppShell's active-link styling instead of
+ * showing every item disabled. */
 const NAV_KEYS: Array<{ key: NavKey; icon: (props: IconProps) => ReactNode; to?: string }> = [
-  // Only 'home' carries a `to` - same ratio of real-vs-"Próximamente" items
-  // as the real AuthenticatedLayout (3 real, 4 planned), so this preview
-  // still demonstrates AppShell's active-link styling instead of showing
-  // every item disabled (which previously made .navItemActive impossible
-  // to visually check here).
   { key: 'home', icon: HomeIcon, to: '/ui-preview' },
-  { key: 'rentals', icon: KeyIcon },
   { key: 'properties', icon: BuildingIcon },
-  { key: 'people', icon: UsersIcon },
-  { key: 'finances', icon: WalletIcon },
-  { key: 'documents', icon: FileTextIcon },
+  { key: 'rentals', icon: KeyIcon },
   { key: 'settings', icon: SettingsIcon },
 ]
 
-const BOTTOM_NAV_KEYS: NavKey[] = ['home', 'rentals', 'properties', 'finances']
+const BOTTOM_NAV_KEYS: NavKey[] = ['home', 'properties', 'rentals', 'settings']
 const ACTIVE_KEY: NavKey = 'home'
 
 export interface AppShellPreviewProps {
