@@ -1,8 +1,35 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppShell, type AppShellNavItem } from './AppShell'
+
+/** A controllable `window.matchMedia('(min-width: 1024px)')` stand-in: lets
+ * a test flip the desktop breakpoint on demand via `triggerChange`, the way
+ * a real resize/rotation would fire the media query's `change` event. */
+function createDesktopBreakpointMock(initialMatches = false) {
+  let listener: ((event: MediaQueryListEvent) => void) | null = null
+  const removeEventListener = vi.fn()
+  const mql = {
+    matches: initialMatches,
+    media: '(min-width: 1024px)',
+    addEventListener: vi.fn((_event: string, cb: (event: MediaQueryListEvent) => void) => {
+      listener = cb
+    }),
+    removeEventListener,
+    dispatchEvent: vi.fn(),
+  }
+  return {
+    removeEventListener,
+    triggerChange(matches: boolean) {
+      mql.matches = matches
+      listener?.({ matches } as MediaQueryListEvent)
+    },
+    install() {
+      vi.spyOn(window, 'matchMedia').mockReturnValue(mql as unknown as MediaQueryList)
+    },
+  }
+}
 
 const NAV_ITEMS: AppShellNavItem[] = [
   { key: 'home', label: 'Inicio', icon: <span aria-hidden="true">H</span>, to: '/', active: true },
@@ -244,5 +271,72 @@ describe('AppShell mobile drawer focus management', () => {
 
     await user.keyboard('{Escape}')
     expect(trigger).toHaveFocus()
+  })
+})
+
+describe('AppShell drawer auto-close on the desktop breakpoint (375→1024)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('closes the drawer, lifts the inert lock, and moves focus to main content when the viewport crosses into desktop', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    await user.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+    expect(bodyWrapper).toHaveAttribute('inert')
+
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+    // Not the (now CSS-hidden) mobile trigger, and not an unfocused BODY.
+    expect(screen.getByTestId('app-shell-main')).toHaveFocus()
+  })
+
+  it('does the same when the drawer was opened from the bottom nav\'s "Más" button', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    await user.click(screen.getByRole('button', { name: 'Más', hidden: true }))
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+    expect(bodyWrapper).toHaveAttribute('inert')
+
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+    expect(screen.getByTestId('app-shell-main')).toHaveFocus()
+  })
+
+  it('is a no-op while the drawer is already closed, and does not fire on mount', () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    renderShell()
+
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+    expect(screen.getByTestId('app-shell-main')).not.toHaveFocus()
+  })
+
+  it('removes the breakpoint listener on unmount', () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const { unmount } = renderShell()
+
+    unmount()
+
+    expect(breakpoint.removeEventListener).toHaveBeenCalledTimes(1)
   })
 })

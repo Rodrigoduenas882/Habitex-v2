@@ -81,7 +81,12 @@ export function AppShell({
   // real trigger on close, not always a hardcoded one.
   const drawerTriggerRef = useRef<HTMLButtonElement | null>(null)
   const drawerCloseButtonRef = useRef<HTMLButtonElement>(null)
+  const mainRef = useRef<HTMLElement>(null)
   const wasDrawerOpenRef = useRef(false)
+  // Set right before an auto-close triggered by crossing into the desktop
+  // breakpoint (not a real user close) - the mobile trigger is hidden by
+  // CSS at that width, so focus must land on something visible instead.
+  const isBreakpointCloseRef = useRef(false)
   const location = useLocation()
 
   function openDrawer(event: MouseEvent<HTMLButtonElement>) {
@@ -122,17 +127,48 @@ export function AppShell({
     }
   }, [isDrawerOpen])
 
+  // The drawer only exists as a mobile/tablet affordance - CSS hides it
+  // outright at the same 1024px breakpoint `.sidebar` switches on. Resizing
+  // (or rotating) past that threshold while it's open previously left
+  // `isDrawerOpen` (and the `inert` lock on the rest of the shell) stuck
+  // true, since nothing ever told React the breakpoint had changed. One
+  // `matchMedia` listener for the component's lifetime closes it the moment
+  // the viewport crosses into desktop, regardless of how fast or how often
+  // that happens.
+  useEffect(() => {
+    const desktopQuery = window.matchMedia('(min-width: 1024px)')
+
+    function handleBreakpointChange(event: MediaQueryListEvent) {
+      if (!event.matches) return
+      isBreakpointCloseRef.current = true
+      setDrawerOpen(false)
+    }
+
+    desktopQuery.addEventListener('change', handleBreakpointChange)
+    return () => {
+      desktopQuery.removeEventListener('change', handleBreakpointChange)
+    }
+  }, [])
+
   // Moves focus into the drawer on open (first focusable control - the
   // close button) and, on every close path (Escape, close button, outside
   // click, or a nav link navigating away), restores it to whichever button
   // actually opened it - but only if that trigger is still mounted; a route
   // change that unmounts it just leaves focus wherever the browser put it,
-  // instead of forcing it onto a detached element.
+  // instead of forcing it onto a detached element. The one exception is the
+  // breakpoint auto-close above: that mobile trigger is now CSS-hidden, so
+  // focus goes to the main content landmark (always visible on desktop)
+  // instead of a hidden control or an unfocused BODY.
   useEffect(() => {
     if (isDrawerOpen) {
       drawerCloseButtonRef.current?.focus()
     } else if (wasDrawerOpenRef.current) {
-      drawerTriggerRef.current?.focus()
+      if (isBreakpointCloseRef.current) {
+        mainRef.current?.focus()
+        isBreakpointCloseRef.current = false
+      } else {
+        drawerTriggerRef.current?.focus()
+      }
     }
     wasDrawerOpenRef.current = isDrawerOpen
   }, [isDrawerOpen])
@@ -269,7 +305,9 @@ export function AppShell({
           </div>
         </details>
 
-        <main className={styles['main']} data-testid="app-shell-main">
+        {/* tabIndex=-1: not part of the normal Tab order, only a
+            programmatic focus target for the breakpoint auto-close above. */}
+        <main className={styles['main']} data-testid="app-shell-main" ref={mainRef} tabIndex={-1}>
           {children}
         </main>
 

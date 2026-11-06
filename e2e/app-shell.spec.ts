@@ -185,3 +185,88 @@ test.describe('AppShell mobile drawer focus management (375px)', () => {
     await expect(trigger).toBeFocused()
   })
 })
+
+test.describe('AppShell drawer auto-close when resizing past the desktop breakpoint (375 → 1024 → 375)', () => {
+  for (const openWith of ['Abrir menú', 'Más'] as const) {
+    test(`drawer opened via "${openWith}": widening to desktop closes it, lifts the content lock, and leaves focus on something visible`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 375, height: 812 })
+      await page.goto('/ui-preview')
+      const shell = page.getByTestId('app-shell')
+
+      const trigger = shell.getByRole('button', { name: openWith })
+      await trigger.click()
+      const closeButton = shell.getByRole('button', { name: 'Cerrar menú' })
+      await expect(closeButton).toBeFocused()
+
+      const userMenuTrigger = shell.getByLabel('Menú de usuario')
+      const main = shell.getByTestId('app-shell-main')
+
+      await page.setViewportSize({ width: 1440, height: 900 })
+      // Lets the width/transform transitions this resize triggers (sidebar,
+      // drawer, and the rest of this long design-system page reflowing)
+      // settle before interacting, so the click below lands on the real
+      // target instead of a mid-transition layout.
+      await page.waitForTimeout(400)
+
+      // Drawer is gone, not just CSS-hidden-but-still-"open" in state.
+      await expect(shell.getByTestId('app-shell-drawer')).not.toBeInViewport()
+
+      // Focus landed on a visible desktop control - the main content
+      // landmark - never the now-hidden mobile trigger and never BODY.
+      // Checked before touching anything else, since the user menu's own
+      // (pre-existing, unrelated) Escape handling moves focus to itself.
+      await expect(main).toBeFocused()
+      const activeElementTag = await page.evaluate(() => document.activeElement?.tagName)
+      expect(activeElementTag).not.toBe('BODY')
+
+      // The `inert` lock on the rest of the shell is lifted: the floating
+      // user menu is reachable again - the concrete symptom the audit
+      // reproduced.
+      await userMenuTrigger.click()
+      await expect(shell.getByTestId('app-shell-user-menu')).toHaveAttribute('open')
+      await page.keyboard.press('Escape')
+      await expect(shell.getByTestId('app-shell-user-menu')).not.toHaveAttribute('open')
+
+      // Shrinking back down doesn't resurrect the drawer, and the real
+      // mobile trigger opens a fresh one normally.
+      await page.setViewportSize({ width: 375, height: 812 })
+      await expect(shell.getByTestId('app-shell-drawer')).not.toBeInViewport()
+
+      await trigger.click()
+      await expect(closeButton).toBeFocused()
+      await expect(shell.getByTestId('app-shell-drawer')).toBeInViewport()
+    })
+  }
+
+  test('rapid 375 → 1024 → 375 → 1024 resizes settle on a single consistent state with no runtime errors', async ({
+    page,
+  }) => {
+    const pageErrors: string[] = []
+    page.on('pageerror', (error) => pageErrors.push(error.message))
+
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto('/ui-preview')
+    const shell = page.getByTestId('app-shell')
+
+    await shell.getByRole('button', { name: 'Abrir menú' }).click()
+    await expect(shell.getByRole('button', { name: 'Cerrar menú' })).toBeFocused()
+
+    for (const width of [1440, 375, 1440, 375, 1440]) {
+      await page.setViewportSize({ width, height: 900 })
+    }
+    await page.waitForTimeout(400)
+
+    // Settled at desktop width: closed, not inert, no stuck state from the
+    // rapid back-and-forth.
+    await expect(shell.getByTestId('app-shell-drawer')).not.toBeInViewport()
+    await expect(shell.getByTestId('app-shell-main')).toBeFocused()
+
+    const userMenuTrigger = shell.getByLabel('Menú de usuario')
+    await userMenuTrigger.click()
+    await expect(shell.getByTestId('app-shell-user-menu')).toHaveAttribute('open')
+
+    expect(pageErrors).toEqual([])
+  })
+})
