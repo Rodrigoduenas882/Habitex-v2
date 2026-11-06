@@ -61,3 +61,35 @@ test.describe('AppShell scroll containment (desktop)', () => {
     expect(hasHorizontalOverflow).toBe(false)
   })
 })
+
+test.describe('AppShell collapsible sidebar (desktop)', () => {
+  test('hovering or focusing inside the collapsed sidebar temporarily reveals labels again', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/ui-preview')
+
+    const sidebar = page.getByTestId('app-shell-sidebar')
+    const homeLabel = sidebar.getByText('Inicio', { exact: true })
+
+    await expect(homeLabel).toBeVisible()
+    await sidebar.getByRole('button', { name: 'Contraer panel lateral' }).click()
+    // Right after this click, the pointer is still over the sidebar (that's
+    // where the collapse button lives) and the button itself keeps focus -
+    // both of which are themselves a "peek" trigger - so clicking elsewhere
+    // clears both before observing the actual collapsed/idle state.
+    await page.mouse.click(800, 450)
+    await expect(homeLabel).toBeHidden()
+
+    // Mouse hover peek.
+    await sidebar.hover()
+    await expect(homeLabel).toBeVisible()
+    await page.mouse.click(800, 450)
+    await expect(homeLabel).toBeHidden()
+
+    // Keyboard focus peek: tabbing onto a nav link inside the rail widens
+    // it back out too, not just mouse hover.
+    await page.getByRole('link', { name: 'Inicio' }).focus()
+    await expect(homeLabel).toBeVisible()
+  })
+})

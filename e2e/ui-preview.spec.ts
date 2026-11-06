@@ -11,7 +11,7 @@ test.describe('/ui-preview', () => {
     await expect(page.getByRole('heading', { name: 'App shell' })).toBeVisible()
   })
 
-  test('theme control switches Light/Dark/System and persists the choice across reloads', async ({
+  test('theme control switches Light/Dark and persists the choice across reloads', async ({
     page,
   }) => {
     await page.goto('/ui-preview')
