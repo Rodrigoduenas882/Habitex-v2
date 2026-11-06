@@ -339,4 +339,73 @@ describe('AppShell drawer auto-close on the desktop breakpoint (375→1024)', ()
 
     expect(breakpoint.removeEventListener).toHaveBeenCalledTimes(1)
   })
+
+  it('does not let a breakpoint crossing that happened while closed hijack a later real close (375 closed → 1024 → 375 → open → Escape)', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    // Crosses into desktop, then back, with the drawer never open - this
+    // used to set the "breakpoint close" reason anyway, leaving it stale.
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+    act(() => {
+      breakpoint.triggerChange(false)
+    })
+
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    // A real close right after must restore focus to the real trigger, not
+    // main (which would mean the stale reason from the earlier no-op
+    // crossing was incorrectly consumed here).
+    expect(trigger).toHaveFocus()
+  })
+
+  it('does the same for the "Más" trigger', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+    act(() => {
+      breakpoint.triggerChange(false)
+    })
+
+    const trigger = screen.getByRole('button', { name: 'Más', hidden: true })
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    expect(trigger).toHaveFocus()
+  })
+
+  it('clears a stale breakpoint-close reason on open even if one somehow survived', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+    await user.click(trigger)
+    // A real breakpoint close while genuinely open - sets the reason and
+    // consumes it immediately, as covered above. Re-opening afterwards
+    // must start clean regardless.
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+    act(() => {
+      breakpoint.triggerChange(false)
+    })
+
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    expect(trigger).toHaveFocus()
+  })
 })

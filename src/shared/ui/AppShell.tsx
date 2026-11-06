@@ -87,10 +87,27 @@ export function AppShell({
   // breakpoint (not a real user close) - the mobile trigger is hidden by
   // CSS at that width, so focus must land on something visible instead.
   const isBreakpointCloseRef = useRef(false)
+  // Mirrors `isDrawerOpen` for the matchMedia handler below, which is a
+  // long-lived listener (mounted once, deps []) and would otherwise only
+  // ever see the `isDrawerOpen` value from the render it was created in.
+  const isDrawerOpenRef = useRef(isDrawerOpen)
   const location = useLocation()
+
+  // Kept in sync via an effect (not a plain assignment during render,
+  // which React disallows for refs) - still current by the time the
+  // matchMedia handler can fire, since effects always finish before the
+  // browser gets to process the next (async) event.
+  useEffect(() => {
+    isDrawerOpenRef.current = isDrawerOpen
+  }, [isDrawerOpen])
 
   function openDrawer(event: MouseEvent<HTMLButtonElement>) {
     drawerTriggerRef.current = event.currentTarget
+    // Clears any breakpoint-close reason left over from a previous cycle
+    // (e.g. a desktop crossing that happened while no drawer was open),
+    // so a normal close right after this open always restores focus to
+    // this real trigger instead of main.
+    isBreakpointCloseRef.current = false
     setDrawerOpen(true)
   }
   useEffect(() => {
@@ -139,7 +156,11 @@ export function AppShell({
     const desktopQuery = window.matchMedia('(min-width: 1024px)')
 
     function handleBreakpointChange(event: MediaQueryListEvent) {
-      if (!event.matches) return
+      // Nothing to close, and critically: nothing to flag as a breakpoint
+      // close either - setting the flag here regardless of whether a
+      // drawer was open is what let it survive, stale, until an unrelated
+      // later close mistook it for its own.
+      if (!event.matches || !isDrawerOpenRef.current) return
       isBreakpointCloseRef.current = true
       setDrawerOpen(false)
     }

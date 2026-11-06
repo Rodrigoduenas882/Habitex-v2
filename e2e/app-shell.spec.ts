@@ -269,4 +269,65 @@ test.describe('AppShell drawer auto-close when resizing past the desktop breakpo
 
     expect(pageErrors).toEqual([])
   })
+
+  for (const openWith of ['Abrir menú', 'Más'] as const) {
+    test(`a desktop crossing while closed does not hijack the next real close (closed 375 → 1024 → 375 → open via "${openWith}" → Escape)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 375, height: 812 })
+      await page.goto('/ui-preview')
+      const shell = page.getByTestId('app-shell')
+      // Waits for AppShell to actually mount (and its matchMedia listener
+      // to subscribe) before the first resize below - resizing too early
+      // races the component's own effect setup and would silently miss the
+      // very breakpoint crossing this test depends on.
+      await shell.getByRole('button', { name: 'Abrir menú' }).waitFor({ state: 'visible' })
+
+      // The drawer stays closed through this whole round trip - this is the
+      // exact reproduction from the third audit: a breakpoint crossing with
+      // nothing open left a stale "breakpoint close" reason that hijacked
+      // the *next* real close below.
+      await page.setViewportSize({ width: 1024, height: 900 })
+      await page.waitForTimeout(400)
+      await page.setViewportSize({ width: 375, height: 812 })
+      await page.waitForTimeout(400)
+
+      const trigger = shell.getByRole('button', { name: openWith })
+      await trigger.click()
+      const closeButton = shell.getByRole('button', { name: 'Cerrar menú' })
+      await expect(closeButton).toBeFocused()
+
+      await page.keyboard.press('Escape')
+
+      // Must be the real trigger, not <main> (the breakpoint-close target)
+      // and not BODY.
+      await expect(trigger).toBeFocused()
+      const activeElementTag = await page.evaluate(() => document.activeElement?.tagName)
+      expect(activeElementTag).not.toBe('BODY')
+      expect(activeElementTag).not.toBe('MAIN')
+    })
+  }
+
+  test('the same holds after several rapid crossings while closed, for both triggers in sequence', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto('/ui-preview')
+    const shell = page.getByTestId('app-shell')
+    await shell.getByRole('button', { name: 'Abrir menú' }).waitFor({ state: 'visible' })
+
+    for (const width of [1024, 375, 1024, 375, 1024, 375]) {
+      await page.setViewportSize({ width, height: 900 })
+    }
+    await page.waitForTimeout(400)
+
+    for (const openWith of ['Abrir menú', 'Más'] as const) {
+      const trigger = shell.getByRole('button', { name: openWith })
+      await trigger.click()
+      await expect(shell.getByRole('button', { name: 'Cerrar menú' })).toBeFocused()
+
+      await page.keyboard.press('Escape')
+      await expect(trigger).toBeFocused()
+    }
+  })
 })
