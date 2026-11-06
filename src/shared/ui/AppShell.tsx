@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { cx } from '@/shared/lib/cx'
 import styles from './AppShell.module.css'
@@ -76,7 +76,18 @@ export function AppShell({
   const [isDrawerOpen, setDrawerOpen] = useState(false)
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false)
   const userMenuRef = useRef<HTMLDetailsElement>(null)
+  // Whichever button actually opened the drawer (hamburger or the mobile
+  // bottom nav's "more" button) - captured on open so focus returns to the
+  // real trigger on close, not always a hardcoded one.
+  const drawerTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const drawerCloseButtonRef = useRef<HTMLButtonElement>(null)
+  const wasDrawerOpenRef = useRef(false)
   const location = useLocation()
+
+  function openDrawer(event: MouseEvent<HTMLButtonElement>) {
+    drawerTriggerRef.current = event.currentTarget
+    setDrawerOpen(true)
+  }
   useEffect(() => {
     userMenuRef.current?.removeAttribute('open')
   }, [location])
@@ -109,6 +120,21 @@ export function AppShell({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
+  }, [isDrawerOpen])
+
+  // Moves focus into the drawer on open (first focusable control - the
+  // close button) and, on every close path (Escape, close button, outside
+  // click, or a nav link navigating away), restores it to whichever button
+  // actually opened it - but only if that trigger is still mounted; a route
+  // change that unmounts it just leaves focus wherever the browser put it,
+  // instead of forcing it onto a detached element.
+  useEffect(() => {
+    if (isDrawerOpen) {
+      drawerCloseButtonRef.current?.focus()
+    } else if (wasDrawerOpenRef.current) {
+      drawerTriggerRef.current?.focus()
+    }
+    wasDrawerOpenRef.current = isDrawerOpen
   }, [isDrawerOpen])
 
   const bottomNavItems = bottomNavKeys
@@ -196,12 +222,17 @@ export function AppShell({
         // `inert` (not aria-hidden) so the drawer's buttons stop being
         // keyboard-focusable while closed, instead of just visually hidden.
         inert={!isDrawerOpen}
+        role="dialog"
+        aria-modal="true"
+        aria-label={brandName}
+        data-testid="app-shell-drawer"
       >
         <div className={styles['drawerHeader']}>
           <div className={styles['brand']}>
             <BrandLogo name={brandName} />
           </div>
           <IconButton
+            ref={drawerCloseButtonRef}
             icon={<CloseIcon size={18} />}
             aria-label={closeNavLabel}
             onClick={() => {
@@ -214,9 +245,14 @@ export function AppShell({
         }, 'drawer')}
       </div>
 
-      <div className={styles['body']}>
+      {/* `inert` while the drawer is open: this is the entire reachable
+          surface behind the overlay (the sidebar is already `display:none`
+          at the widths where the drawer can show) - without it, Tab/Shift+Tab
+          can walk past the overlay into the floating user menu or main
+          content, which is exactly the trap the drawer is supposed to be. */}
+      <div className={styles['body']} inert={isDrawerOpen}>
         <div className={styles['mobileNavTrigger']}>
-          <IconButton icon={<MenuIcon size={20} />} aria-label={openNavLabel} onClick={() => { setDrawerOpen(true) }} />
+          <IconButton icon={<MenuIcon size={20} />} aria-label={openNavLabel} onClick={openDrawer} />
         </div>
         <details className={styles['userMenu']} ref={userMenuRef} data-testid="app-shell-user-menu">
           <summary className={styles['userMenuTrigger']} aria-label={userMenuLabel}>
@@ -273,13 +309,7 @@ export function AppShell({
               </Fragment>
             )
           })}
-          <button
-            type="button"
-            className={styles['bottomNavItem']}
-            onClick={() => {
-              setDrawerOpen(true)
-            }}
-          >
+          <button type="button" className={styles['bottomNavItem']} onClick={openDrawer}>
             <MenuIcon size={20} />
             {moreLabel}
           </button>

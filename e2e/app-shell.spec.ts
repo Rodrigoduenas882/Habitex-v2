@@ -93,3 +93,95 @@ test.describe('AppShell collapsible sidebar (desktop)', () => {
     await expect(homeLabel).toBeVisible()
   })
 })
+
+test.describe('AppShell mobile drawer focus management (375px)', () => {
+  test.use({ viewport: { width: 375, height: 812 } })
+
+  // /ui-preview's own design-system sections (e.g. ButtonsSection) happen to
+  // demo buttons with the same visible labels used elsewhere on the page -
+  // scoping every query to the real AppShell instance keeps these tests
+  // pointed at the actual drawer instead of an unrelated demo button.
+  test('opening the drawer moves focus inside it, and Tab/Shift+Tab never reach controls behind the overlay', async ({
+    page,
+  }) => {
+    await page.goto('/ui-preview')
+    const shell = page.getByTestId('app-shell')
+
+    const trigger = shell.getByRole('button', { name: 'Abrir menú' })
+    await trigger.click()
+
+    const closeButton = shell.getByRole('button', { name: 'Cerrar menú' })
+    await expect(closeButton).toBeFocused()
+
+    // The floating user menu trigger sits behind the overlay - reproduces
+    // the audited bug ("Tab alcanza Menú de usuario") if it ever regresses.
+    const userMenuTrigger = shell.getByLabel('Menú de usuario')
+
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Tab')
+      await expect(userMenuTrigger).not.toBeFocused()
+    }
+
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Shift+Tab')
+      await expect(userMenuTrigger).not.toBeFocused()
+    }
+  })
+
+  test('Escape closes the drawer and restores focus to the trigger that opened it', async ({ page }) => {
+    await page.goto('/ui-preview')
+    const shell = page.getByTestId('app-shell')
+
+    const trigger = shell.getByRole('button', { name: 'Abrir menú' })
+    await trigger.click()
+    await expect(shell.getByRole('button', { name: 'Cerrar menú' })).toBeFocused()
+
+    await page.keyboard.press('Escape')
+
+    // Closed slides the drawer off-canvas via transform (not display/
+    // visibility), so a viewport-intersection check is what actually proves
+    // it closed.
+    await expect(shell.getByTestId('app-shell-drawer')).not.toBeInViewport()
+    await expect(trigger).toBeFocused()
+  })
+
+  test('the close button also restores focus to the trigger', async ({ page }) => {
+    await page.goto('/ui-preview')
+    const shell = page.getByTestId('app-shell')
+
+    const trigger = shell.getByRole('button', { name: 'Abrir menú' })
+    await trigger.click()
+    await shell.getByRole('button', { name: 'Cerrar menú' }).click()
+
+    await expect(trigger).toBeFocused()
+  })
+
+  test('an outside (backdrop) click also closes the drawer and restores focus to the trigger', async ({
+    page,
+  }) => {
+    await page.goto('/ui-preview')
+    const shell = page.getByTestId('app-shell')
+
+    const trigger = shell.getByRole('button', { name: 'Abrir menú' })
+    await trigger.click()
+    await expect(shell.getByRole('button', { name: 'Cerrar menú' })).toBeFocused()
+
+    // Outside the 280px-wide drawer, still inside the 375px viewport.
+    await page.mouse.click(350, 400)
+
+    await expect(shell.getByTestId('app-shell-drawer')).not.toBeInViewport()
+    await expect(trigger).toBeFocused()
+  })
+
+  test('the "Más" bottom-nav trigger gets its own focus back, not a hardcoded one', async ({ page }) => {
+    await page.goto('/ui-preview')
+    const shell = page.getByTestId('app-shell')
+
+    const trigger = shell.getByRole('button', { name: 'Más' })
+    await trigger.click()
+    await expect(shell.getByRole('button', { name: 'Cerrar menú' })).toBeFocused()
+
+    await page.keyboard.press('Escape')
+    await expect(trigger).toBeFocused()
+  })
+})

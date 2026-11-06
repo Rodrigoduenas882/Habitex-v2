@@ -33,6 +33,42 @@ test.describe('/ui-preview', () => {
     await expect(html).toHaveAttribute('data-theme', 'light')
   })
 
+  test('theme control radiogroup: a single Tab stop, moved and selected with ArrowLeft/ArrowRight', async ({
+    page,
+  }) => {
+    await page.goto('/ui-preview')
+
+    const lightOption = page.getByRole('radio', { name: 'Usar tema Claro' })
+    const darkOption = page.getByRole('radio', { name: 'Usar tema Oscuro' })
+    const html = page.locator('html')
+
+    await lightOption.click()
+    await expect(lightOption).toHaveAttribute('tabindex', '0')
+    await expect(darkOption).toHaveAttribute('tabindex', '-1')
+
+    await lightOption.focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(darkOption).toBeFocused()
+    await expect(darkOption).toHaveAttribute('aria-checked', 'true')
+    await expect(html).toHaveAttribute('data-theme', 'dark')
+
+    // Only 2 options: ArrowRight wraps back to the first.
+    await page.keyboard.press('ArrowRight')
+    await expect(lightOption).toBeFocused()
+    await expect(lightOption).toHaveAttribute('aria-checked', 'true')
+    await expect(html).toHaveAttribute('data-theme', 'light')
+
+    await page.keyboard.press('ArrowLeft')
+    await expect(darkOption).toBeFocused()
+    await expect(darkOption).toHaveAttribute('aria-checked', 'true')
+
+    // Tab past the (now checked) dark option leaves the group entirely -
+    // the unchecked option is never its own Tab stop.
+    await page.keyboard.press('Tab')
+    await expect(lightOption).not.toBeFocused()
+    await expect(darkOption).not.toBeFocused()
+  })
+
   test('desktop shows the persistent sidebar, not a hamburger menu', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/ui-preview')

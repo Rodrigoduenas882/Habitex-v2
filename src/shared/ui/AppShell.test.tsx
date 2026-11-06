@@ -182,3 +182,67 @@ describe('AppShell account and sidebar controls', () => {
     expect(trigger).toHaveFocus()
   })
 })
+
+describe('AppShell mobile drawer focus management', () => {
+  it('moves focus into the drawer on open and marks the rest of the shell inert', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+
+    await user.click(screen.getByRole('button', { name: 'Abrir menú' }))
+
+    expect(screen.getByRole('button', { name: 'Cerrar menú' })).toHaveFocus()
+    expect(bodyWrapper).toHaveAttribute('inert')
+  })
+
+  it('restores focus to the trigger that opened it when closed via the close button', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+
+    await user.click(trigger)
+    await user.click(screen.getByRole('button', { name: 'Cerrar menú' }))
+
+    expect(trigger).toHaveFocus()
+  })
+
+  it('restores focus to the trigger when closed via Escape, and clears the inert lock', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    expect(trigger).toHaveFocus()
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+  })
+
+  it('restores focus to the trigger when closed via an outside (backdrop) click', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+
+    await user.click(trigger)
+    const backdrop = screen.getByTestId('app-shell').querySelector('[class*="backdropOpen"]') as HTMLElement
+    await user.click(backdrop)
+
+    expect(trigger).toHaveFocus()
+  })
+
+  it('restores focus to the "more" bottom-nav button when that is what opened it', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    // The bottom nav is CSS-hidden at the default (desktop-width) jsdom
+    // viewport, same as the other bottom-nav assertions in this file.
+    const trigger = screen.getByRole('button', { name: 'Más', hidden: true })
+
+    await user.click(trigger)
+    expect(screen.getByRole('button', { name: 'Cerrar menú' })).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(trigger).toHaveFocus()
+  })
+})
