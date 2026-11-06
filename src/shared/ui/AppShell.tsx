@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { cx } from '@/shared/lib/cx'
 import styles from './AppShell.module.css'
@@ -76,7 +76,40 @@ export function AppShell({
   const [isDrawerOpen, setDrawerOpen] = useState(false)
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false)
   const userMenuRef = useRef<HTMLDetailsElement>(null)
+  // Whichever button actually opened the drawer (hamburger or the mobile
+  // bottom nav's "more" button) - captured on open so focus returns to the
+  // real trigger on close, not always a hardcoded one.
+  const drawerTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const drawerCloseButtonRef = useRef<HTMLButtonElement>(null)
+  const mainRef = useRef<HTMLElement>(null)
+  const wasDrawerOpenRef = useRef(false)
+  // Set right before an auto-close triggered by crossing into the desktop
+  // breakpoint (not a real user close) - the mobile trigger is hidden by
+  // CSS at that width, so focus must land on something visible instead.
+  const isBreakpointCloseRef = useRef(false)
+  // Mirrors `isDrawerOpen` for the matchMedia handler below, which is a
+  // long-lived listener (mounted once, deps []) and would otherwise only
+  // ever see the `isDrawerOpen` value from the render it was created in.
+  const isDrawerOpenRef = useRef(isDrawerOpen)
   const location = useLocation()
+
+  // Kept in sync via an effect (not a plain assignment during render,
+  // which React disallows for refs) - still current by the time the
+  // matchMedia handler can fire, since effects always finish before the
+  // browser gets to process the next (async) event.
+  useEffect(() => {
+    isDrawerOpenRef.current = isDrawerOpen
+  }, [isDrawerOpen])
+
+  function openDrawer(event: MouseEvent<HTMLButtonElement>) {
+    drawerTriggerRef.current = event.currentTarget
+    // Clears any breakpoint-close reason left over from a previous cycle
+    // (e.g. a desktop crossing that happened while no drawer was open),
+    // so a normal close right after this open always restores focus to
+    // this real trigger instead of main.
+    isBreakpointCloseRef.current = false
+    setDrawerOpen(true)
+  }
   useEffect(() => {
     userMenuRef.current?.removeAttribute('open')
   }, [location])
@@ -109,6 +142,56 @@ export function AppShell({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
+  }, [isDrawerOpen])
+
+  // The drawer only exists as a mobile/tablet affordance - CSS hides it
+  // outright at the same 1024px breakpoint `.sidebar` switches on. Resizing
+  // (or rotating) past that threshold while it's open previously left
+  // `isDrawerOpen` (and the `inert` lock on the rest of the shell) stuck
+  // true, since nothing ever told React the breakpoint had changed. One
+  // `matchMedia` listener for the component's lifetime closes it the moment
+  // the viewport crosses into desktop, regardless of how fast or how often
+  // that happens.
+  useEffect(() => {
+    const desktopQuery = window.matchMedia('(min-width: 1024px)')
+
+    function handleBreakpointChange(event: MediaQueryListEvent) {
+      // Nothing to close, and critically: nothing to flag as a breakpoint
+      // close either - setting the flag here regardless of whether a
+      // drawer was open is what let it survive, stale, until an unrelated
+      // later close mistook it for its own.
+      if (!event.matches || !isDrawerOpenRef.current) return
+      isBreakpointCloseRef.current = true
+      setDrawerOpen(false)
+    }
+
+    desktopQuery.addEventListener('change', handleBreakpointChange)
+    return () => {
+      desktopQuery.removeEventListener('change', handleBreakpointChange)
+    }
+  }, [])
+
+  // Moves focus into the drawer on open (first focusable control - the
+  // close button) and, on every close path (Escape, close button, outside
+  // click, or a nav link navigating away), restores it to whichever button
+  // actually opened it - but only if that trigger is still mounted; a route
+  // change that unmounts it just leaves focus wherever the browser put it,
+  // instead of forcing it onto a detached element. The one exception is the
+  // breakpoint auto-close above: that mobile trigger is now CSS-hidden, so
+  // focus goes to the main content landmark (always visible on desktop)
+  // instead of a hidden control or an unfocused BODY.
+  useEffect(() => {
+    if (isDrawerOpen) {
+      drawerCloseButtonRef.current?.focus()
+    } else if (wasDrawerOpenRef.current) {
+      if (isBreakpointCloseRef.current) {
+        mainRef.current?.focus()
+        isBreakpointCloseRef.current = false
+      } else {
+        drawerTriggerRef.current?.focus()
+      }
+    }
+    wasDrawerOpenRef.current = isDrawerOpen
   }, [isDrawerOpen])
 
   const bottomNavItems = bottomNavKeys
@@ -196,12 +279,17 @@ export function AppShell({
         // `inert` (not aria-hidden) so the drawer's buttons stop being
         // keyboard-focusable while closed, instead of just visually hidden.
         inert={!isDrawerOpen}
+        role="dialog"
+        aria-modal="true"
+        aria-label={brandName}
+        data-testid="app-shell-drawer"
       >
         <div className={styles['drawerHeader']}>
           <div className={styles['brand']}>
             <BrandLogo name={brandName} />
           </div>
           <IconButton
+            ref={drawerCloseButtonRef}
             icon={<CloseIcon size={18} />}
             aria-label={closeNavLabel}
             onClick={() => {
@@ -214,9 +302,14 @@ export function AppShell({
         }, 'drawer')}
       </div>
 
-      <div className={styles['body']}>
+      {/* `inert` while the drawer is open: this is the entire reachable
+          surface behind the overlay (the sidebar is already `display:none`
+          at the widths where the drawer can show) - without it, Tab/Shift+Tab
+          can walk past the overlay into the floating user menu or main
+          content, which is exactly the trap the drawer is supposed to be. */}
+      <div className={styles['body']} inert={isDrawerOpen}>
         <div className={styles['mobileNavTrigger']}>
-          <IconButton icon={<MenuIcon size={20} />} aria-label={openNavLabel} onClick={() => { setDrawerOpen(true) }} />
+          <IconButton icon={<MenuIcon size={20} />} aria-label={openNavLabel} onClick={openDrawer} />
         </div>
         <details className={styles['userMenu']} ref={userMenuRef} data-testid="app-shell-user-menu">
           <summary className={styles['userMenuTrigger']} aria-label={userMenuLabel}>
@@ -233,7 +326,9 @@ export function AppShell({
           </div>
         </details>
 
-        <main className={styles['main']} data-testid="app-shell-main">
+        {/* tabIndex=-1: not part of the normal Tab order, only a
+            programmatic focus target for the breakpoint auto-close above. */}
+        <main className={styles['main']} data-testid="app-shell-main" ref={mainRef} tabIndex={-1}>
           {children}
         </main>
 
@@ -273,13 +368,7 @@ export function AppShell({
               </Fragment>
             )
           })}
-          <button
-            type="button"
-            className={styles['bottomNavItem']}
-            onClick={() => {
-              setDrawerOpen(true)
-            }}
-          >
+          <button type="button" className={styles['bottomNavItem']} onClick={openDrawer}>
             <MenuIcon size={20} />
             {moreLabel}
           </button>

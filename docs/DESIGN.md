@@ -100,10 +100,16 @@ Mecanismo único — no crear un segundo sistema de temas.
 - `useTheme()` (`src/shared/theme/useTheme.ts`): resuelve `system` en vivo
   vía `matchMedia('(prefers-color-scheme: dark)')` con un listener de
   cambio — si el SO cambia de tema, la app reacciona sin recargar.
-- `ThemeControl` (`src/shared/theme/ThemeControl.tsx`): el único selector
-  Light/Dark/System de la app (radiogroup de 3 opciones). No montar más de
-  una instancia por página — cada una tiene su propio estado y podrían
-  desincronizarse.
+- `ThemeControl` (`src/shared/theme/ThemeControl.tsx`): el único selector de
+  apariencia de la app — radiogroup de **2** opciones visibles, Claro/Oscuro
+  únicamente (decisión Sprint 1, issue #23; antes exponía "Sistema" como
+  tercera opción seleccionable). `system` sigue existiendo como preferencia
+  interna (`ThemePreference`, `theme.ts`/`useTheme.ts`): sin preferencia
+  explícita guardada, el tema inicial se detecta de `prefers-color-scheme`
+  y se sigue en vivo — el control solo deja de ofrecerlo como botón propio,
+  y resalta Claro/Oscuro según el tema resuelto (`resolvedTheme`), no la
+  preferencia cruda. No montar más de una instancia por página — cada una
+  tiene su propio estado y podrían desincronizarse.
 - **Inicialización antes del primer paint**: un `<script>` inline en
   `index.html` lee `habitex:theme`, resuelve `system` si aplica, y fija
   `data-theme` en `<html>` — todo antes de que React monte. Un `<style>`
@@ -197,7 +203,12 @@ shell de la app — lo usan tanto el layout autenticado real como `/ui-preview`
   shell crecía con el contenido y dejaba una columna vacía bajo un sidebar
   corto en F5. No revertir a `min-height` en `.shell`.
 - **Sidebar** (desktop): ancho fijo `--sidebar-width` (248px), con
-  `BrandLogo` arriba, navegación abajo.
+  `BrandLogo` arriba, navegación abajo. Colapsable a un riel de 80px vía el
+  botón con chevrón (icons-only); mientras está colapsado, hover o
+  focus-within sobre el riel lo expande visualmente de forma temporal (CSS
+  puro, `AppShell.module.css`) para que las etiquetas sigan siendo legibles
+  al pasar el mouse o tabular — no cambia el estado persistido
+  `isSidebarCollapsed`, que solo el botón explícito modifica.
 - **Ítem de navegación sin ruta todavía ("Próximamente")**: un
   `AppShellNavItem` sin `to` (sección planeada, sin pantalla aún) se
   renderiza como `<button disabled>` — nunca un `<Link>`/botón con la misma
