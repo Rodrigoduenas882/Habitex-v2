@@ -72,12 +72,35 @@ const PROPERTY_1 = {
   administrationFee: 150000,
 }
 
+const PROPERTY_2 = {
+  id: 'prop-2',
+  administrationId: 'admin-1',
+  propertyType: 'HOUSE',
+  rentalMode: 'FULL_PROPERTY',
+  name: 'Casa 14',
+  countryCode: 'CO',
+  city: 'Medellín',
+  address: 'Carrera 9 # 10-11',
+  hasAdministration: false,
+  administrationFee: null,
+}
+
 const PARKING_1 = {
   id: 'parking-1',
   administrationId: 'admin-1',
   propertyId: null,
   identifier: 'Parqueadero 12',
   location: null,
+  covered: null,
+  allowedVehicleType: null,
+}
+
+const PARKING_2 = {
+  id: 'parking-2',
+  administrationId: 'admin-1',
+  propertyId: null,
+  identifier: 'P-07',
+  location: 'Sótano 2',
   covered: null,
   allowedVehicleType: null,
 }
@@ -379,6 +402,79 @@ describe('PropertiesPage', () => {
 
       expect(await screen.findByText('Parqueadero 12')).toBeInTheDocument()
       expect(screen.queryByText(/Asociado a/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('local search - filters already-loaded data, no new query', () => {
+    it('does not show a search box for a section with no data', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      renderPage()
+
+      expect(await screen.findByText('Todavía no tienes inmuebles')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Buscar inmuebles')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Buscar parqueaderos')).not.toBeInTheDocument()
+    })
+
+    it('filters Propiedades by name, address or city, independently of Parqueaderos', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1, PROPERTY_2])
+      listParkingsByAdministration.mockResolvedValueOnce([PARKING_1])
+      const user = userEvent.setup()
+      renderPage()
+
+      expect(await screen.findByText('Casa 14')).toBeInTheDocument()
+      await user.type(screen.getByLabelText('Buscar inmuebles'), 'medellin')
+
+      expect(screen.getByText('Casa 14')).toBeInTheDocument()
+      expect(screen.queryByText('Apartamento 302')).not.toBeInTheDocument()
+      // Diacritic-insensitive: "medellin" (typed) still matches "Medellín".
+      expect(screen.getByText('Parqueadero 12')).toBeInTheDocument()
+    })
+
+    it('filters Parqueaderos by identifier or location, independently of Propiedades', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1])
+      listParkingsByAdministration.mockResolvedValueOnce([PARKING_1, PARKING_2])
+      const user = userEvent.setup()
+      renderPage()
+
+      expect(await screen.findByText('P-07')).toBeInTheDocument()
+      await user.type(screen.getByLabelText('Buscar parqueaderos'), 'sótano')
+
+      expect(screen.getByText('P-07')).toBeInTheDocument()
+      expect(screen.queryByText('Parqueadero 12')).not.toBeInTheDocument()
+      expect(screen.getByText('Apartamento 302')).toBeInTheDocument()
+    })
+
+    it('shows a "no results" empty state (distinct from the "no data" one) when the search matches nothing', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1, PROPERTY_2])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.type(await screen.findByLabelText('Buscar inmuebles'), 'xyz-no-match')
+
+      expect(await screen.findByText('Sin resultados para "xyz-no-match"')).toBeInTheDocument()
+      expect(screen.queryByText('Todavía no tienes inmuebles')).not.toBeInTheDocument()
+    })
+
+    it('clearing the search restores the full list', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1, PROPERTY_2])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      const user = userEvent.setup()
+      renderPage()
+
+      const search = await screen.findByLabelText('Buscar inmuebles')
+      await user.type(search, 'casa')
+      expect(screen.queryByText('Apartamento 302')).not.toBeInTheDocument()
+
+      await user.clear(search)
+      expect(screen.getByText('Apartamento 302')).toBeInTheDocument()
+      expect(screen.getByText('Casa 14')).toBeInTheDocument()
     })
   })
 })

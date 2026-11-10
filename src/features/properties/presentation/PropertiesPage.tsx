@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { useTranslation, type UseTranslationResponse } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { BuildingIcon, CarIcon } from '@/shared/ui/icons'
+import { Input } from '@/shared/ui/Input'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import styles from './PropertiesPage.module.css'
 import { PropertyListCard } from './PropertyListCard'
@@ -23,6 +24,22 @@ import {
 import type { Property } from '../domain/property.types'
 
 type PropertiesSectionT = UseTranslationResponse<'properties', undefined>['t']
+
+/** Lowercase + diacritic-stripped, so "bogota" matches "Bogotá" - a single
+ * local helper shared by both sections below, not a new shared/ui primitive
+ * (this is search-matching logic, not a UI component). */
+function normalizeForSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+}
+
+function matchesSearch(term: string, ...fields: Array<string | null>): boolean {
+  const needle = normalizeForSearch(term.trim())
+  if (!needle) return true
+  return fields.some((field) => field != null && normalizeForSearch(field).includes(needle))
+}
 
 function GridSkeleton({ testId }: { testId: string }) {
   return (
@@ -37,6 +54,7 @@ function GridSkeleton({ testId }: { testId: string }) {
 interface PropertiesSectionProps {
   query: UseQueryResult<Property[]>
   occupancy: PropertyOccupancyMap
+  searchTerm: string
 }
 
 /**
@@ -64,7 +82,7 @@ function derivePropertyListDisplay(
   return { status, detail: t('occupancy.roomsDetail', { occupied: occupiedRooms, total: totalRooms }) }
 }
 
-function PropertiesSection({ query, occupancy }: PropertiesSectionProps) {
+function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSectionProps) {
   const { t } = useTranslation('properties')
 
   if (query.isLoading) {
@@ -91,9 +109,23 @@ function PropertiesSection({ query, occupancy }: PropertiesSectionProps) {
     )
   }
 
+  const visible = properties.filter((property) =>
+    matchesSearch(searchTerm, property.name, property.address, property.city),
+  )
+
+  if (visible.length === 0) {
+    return (
+      <EmptyState
+        icon={<BuildingIcon size={24} />}
+        title={t('search.noResults.title', { query: searchTerm })}
+        description={t('search.noResults.description', { query: searchTerm })}
+      />
+    )
+  }
+
   return (
     <div className={styles['grid']}>
-      {properties.map((property) => {
+      {visible.map((property) => {
         const { status, detail } = derivePropertyListDisplay(property, occupancy, t)
         return <PropertyListCard key={property.id} property={property} status={status} detail={detail} />
       })}
@@ -105,9 +137,10 @@ interface ParkingsSectionProps {
   query: UseQueryResult<Parking[]>
   propertiesQuery: UseQueryResult<Property[]>
   emptyAction: ReactNode
+  searchTerm: string
 }
 
-function ParkingsSection({ query, propertiesQuery, emptyAction }: ParkingsSectionProps) {
+function ParkingsSection({ query, propertiesQuery, emptyAction, searchTerm }: ParkingsSectionProps) {
   const { t } = useTranslation('parking')
 
   if (query.isLoading) {
@@ -136,9 +169,21 @@ function ParkingsSection({ query, propertiesQuery, emptyAction }: ParkingsSectio
   // loading, or errored), the association is omitted rather than guessed.
   const properties = propertiesQuery.isSuccess ? propertiesQuery.data : null
 
+  const visible = parkings.filter((parking) => matchesSearch(searchTerm, parking.identifier, parking.location))
+
+  if (visible.length === 0) {
+    return (
+      <EmptyState
+        icon={<CarIcon size={24} />}
+        title={t('section.search.noResults.title', { query: searchTerm })}
+        description={t('section.search.noResults.description', { query: searchTerm })}
+      />
+    )
+  }
+
   return (
     <div className={styles['grid']}>
-      {parkings.map((parking) => {
+      {visible.map((parking) => {
         const associatedPropertyName =
           parking.propertyId && properties
             ? (properties.find((property) => property.id === parking.propertyId)?.name ?? null)
@@ -171,6 +216,8 @@ export default function PropertiesPage() {
   const propertiesQuery = useProperties(administrationId)
   const parkingsQuery = useParkings(administrationId)
   const propertyOccupancy = usePropertyOccupancy(administrationId)
+  const [propertySearch, setPropertySearch] = useState('')
+  const [parkingSearch, setParkingSearch] = useState('')
 
   const addPropertyCta = (
     <Button
@@ -220,15 +267,38 @@ export default function PropertiesPage() {
         <>
           <section className={styles['section']}>
             <h2 className="text-h3">{t('sections.properties')}</h2>
-            <PropertiesSection query={propertiesQuery} occupancy={propertyOccupancy} />
+            {propertiesQuery.isSuccess && propertiesQuery.data.length > 0 ? (
+              <Input
+                label={t('search.label')}
+                placeholder={t('search.placeholder')}
+                type="search"
+                value={propertySearch}
+                onChange={(event) => {
+                  setPropertySearch(event.target.value)
+                }}
+              />
+            ) : null}
+            <PropertiesSection query={propertiesQuery} occupancy={propertyOccupancy} searchTerm={propertySearch} />
           </section>
 
           <section className={styles['section']}>
             <h2 className="text-h3">{t('parking:section.title')}</h2>
+            {parkingsQuery.isSuccess && parkingsQuery.data.length > 0 ? (
+              <Input
+                label={t('parking:section.search.label')}
+                placeholder={t('parking:section.search.placeholder')}
+                type="search"
+                value={parkingSearch}
+                onChange={(event) => {
+                  setParkingSearch(event.target.value)
+                }}
+              />
+            ) : null}
             <ParkingsSection
               query={parkingsQuery}
               propertiesQuery={propertiesQuery}
               emptyAction={addPropertyCta}
+              searchTerm={parkingSearch}
             />
           </section>
         </>

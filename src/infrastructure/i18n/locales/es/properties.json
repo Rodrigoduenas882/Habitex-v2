@@ -21,6 +21,14 @@
     "title": "Todavía no tienes inmuebles",
     "description": "Cuando agregues un inmueble, aparecerá aquí."
   },
+  "search": {
+    "label": "Buscar inmuebles",
+    "placeholder": "Nombre, dirección o ciudad",
+    "noResults": {
+      "title": "Sin resultados para \"{{query}}\"",
+      "description": "Intenta con otro nombre, dirección o ciudad."
+    }
+  },
   "errors": {
     "propertiesTitle": "No pudimos cargar tus inmuebles",
     "propertiesDescription": "Ocurrió un error al consultar tus inmuebles. Intenta de nuevo más tarde.",
