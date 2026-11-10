@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
-import { useTranslation, type UseTranslationResponse } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useActiveAdministration } from '@/features/administration/application/useActiveAdministration'
 import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
@@ -13,17 +13,12 @@ import { EmptyState } from '@/shared/ui/EmptyState'
 import { BuildingIcon, CarIcon } from '@/shared/ui/icons'
 import { Input } from '@/shared/ui/Input'
 import { Skeleton } from '@/shared/ui/Skeleton'
+import { derivePropertyListDisplay } from './derivePropertyListDisplay'
 import styles from './PropertiesPage.module.css'
 import { PropertyListCard } from './PropertyListCard'
 import { useProperties } from '../application/useProperties'
-import {
-  derivePropertyOccupancyStatus,
-  usePropertyOccupancy,
-  type PropertyOccupancyMap,
-} from '../application/usePropertyOccupancy'
+import { usePropertyOccupancy, type PropertyOccupancyMap } from '../application/usePropertyOccupancy'
 import type { Property } from '../domain/property.types'
-
-type PropertiesSectionT = UseTranslationResponse<'properties', undefined>['t']
 
 /** Lowercase + diacritic-stripped, so "bogota" matches "Bogotá" - a single
  * local helper shared by both sections below, not a new shared/ui primitive
@@ -55,31 +50,6 @@ interface PropertiesSectionProps {
   query: UseQueryResult<Property[]>
   occupancy: PropertyOccupancyMap
   searchTerm: string
-}
-
-/**
- * This section's own i18n-formatted detail string, built from the shared,
- * pure derivePropertyOccupancyStatus (see usePropertyOccupancy's own doc
- * comment) - the status computation itself is never re-derived here, only
- * formatted into this feature's own copy (properties.json's `occupancy`
- * keys, not dashboard.json's).
- */
-function derivePropertyListDisplay(
-  property: Property,
-  occupancy: PropertyOccupancyMap,
-  t: PropertiesSectionT,
-): { status: ReturnType<typeof derivePropertyOccupancyStatus>['status']; detail: string } {
-  const { status, occupiedRooms, totalRooms } = derivePropertyOccupancyStatus(property, occupancy)
-
-  if (property.rentalMode === 'FULL_PROPERTY') {
-    return { status, detail: t(`propertyType.${property.propertyType}`) }
-  }
-
-  if (occupancy.status !== 'ready') {
-    return { status, detail: t('rentalMode.BY_ROOMS') }
-  }
-
-  return { status, detail: t('occupancy.roomsDetail', { occupied: occupiedRooms, total: totalRooms }) }
 }
 
 function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSectionProps) {

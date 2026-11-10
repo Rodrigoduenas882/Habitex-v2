@@ -16,6 +16,7 @@ import { TypographySection } from './TypographySection'
 import styles from './UiPreviewPage.module.css'
 
 const DashboardVisualPreview = lazy(() => import('./DashboardVisualPreview'))
+const PropertiesVisualPreview = lazy(() => import('./PropertiesVisualPreview'))
 
 /**
  * Internal design-system evaluation tool. Public on purpose (see router.tsx):
@@ -29,8 +30,17 @@ export default function UiPreviewPage() {
     document.title = t('meta.title')
   }, [t])
 
-  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('view') === 'dashboard') {
+  const view = new URLSearchParams(window.location.search).get('view')
+
+  if (import.meta.env.DEV && view === 'dashboard') {
     return <Suspense fallback={null}><DashboardVisualPreview /></Suspense>
+  }
+
+  // Deliberately NOT DEV-gated like the Dashboard preview above - see
+  // PropertiesVisualPreview's own doc comment for why it needs to stay
+  // reachable from the production-style build.
+  if (view === 'properties') {
+    return <Suspense fallback={null}><PropertiesVisualPreview /></Suspense>
   }
 
   return (
