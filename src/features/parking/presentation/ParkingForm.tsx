@@ -6,6 +6,8 @@ import { useManagementGate } from '@/features/administration/application/useMana
 import { useProperties } from '@/features/properties/application/useProperties'
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
+import { Card } from '@/shared/ui/Card'
+import { ChevronLeftIcon } from '@/shared/ui/icons'
 import { Input } from '@/shared/ui/Input'
 import { Select } from '@/shared/ui/Select'
 import { Textarea } from '@/shared/ui/Textarea'
@@ -83,6 +85,7 @@ export function ParkingForm({ administrationId, onBack }: ParkingFormProps) {
   return (
     <div className={styles['page']}>
       <button type="button" className={styles['back']} onClick={onBack}>
+        <ChevronLeftIcon size={16} aria-hidden="true" />
         {t('properties:addProperty.back')}
       </button>
       <h1 className="text-h2">{t('form.title')}</h1>
@@ -96,85 +99,89 @@ export function ParkingForm({ administrationId, onBack }: ParkingFormProps) {
         noValidate
         className={styles['form']}
       >
-        <h2 className="text-h3">{t('form.sectionAssociation')}</h2>
+        <Card className={styles['formSection']}>
+          <h2 className="text-h3">{t('form.sectionAssociation')}</h2>
 
-        <Select label={t('form.associated.label')} disabled={createParking.isPending} {...register('associated')}>
-          <option value="no">{t('form.associated.no')}</option>
-          <option value="yes" disabled={associationUnavailable}>
-            {t('form.associated.yes')}
-          </option>
-        </Select>
-
-        {associationUnavailable ? (
-          <p className="text-caption text-muted">
-            {propertiesQuery.isLoading
-              ? t('form.property.loadingHint')
-              : propertiesQuery.isError
-                ? t('form.property.errorHint')
-                : t('form.property.emptyHint')}
-          </p>
-        ) : null}
-
-        {isAssociated && !associationUnavailable ? (
-          <Select
-            label={t('form.property.label')}
-            error={errors.propertyId?.message}
-            disabled={createParking.isPending}
-            {...register('propertyId')}
-          >
-            <option value="">{t('form.property.placeholder')}</option>
-            {properties.map((property) => (
-              <option key={property.id} value={property.id}>
-                {property.name}
-              </option>
-            ))}
+          <Select label={t('form.associated.label')} disabled={createParking.isPending} {...register('associated')}>
+            <option value="no">{t('form.associated.no')}</option>
+            <option value="yes" disabled={associationUnavailable}>
+              {t('form.associated.yes')}
+            </option>
           </Select>
-        ) : null}
 
-        <h2 className="text-h3">{t('form.sectionDetails')}</h2>
+          {associationUnavailable ? (
+            <p className="text-caption text-muted">
+              {propertiesQuery.isLoading
+                ? t('form.property.loadingHint')
+                : propertiesQuery.isError
+                  ? t('form.property.errorHint')
+                  : t('form.property.emptyHint')}
+            </p>
+          ) : null}
 
-        <Input
-          label={t('form.identifier.label')}
-          hint={t('form.identifier.hint')}
-          error={errors.identifier?.message}
-          disabled={createParking.isPending}
-          {...register('identifier')}
-        />
+          {isAssociated && !associationUnavailable ? (
+            <Select
+              label={t('form.property.label')}
+              error={errors.propertyId?.message}
+              disabled={createParking.isPending}
+              {...register('propertyId')}
+            >
+              <option value="">{t('form.property.placeholder')}</option>
+              {properties.map((property) => (
+                <option key={property.id} value={property.id}>
+                  {property.name}
+                </option>
+              ))}
+            </Select>
+          ) : null}
+        </Card>
 
-        <Input
-          label={t('form.location.label')}
-          disabled={createParking.isPending}
-          {...register('location')}
-        />
+        <Card className={styles['formSection']}>
+          <h2 className="text-h3">{t('form.sectionDetails')}</h2>
 
-        <Select label={t('form.covered.label')} disabled={createParking.isPending} {...register('covered')}>
-          <option value="">{t('form.covered.unspecified')}</option>
-          <option value="yes">{t('form.covered.yes')}</option>
-          <option value="no">{t('form.covered.no')}</option>
-        </Select>
+          <Input
+            label={t('form.identifier.label')}
+            hint={t('form.identifier.hint')}
+            error={errors.identifier?.message}
+            disabled={createParking.isPending}
+            {...register('identifier')}
+          />
 
-        <Select
-          label={t('form.vehicleType.label')}
-          disabled={createParking.isPending}
-          {...register('vehicleType')}
-        >
-          <option value="">{t('form.vehicleType.unspecified')}</option>
-          <option value="CAR">{t('form.vehicleType.CAR')}</option>
-          <option value="MOTORCYCLE">{t('form.vehicleType.MOTORCYCLE')}</option>
-          <option value="BOTH">{t('form.vehicleType.BOTH')}</option>
-        </Select>
+          <Input
+            label={t('form.location.label')}
+            disabled={createParking.isPending}
+            {...register('location')}
+          />
 
-        <Input
-          label={t('form.accessType.label')}
-          disabled={createParking.isPending}
-          {...register('accessType')}
-        />
+          <Select label={t('form.covered.label')} disabled={createParking.isPending} {...register('covered')}>
+            <option value="">{t('form.covered.unspecified')}</option>
+            <option value="yes">{t('form.covered.yes')}</option>
+            <option value="no">{t('form.covered.no')}</option>
+          </Select>
 
-        <Textarea
-          label={t('form.observations.label')}
-          disabled={createParking.isPending}
-          {...register('observations')}
-        />
+          <Select
+            label={t('form.vehicleType.label')}
+            disabled={createParking.isPending}
+            {...register('vehicleType')}
+          >
+            <option value="">{t('form.vehicleType.unspecified')}</option>
+            <option value="CAR">{t('form.vehicleType.CAR')}</option>
+            <option value="MOTORCYCLE">{t('form.vehicleType.MOTORCYCLE')}</option>
+            <option value="BOTH">{t('form.vehicleType.BOTH')}</option>
+          </Select>
+
+          <Input
+            label={t('form.accessType.label')}
+            disabled={createParking.isPending}
+            {...register('accessType')}
+          />
+
+          <Textarea
+            label={t('form.observations.label')}
+            disabled={createParking.isPending}
+            {...register('observations')}
+          />
+        </Card>
 
         <Button
           type="submit"
