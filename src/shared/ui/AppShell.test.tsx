@@ -1,8 +1,35 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppShell, type AppShellNavItem } from './AppShell'
+
+/** A controllable `window.matchMedia('(min-width: 1024px)')` stand-in: lets
+ * a test flip the desktop breakpoint on demand via `triggerChange`, the way
+ * a real resize/rotation would fire the media query's `change` event. */
+function createDesktopBreakpointMock(initialMatches = false) {
+  let listener: ((event: MediaQueryListEvent) => void) | null = null
+  const removeEventListener = vi.fn()
+  const mql = {
+    matches: initialMatches,
+    media: '(min-width: 1024px)',
+    addEventListener: vi.fn((_event: string, cb: (event: MediaQueryListEvent) => void) => {
+      listener = cb
+    }),
+    removeEventListener,
+    dispatchEvent: vi.fn(),
+  }
+  return {
+    removeEventListener,
+    triggerChange(matches: boolean) {
+      mql.matches = matches
+      listener?.({ matches } as MediaQueryListEvent)
+    },
+    install() {
+      vi.spyOn(window, 'matchMedia').mockReturnValue(mql as unknown as MediaQueryList)
+    },
+  }
+}
 
 const NAV_ITEMS: AppShellNavItem[] = [
   { key: 'home', label: 'Inicio', icon: <span aria-hidden="true">H</span>, to: '/', active: true },
@@ -179,6 +206,206 @@ describe('AppShell account and sidebar controls', () => {
     expect(onLogout).toHaveBeenCalledOnce()
     await user.keyboard('{Escape}')
     expect(menu).not.toHaveAttribute('open')
+    expect(trigger).toHaveFocus()
+  })
+})
+
+describe('AppShell mobile drawer focus management', () => {
+  it('moves focus into the drawer on open and marks the rest of the shell inert', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+
+    await user.click(screen.getByRole('button', { name: 'Abrir menú' }))
+
+    expect(screen.getByRole('button', { name: 'Cerrar menú' })).toHaveFocus()
+    expect(bodyWrapper).toHaveAttribute('inert')
+  })
+
+  it('restores focus to the trigger that opened it when closed via the close button', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+
+    await user.click(trigger)
+    await user.click(screen.getByRole('button', { name: 'Cerrar menú' }))
+
+    expect(trigger).toHaveFocus()
+  })
+
+  it('restores focus to the trigger when closed via Escape, and clears the inert lock', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    expect(trigger).toHaveFocus()
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+  })
+
+  it('restores focus to the trigger when closed via an outside (backdrop) click', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+
+    await user.click(trigger)
+    const backdrop = screen.getByTestId('app-shell').querySelector('[class*="backdropOpen"]') as HTMLElement
+    await user.click(backdrop)
+
+    expect(trigger).toHaveFocus()
+  })
+
+  it('restores focus to the "more" bottom-nav button when that is what opened it', async () => {
+    const user = userEvent.setup()
+    renderShell()
+    // The bottom nav is CSS-hidden at the default (desktop-width) jsdom
+    // viewport, same as the other bottom-nav assertions in this file.
+    const trigger = screen.getByRole('button', { name: 'Más', hidden: true })
+
+    await user.click(trigger)
+    expect(screen.getByRole('button', { name: 'Cerrar menú' })).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(trigger).toHaveFocus()
+  })
+})
+
+describe('AppShell drawer auto-close on the desktop breakpoint (375→1024)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('closes the drawer, lifts the inert lock, and moves focus to main content when the viewport crosses into desktop', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    await user.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+    expect(bodyWrapper).toHaveAttribute('inert')
+
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+    // Not the (now CSS-hidden) mobile trigger, and not an unfocused BODY.
+    expect(screen.getByTestId('app-shell-main')).toHaveFocus()
+  })
+
+  it('does the same when the drawer was opened from the bottom nav\'s "Más" button', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    await user.click(screen.getByRole('button', { name: 'Más', hidden: true }))
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+    expect(bodyWrapper).toHaveAttribute('inert')
+
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+    expect(screen.getByTestId('app-shell-main')).toHaveFocus()
+  })
+
+  it('is a no-op while the drawer is already closed, and does not fire on mount', () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    renderShell()
+
+    const bodyWrapper = screen.getByTestId('app-shell-main').parentElement as HTMLElement
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+
+    expect(bodyWrapper).not.toHaveAttribute('inert')
+    expect(screen.getByTestId('app-shell-main')).not.toHaveFocus()
+  })
+
+  it('removes the breakpoint listener on unmount', () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const { unmount } = renderShell()
+
+    unmount()
+
+    expect(breakpoint.removeEventListener).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not let a breakpoint crossing that happened while closed hijack a later real close (375 closed → 1024 → 375 → open → Escape)', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    // Crosses into desktop, then back, with the drawer never open - this
+    // used to set the "breakpoint close" reason anyway, leaving it stale.
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+    act(() => {
+      breakpoint.triggerChange(false)
+    })
+
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    // A real close right after must restore focus to the real trigger, not
+    // main (which would mean the stale reason from the earlier no-op
+    // crossing was incorrectly consumed here).
+    expect(trigger).toHaveFocus()
+  })
+
+  it('does the same for the "Más" trigger', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+    act(() => {
+      breakpoint.triggerChange(false)
+    })
+
+    const trigger = screen.getByRole('button', { name: 'Más', hidden: true })
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    expect(trigger).toHaveFocus()
+  })
+
+  it('clears a stale breakpoint-close reason on open even if one somehow survived', async () => {
+    const breakpoint = createDesktopBreakpointMock(false)
+    breakpoint.install()
+    const user = userEvent.setup()
+    renderShell()
+
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' })
+    await user.click(trigger)
+    // A real breakpoint close while genuinely open - sets the reason and
+    // consumes it immediately, as covered above. Re-opening afterwards
+    // must start clean regardless.
+    act(() => {
+      breakpoint.triggerChange(true)
+    })
+    act(() => {
+      breakpoint.triggerChange(false)
+    })
+
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
     expect(trigger).toHaveFocus()
   })
 })
