@@ -23,3 +23,13 @@
   flex-direction: column;
   gap: var(--space-3);
 }
+
+/* Same existing 1024px breakpoint as AppShell/DashboardPage (DESIGN.md §7) -
+   a bit more breathing room between cards once there's room for it, not a
+   new column-count rule (auto-fill already adapts the column count on its
+   own at any width). */
+@media (min-width: 1024px) {
+  .grid {
+    gap: var(--space-5);
+  }
+}

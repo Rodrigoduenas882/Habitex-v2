@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/shared/ui/Badge'
 import { Card } from '@/shared/ui/Card'
+import { CarIcon } from '@/shared/ui/icons'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import type { Parking } from '../domain/parking.types'
 import styles from './ParkingListCard.module.css'
 
@@ -18,18 +20,24 @@ export interface ParkingListCardProps {
 
 /**
  * Same visual family as PropertyListCard (Card, same spacing/typography
- * tokens, same tone="neutral" badges for descriptive attributes) but not a
- * copy - Parking has no photo placeholder and a genuinely different set of
- * fields, so forcing it through PropertyListCard's layout would mean
- * conditions for fields that don't apply to properties.
+ * tokens, same tone="neutral" badges for descriptive attributes, and now
+ * the same "icon identity" header language via the shared IconBadge) but
+ * not a copy - Parking has no photo placeholder and a genuinely different
+ * set of fields, so forcing it through PropertyListCard's image+overlay
+ * layout would mean conditions for fields that don't apply to properties.
  */
 export function ParkingListCard({ parking, associatedPropertyName }: ParkingListCardProps) {
   const { t } = useTranslation('parking')
 
   return (
     <Card className={styles['card']}>
-      <p className={styles['identifier']}>{parking.identifier}</p>
-      {parking.location ? <p className="text-caption text-muted">{parking.location}</p> : null}
+      <div className={styles['header']}>
+        <IconBadge icon={<CarIcon size={18} />} tone="neutral" size={36} radius="md" />
+        <div className={styles['identity']}>
+          <p className={styles['identifier']}>{parking.identifier}</p>
+          {parking.location ? <p className="text-caption text-muted">{parking.location}</p> : null}
+        </div>
+      </div>
       {associatedPropertyName ? (
         <p className="text-caption text-muted">
           {t('list.associatedWith', { name: associatedPropertyName })}
