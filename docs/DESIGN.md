@@ -566,3 +566,109 @@ encontrados en esta misma protección:**
    el texto de su Alert de aviso) dentro del contenido de cada archivo —
    un minificador no altera el contenido de un string literal, así que
    esto sobrevive sin importar cómo Rollup nombre el chunk.
+
+
+## 16. Arriendos, Términos y Contratos — Sprint 3
+
+Issue #28. Referencia: Figma `Habitex-Design-Lab` (misma URL de §15).
+
+**Nota de verificación.** Igual que en §15, Figma respondió 403 sin sesión
+autenticada desde este entorno — no hay forma de comparar contra el diseño
+real pixel a pixel. Esta sección documenta las decisiones tomadas para
+mantener el mismo lenguaje visual ya aprobado en los Sprints 1 y 2
+(`IconBadge` + identidad + Badge de estado, back-button con `ChevronLeftIcon`,
+`Card` para contenedores con borde, agrupación de formularios por sección)
+en vez de inventar un patrón nuevo sin poder verificarlo contra Figma.
+Cualquier diferencia que una revisión con acceso real a Figma encuentre
+manda sobre lo que está aquí.
+
+### 16.1 Alcance de este sprint
+
+Solo UI/UX sobre los módulos de Arriendos y Contratos ya existentes — sin
+tocar RPC, RLS, migraciones, permisos, límites de plan ni el ciclo de vida
+DRAFT→ACTIVE→ENDING→ENDED / DRAFT→CANCELLED. Las confirmaciones de dos
+pasos para Cancelar/Terminar arriendo/Terminar contrato ya existían antes
+de este sprint (`LifecycleConfirmAction`/`TerminateContractAction`) — se
+conservan exactamente, no se tocaron.
+
+### 16.2 Listado de arriendos (`RentalListCard`)
+
+Mismo lenguaje de tarjeta que `PropertyListCard`/`ParkingListCard` (Sprint
+2): una cabecera con `IconBadge` (`KeyIcon`, tono neutral — un solo ícono
+para toda la tarjeta, no uno por tipo de sujeto, porque
+`RentalRelationship` no trae `subjectType` y resolverlo exigiría un nuevo
+cruce de datos que este incremento no necesita) + bloque de identidad
+(sujeto arrendado en negrita, arrendatario como texto secundario) + Badge
+de estado alineado a la derecha. El canon, las fechas de vigencia y el día/
+momento de pago quedan como líneas de caption debajo, exactamente con el
+mismo contenido/formato que ya tenían (ninguna prueba de contenido de texto
+cambió). Las acciones (Activar, Cancelar, Iniciar cierre, Terminar
+arriendo, navegación a Términos/Contratos/Cargos/Pagos) no se tocaron.
+
+### 16.3 Crear arriendo (`AddRentalDraftForm`) y Términos (`RentalTermsPage`)
+
+Dos cambios, ambos ya establecidos en el formulario de Propiedades
+(`AddPropertyPage.module.css`), aplicados aquí por primera vez a Arriendos:
+
+- El botón "Volver" ahora lleva `ChevronLeftIcon` antes del texto (antes
+  era texto plano) — mismo patrón que `AddFullPropertyForm`.
+- Cada sección (`¿Cuál inmueble?`/`¿A quién se lo arriendas?` en el
+  formulario de creación; `Fechas y pago`/`Condiciones financieras` en
+  Términos) se envuelve en un `div.formSection` propio (gap menor que el
+  del formulario completo) en vez de ser un `h2` suelto dentro del mismo
+  flex column que todo lo demás — la misma jerarquía visual que
+  `AddFullPropertyForm`'s `formSection`, nunca un `Card` con borde
+  (ese patrón no existe para secciones de formulario en ningún formulario
+  existente del repo; introducirlo aquí habría sido inconsistente).
+- Términos agrega un hint accesible al selector de "Momento de pago"
+  explicando qué significa anticipado/vencido — pura aclaración de copy,
+  no cambia la validación ni el guardado. El aviso de guardado parcial
+  (`termsForm.errors.partialFailure`) y la vista de solo lectura ya
+  existían; no se modificaron.
+
+### 16.4 Contratos (`RentalContractsPage`)
+
+- Los dos formularios de registro ("Registrar contrato Habitex"/
+  "Registrar contrato externo firmado") reemplazan su `<div>` con
+  `border`/`border-radius` manuales por el primitive `Card` (§5 — "no
+  hardcodear border+radius+shadow cuando ya existe un primitive"). El
+  `<form>` sigue siendo el elemento de formulario real (necesario para que
+  `onSubmit` dispare con Enter) — `Card` se anida *dentro* de él, mismo
+  patrón que `ParkingForm` ya usaba.
+- `ContractCard` (la fila de cada contrato) ahora tiene la misma cabecera
+  `IconBadge` (`FileTextIcon`) + identidad + Badge que el resto de las
+  tarjetas de lista de la app, en vez de solo un Badge + caption de versión
+  sueltos.
+- Integridad SHA-256, origen EXTERNAL/HABITEX_GENERATED, los cuatro
+  estados GENERATED/SHARED/SIGNED/TERMINATED, la subida/descarga de
+  archivos y el manejo de fallos parciales no cambiaron — solo el envoltorio
+  visual.
+
+### 16.5 Preview de QA (`RentalsVisualPreview`)
+
+Mismo mecanismo exacto que `PropertiesVisualPreview` (§15.6), con su propia
+bandera independiente: `VITE_ENABLE_RENTALS_PREVIEW` /
+`__ENABLE_RENTALS_PREVIEW__`, el mismo allowlist de modos
+(`PREVIEW_ALLOWED_MODES`, solo `'e2e'`) y el mismo guard de contenido
+(`scripts/assert-no-demo-chunk.mjs`, ahora con marcadores propios de este
+preview). `pnpm build` normal nunca emite su chunk; `pnpm build:e2e` sí,
+verificado en ambas direcciones.
+
+Reutiliza los componentes reales (`RentalListCard`, y `ContractCard`
+exportado desde `RentalContractsPage.tsx` con el mismo principio que
+`PropertiesSection`/`ParkingsSection` en Sprint 2) en vez de una copia
+visual aparte — así el preview no puede desviarse de lo que la página real
+renderiza. `ContractCard` sigue llamando sus mutaciones reales
+internamente (`useMarkContractShared`/`useTerminateContract`): un clic
+sobre un fixture del preview simplemente falla de la misma forma que
+fallaría cualquier llamada no autenticada en producción (RLS/red), nunca
+simula un éxito — el Alert de aviso del preview lo advierte explícitamente.
+`RentalListCard` en cambio recibe sus acciones como callbacks no-op
+(`() => {}`), porque a diferencia de `ContractCard` ese componente nunca
+llama una mutación por sí mismo — es la página real (`RentalsPage`) quien
+las conecta, así que el preview simplemente no las conecta a nada.
+
+Cubierto en `e2e/rentals-preview.spec.ts`: alcanzabilidad sin sesión,
+variedad completa de estados de Arriendos y Contratos, ausencia de UUIDs/
+copy de firma avanzada, Light/Dark, y overflow horizontal en
+320/375/768/1024/1440 (los anchos pedidos en el Issue #28) en ambos temas.

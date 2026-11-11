@@ -32,6 +32,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const enablePropertiesPreview =
     PREVIEW_ALLOWED_MODES.has(mode) && env['VITE_ENABLE_PROPERTIES_PREVIEW'] === 'true'
+  // Same mechanism, separate flag (Sprint 3, RentalsVisualPreview) - kept
+  // independent of __ENABLE_PROPERTIES_PREVIEW__ so either preview's chunk
+  // can be excluded/included on its own.
+  const enableRentalsPreview = PREVIEW_ALLOWED_MODES.has(mode) && env['VITE_ENABLE_RENTALS_PREVIEW'] === 'true'
   return {
     plugins: [react()],
     resolve: {
@@ -41,6 +45,7 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       __ENABLE_PROPERTIES_PREVIEW__: JSON.stringify(enablePropertiesPreview),
+      __ENABLE_RENTALS_PREVIEW__: JSON.stringify(enableRentalsPreview),
     },
     // `supabase/config.toml`'s own `site_url` (committed, shared by every
     // local/disposable Supabase stack this project starts) has always been

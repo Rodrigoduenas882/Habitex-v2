@@ -235,83 +235,88 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
         noValidate
         className={styles['form']}
       >
-        <h2 className="text-h3">{t('termsForm.sectionSchedule')}</h2>
+        <div className={styles['formSection']}>
+          <h2 className="text-h3">{t('termsForm.sectionSchedule')}</h2>
 
-        <Input
-          type="date"
-          label={t('termsForm.realStartDate.label')}
-          error={errors.realStartDate?.message}
-          disabled={saveRentalTerms.isPending}
-          {...register('realStartDate')}
-        />
-        <Input
-          type="date"
-          label={t('termsForm.trackingStartDate.label')}
-          error={errors.trackingStartDate?.message}
-          disabled={saveRentalTerms.isPending}
-          {...register('trackingStartDate')}
-        />
-        <Input
-          type="number"
-          min={1}
-          max={31}
-          step={1}
-          label={t('termsForm.paymentDay.label')}
-          error={errors.paymentDay?.message}
-          disabled={saveRentalTerms.isPending}
-          {...register('paymentDay')}
-        />
-        <Select
-          label={t('termsForm.paymentTiming.label')}
-          disabled={saveRentalTerms.isPending}
-          {...register('paymentTiming')}
-        >
-          <option value="ADVANCE">{t('paymentTiming.ADVANCE')}</option>
-          <option value="ARREARS">{t('paymentTiming.ARREARS')}</option>
-        </Select>
-        <Input
-          type="date"
-          label={t('termsForm.expectedEndDate.label')}
-          hint={t('termsForm.expectedEndDate.hint')}
-          error={errors.expectedEndDate?.message}
-          disabled={saveRentalTerms.isPending}
-          {...register('expectedEndDate')}
-        />
+          <Input
+            type="date"
+            label={t('termsForm.realStartDate.label')}
+            error={errors.realStartDate?.message}
+            disabled={saveRentalTerms.isPending}
+            {...register('realStartDate')}
+          />
+          <Input
+            type="date"
+            label={t('termsForm.trackingStartDate.label')}
+            error={errors.trackingStartDate?.message}
+            disabled={saveRentalTerms.isPending}
+            {...register('trackingStartDate')}
+          />
+          <Input
+            type="number"
+            min={1}
+            max={31}
+            step={1}
+            label={t('termsForm.paymentDay.label')}
+            error={errors.paymentDay?.message}
+            disabled={saveRentalTerms.isPending}
+            {...register('paymentDay')}
+          />
+          <Select
+            label={t('termsForm.paymentTiming.label')}
+            hint={t('termsForm.paymentTiming.hint')}
+            disabled={saveRentalTerms.isPending}
+            {...register('paymentTiming')}
+          >
+            <option value="ADVANCE">{t('paymentTiming.ADVANCE')}</option>
+            <option value="ARREARS">{t('paymentTiming.ARREARS')}</option>
+          </Select>
+          <Input
+            type="date"
+            label={t('termsForm.expectedEndDate.label')}
+            hint={t('termsForm.expectedEndDate.hint')}
+            error={errors.expectedEndDate?.message}
+            disabled={saveRentalTerms.isPending}
+            {...register('expectedEndDate')}
+          />
+        </div>
 
-        <h2 className="text-h3">{t('termsForm.sectionFinancial')}</h2>
+        <div className={styles['formSection']}>
+          <h2 className="text-h3">{t('termsForm.sectionFinancial')}</h2>
 
-        <Input
-          type="number"
-          min={0}
-          step="any"
-          label={t('termsForm.rentAmount.label')}
-          error={errors.rentAmount?.message}
-          disabled={saveRentalTerms.isPending}
-          {...register('rentAmount')}
-        />
-        <Select
-          label={t('termsForm.administrationMode.label')}
-          disabled={saveRentalTerms.isPending}
-          {...register('administrationMode')}
-        >
-          {ADMINISTRATION_MODE_OPTIONS.map((mode) => (
-            <option key={mode} value={mode}>
-              {t(`termsForm.administrationMode.${mode}`)}
-            </option>
-          ))}
-        </Select>
-        <Select
-          label={t('termsForm.utilitiesMode.label')}
-          disabled={saveRentalTerms.isPending}
-          {...register('utilitiesMode')}
-        >
-          <option value="">{t('termsForm.utilitiesMode.none')}</option>
-          {UTILITIES_MODE_OPTIONS.map((mode) => (
-            <option key={mode} value={mode}>
-              {t(`termsForm.utilitiesMode.${mode}`)}
-            </option>
-          ))}
-        </Select>
+          <Input
+            type="number"
+            min={0}
+            step="any"
+            label={t('termsForm.rentAmount.label')}
+            error={errors.rentAmount?.message}
+            disabled={saveRentalTerms.isPending}
+            {...register('rentAmount')}
+          />
+          <Select
+            label={t('termsForm.administrationMode.label')}
+            disabled={saveRentalTerms.isPending}
+            {...register('administrationMode')}
+          >
+            {ADMINISTRATION_MODE_OPTIONS.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`termsForm.administrationMode.${mode}`)}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label={t('termsForm.utilitiesMode.label')}
+            disabled={saveRentalTerms.isPending}
+            {...register('utilitiesMode')}
+          >
+            <option value="">{t('termsForm.utilitiesMode.none')}</option>
+            {UTILITIES_MODE_OPTIONS.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`termsForm.utilitiesMode.${mode}`)}
+              </option>
+            ))}
+          </Select>
+        </div>
 
         <Button
           type="submit"

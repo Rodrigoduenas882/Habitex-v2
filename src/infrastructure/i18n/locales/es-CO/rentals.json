@@ -204,7 +204,10 @@
     "realStartDate": { "label": "Fecha real de inicio" },
     "trackingStartDate": { "label": "Fecha de inicio de seguimiento" },
     "paymentDay": { "label": "Día de pago" },
-    "paymentTiming": { "label": "Momento de pago" },
+    "paymentTiming": {
+      "label": "Momento de pago",
+      "hint": "Anticipado: se paga antes de empezar el periodo. Vencido: se paga al terminarlo."
+    },
     "expectedEndDate": {
       "label": "Fecha de finalización esperada",
       "hint": "Opcional. Déjala vacía si el arriendo es indefinido."

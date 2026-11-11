@@ -15,6 +15,8 @@ import { Alert } from '@/shared/ui/Alert'
 import { Badge, type BadgeTone } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
+import { FileTextIcon } from '@/shared/ui/icons'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import { Input } from '@/shared/ui/Input'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import styles from './RentalContractsPage.module.css'
@@ -318,7 +320,7 @@ function TerminateContractAction({
   )
 }
 
-interface ContractCardProps {
+export interface ContractCardProps {
   contract: Contract
   administrationId: string
   relationshipId: string
@@ -329,8 +331,17 @@ interface ContractCardProps {
  * whichever file is present, and the status-exact action set (see this
  * feature's own scope notes: GENERATED gets markShared + attachSignedCopy,
  * SHARED gets attachSignedCopy only, SIGNED gets terminate only,
- * TERMINATED/DRAFT get none). */
-function ContractCard({ contract, administrationId, relationshipId, managementBlocked }: ContractCardProps) {
+ * TERMINATED/DRAFT get none).
+ *
+ * Exported (Sprint 3, same reuse principle as PropertiesSection/
+ * ParkingsSection in Sprint 2) so ContractsVisualPreview can render this
+ * exact component instead of a look-alike copy. Its mutation hooks
+ * (useMarkContractShared/useTerminateContract) stay real either way - a
+ * click against preview-only fixture ids simply fails the same way any
+ * invalid/unauthenticated call would in production (RLS/network error,
+ * shown through this component's own existing error handling), never a
+ * faked success. */
+export function ContractCard({ contract, administrationId, relationshipId, managementBlocked }: ContractCardProps) {
   const { t } = useTranslation(['contracts', 'administration'])
   const markShared = useMarkContractShared()
   const terminate = useTerminateContract()
@@ -345,10 +356,13 @@ function ContractCard({ contract, administrationId, relationshipId, managementBl
   return (
     <Card className={styles['contractCard']}>
       <div className={styles['contractHeader']}>
+        <IconBadge icon={<FileTextIcon size={18} />} tone="neutral" size={36} radius="md" />
+        <div className={styles['contractIdentity']}>
+          <p className="text-body-sm text-muted">{t(`origin.${contract.origin}`)}</p>
+          <span className="text-caption text-muted">{t('list.version', { version: contract.versionNumber })}</span>
+        </div>
         <Badge tone={STATUS_TONE[contract.status]}>{t(`status.${contract.status}`)}</Badge>
-        <span className="text-caption text-muted">{t('list.version', { version: contract.versionNumber })}</span>
       </div>
-      <p className="text-body-sm text-muted">{t(`origin.${contract.origin}`)}</p>
       {contract.generatedAt ? (
         <p className="text-caption text-muted">{t('list.generatedAt', { date: formatDateTime(contract.generatedAt) })}</p>
       ) : null}
@@ -514,36 +528,37 @@ function RegisterHabitexGeneratedForm({
 
   return (
     <form
-      className={styles['creationForm']}
       onSubmit={(event) => {
         event.preventDefault()
         submit()
       }}
     >
-      <h3 className={styles['creationFormTitle']}>{t('create.habitex.title')}</h3>
-      <p className="text-body-sm text-muted">{t('create.habitex.description')}</p>
-      <Input
-        type="file"
-        label={t('create.habitex.fileLabel')}
-        error={fileRequired ? t('create.fileRequired') : undefined}
-        disabled={isPending || managementBlocked}
-        onChange={(event) => {
-          setSelectedFile(event.target.files?.[0] ?? null)
-          setUploadedFile(null)
-          setFileRequired(false)
-        }}
-      />
-      <Button
-        type="submit"
-        loading={isPending}
-        disabled={managementBlocked || isPending}
-        aria-disabled={managementBlocked ? 'true' : undefined}
-        className={styles['creationSubmit']}
-      >
-        {isPending ? t('create.habitex.submitting') : t('create.habitex.submit')}
-      </Button>
-      {managementBlocked ? <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p> : null}
-      {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+      <Card className={styles['creationForm']}>
+        <h3 className="text-h3">{t('create.habitex.title')}</h3>
+        <p className="text-body-sm text-muted">{t('create.habitex.description')}</p>
+        <Input
+          type="file"
+          label={t('create.habitex.fileLabel')}
+          error={fileRequired ? t('create.fileRequired') : undefined}
+          disabled={isPending || managementBlocked}
+          onChange={(event) => {
+            setSelectedFile(event.target.files?.[0] ?? null)
+            setUploadedFile(null)
+            setFileRequired(false)
+          }}
+        />
+        <Button
+          type="submit"
+          loading={isPending}
+          disabled={managementBlocked || isPending}
+          aria-disabled={managementBlocked ? 'true' : undefined}
+          className={styles['creationSubmit']}
+        >
+          {isPending ? t('create.habitex.submitting') : t('create.habitex.submit')}
+        </Button>
+        {managementBlocked ? <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p> : null}
+        {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+      </Card>
     </form>
   )
 }
@@ -619,36 +634,37 @@ function RegisterExternalSignedForm({
 
   return (
     <form
-      className={styles['creationForm']}
       onSubmit={(event) => {
         event.preventDefault()
         submit()
       }}
     >
-      <h3 className={styles['creationFormTitle']}>{t('create.external.title')}</h3>
-      <p className="text-body-sm text-muted">{t('create.external.description')}</p>
-      <Input
-        type="file"
-        label={t('create.external.fileLabel')}
-        error={fileRequired ? t('create.fileRequired') : undefined}
-        disabled={isPending || managementBlocked}
-        onChange={(event) => {
-          setSelectedFile(event.target.files?.[0] ?? null)
-          setUploadedFile(null)
-          setFileRequired(false)
-        }}
-      />
-      <Button
-        type="submit"
-        loading={isPending}
-        disabled={managementBlocked || isPending}
-        aria-disabled={managementBlocked ? 'true' : undefined}
-        className={styles['creationSubmit']}
-      >
-        {isPending ? t('create.external.submitting') : t('create.external.submit')}
-      </Button>
-      {managementBlocked ? <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p> : null}
-      {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+      <Card className={styles['creationForm']}>
+        <h3 className="text-h3">{t('create.external.title')}</h3>
+        <p className="text-body-sm text-muted">{t('create.external.description')}</p>
+        <Input
+          type="file"
+          label={t('create.external.fileLabel')}
+          error={fileRequired ? t('create.fileRequired') : undefined}
+          disabled={isPending || managementBlocked}
+          onChange={(event) => {
+            setSelectedFile(event.target.files?.[0] ?? null)
+            setUploadedFile(null)
+            setFileRequired(false)
+          }}
+        />
+        <Button
+          type="submit"
+          loading={isPending}
+          disabled={managementBlocked || isPending}
+          aria-disabled={managementBlocked ? 'true' : undefined}
+          className={styles['creationSubmit']}
+        >
+          {isPending ? t('create.external.submitting') : t('create.external.submit')}
+        </Button>
+        {managementBlocked ? <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p> : null}
+        {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+      </Card>
     </form>
   )
 }
