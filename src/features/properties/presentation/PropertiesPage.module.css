@@ -12,6 +12,8 @@
   flex-wrap: wrap;
 }
 
+/* Only used by the loading skeleton now - the real content below 1024px is
+   .compactList (Properties) / .parkingList (Parqueaderos), not this grid. */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -24,12 +26,95 @@
   gap: var(--space-3);
 }
 
-/* Same existing 1024px breakpoint as AppShell/DashboardPage (DESIGN.md §7) -
-   a bit more breathing room between cards once there's room for it, not a
-   new column-count rule (auto-fill already adapts the column count on its
-   own at any width). */
+/* ---------- Properties: desktop table / mobile+tablet compact cards ----------
+   Same existing 1024px breakpoint as AppShell/DashboardPage (DESIGN.md §7) -
+   no new breakpoint. Both .tableWrap and .compactList always render; CSS
+   picks one per width, the same technique AppShell already uses for its
+   sidebar vs. drawer+bottom-nav (display:none removes the hidden one from
+   the accessibility tree too, so nothing doubles up for assistive tech). */
+.tableWrap {
+  display: none;
+}
+
+.compactList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 @media (min-width: 1024px) {
-  .grid {
-    gap: var(--space-5);
+  .tableWrap {
+    display: block;
+    overflow-x: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 0 var(--space-4);
   }
+
+  .compactList {
+    display: none;
+  }
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body-sm);
+}
+
+.table th {
+  text-align: left;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 500;
+  padding: var(--space-4) var(--space-3) var(--space-3);
+}
+
+.table td {
+  padding: var(--space-4) var(--space-3);
+  border-top: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.table th:first-child,
+.table td:first-child {
+  padding-left: 0;
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: 0;
+}
+
+.table tbody tr:hover {
+  background: var(--color-surface-hover);
+}
+
+.propertyCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.name {
+  font-weight: 600;
+}
+
+/* ---------- Parking: one shared bordered container of compact rows ---------- */
+.parkingList {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.parkingList > * {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.parkingList > *:last-child {
+  border-bottom: none;
 }

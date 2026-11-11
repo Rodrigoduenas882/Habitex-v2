@@ -36,10 +36,12 @@ export default function UiPreviewPage() {
     return <Suspense fallback={null}><DashboardVisualPreview /></Suspense>
   }
 
-  // Deliberately NOT DEV-gated like the Dashboard preview above - see
-  // PropertiesVisualPreview's own doc comment for why it needs to stay
-  // reachable from the production-style build.
-  if (view === 'properties') {
+  // Gated behind an explicit build flag (not `import.meta.env.DEV`, which
+  // would also disable it for Playwright's production-style build) - see
+  // PropertiesVisualPreview's own doc comment. Unset in `.env`/.env.example,
+  // so a real `pnpm build` never exposes this route; only `.env.e2e` (and
+  // any future review-only env) sets it.
+  if (view === 'properties' && import.meta.env['VITE_ENABLE_PROPERTIES_PREVIEW'] === 'true') {
     return <Suspense fallback={null}><PropertiesVisualPreview /></Suspense>
   }
 

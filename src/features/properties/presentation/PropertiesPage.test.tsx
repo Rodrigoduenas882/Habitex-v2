@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -125,6 +125,16 @@ function resolveOneAdministration() {
   ])
 }
 
+/** Properties now render twice (the desktop table and the mobile/tablet
+ * compact list - CSS, not JS, picks one per breakpoint; see
+ * PropertiesPage.module.css). Assertions about a specific property's
+ * content scope to this one canonical rendering instead of the bare
+ * `screen`, which would otherwise find two matches. Parking is unaffected -
+ * it only ever renders once (a single compact-row pattern at every width). */
+function compactProperties() {
+  return within(screen.getByTestId('properties-compact-list'))
+}
+
 describe('PropertiesPage', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -192,7 +202,8 @@ describe('PropertiesPage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Administración Dos, Activa' }))
 
-    expect(await screen.findByText('Apartamento 302')).toBeInTheDocument()
+    expect(await screen.findByTestId('properties-compact-list')).toBeInTheDocument()
+    expect(compactProperties().getByText('Apartamento 302')).toBeInTheDocument()
     expect(listPropertiesByAdministration).toHaveBeenCalledWith('admin-2')
   })
 
@@ -215,19 +226,21 @@ describe('PropertiesPage', () => {
     expect(screen.getByTestId('properties-loading')).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(screen.getByText('Apartamento 302')).toBeInTheDocument()
+      expect(screen.getByTestId('properties-compact-list')).toBeInTheDocument()
     })
-    expect(screen.getByText('Bogotá')).toBeInTheDocument()
-    expect(screen.getByText('Calle 1 # 2-3')).toBeInTheDocument()
-    expect(screen.getByText('Apartamento')).toBeInTheDocument()
-    expect(screen.getByText('Inmueble completo')).toBeInTheDocument()
+    const list = compactProperties()
+    expect(list.getByText('Apartamento 302')).toBeInTheDocument()
+    expect(list.getByText('Bogotá')).toBeInTheDocument()
+    expect(list.getByText('Calle 1 # 2-3')).toBeInTheDocument()
+    expect(list.getByText('Apartamento')).toBeInTheDocument()
+    expect(list.getByText('Inmueble completo')).toBeInTheDocument()
     expect(listPropertiesByAdministration).toHaveBeenCalledWith('admin-1')
 
     // Occupancy is now the same real, shared cross-reference the Dashboard's
     // PropertyCard uses (see usePropertyOccupancy's own doc comment) - with
     // no matching rental_subject in this scenario, the honest status is
     // "Disponible".
-    expect(await screen.findByText('Disponible')).toBeInTheDocument()
+    expect(await within(await screen.findByTestId('properties-compact-list')).findByText('Disponible')).toBeInTheDocument()
   })
 
   it('shows "Arrendado" for a property tied to an occupied rental subject, the same real occupancy cross-reference the Dashboard uses', async () => {
@@ -270,7 +283,7 @@ describe('PropertiesPage', () => {
     ])
     renderPage()
 
-    expect(await screen.findByText('Arrendado')).toBeInTheDocument()
+    expect(await within(await screen.findByTestId('properties-compact-list')).findByText('Arrendado')).toBeInTheDocument()
   })
 
   it('shows the empty state when the administration has no properties', async () => {
@@ -317,7 +330,8 @@ describe('PropertiesPage', () => {
       listParkingsByAdministration.mockReturnValueOnce(new Promise(() => {}))
       renderPage()
 
-      expect(await screen.findByText('Apartamento 302')).toBeInTheDocument()
+      expect(await screen.findByTestId('properties-compact-list')).toBeInTheDocument()
+      expect(compactProperties().getByText('Apartamento 302')).toBeInTheDocument()
       expect(screen.getByTestId('parkings-loading')).toBeInTheDocument()
     })
 
@@ -347,7 +361,8 @@ describe('PropertiesPage', () => {
       listParkingsByAdministration.mockRejectedValueOnce(new Error('boom'))
       renderPage()
 
-      expect(await screen.findByText('Apartamento 302')).toBeInTheDocument()
+      expect(await screen.findByTestId('properties-compact-list')).toBeInTheDocument()
+      expect(compactProperties().getByText('Apartamento 302')).toBeInTheDocument()
       expect(
         await screen.findByText('No pudimos cargar tus parqueaderos. Intenta de nuevo.'),
       ).toBeInTheDocument()
@@ -424,11 +439,13 @@ describe('PropertiesPage', () => {
       const user = userEvent.setup()
       renderPage()
 
-      expect(await screen.findByText('Casa 14')).toBeInTheDocument()
+      await screen.findByTestId('properties-compact-list')
+      expect(compactProperties().getByText('Casa 14')).toBeInTheDocument()
       await user.type(screen.getByLabelText('Buscar inmuebles'), 'medellin')
 
-      expect(screen.getByText('Casa 14')).toBeInTheDocument()
-      expect(screen.queryByText('Apartamento 302')).not.toBeInTheDocument()
+      const list = compactProperties()
+      expect(list.getByText('Casa 14')).toBeInTheDocument()
+      expect(list.queryByText('Apartamento 302')).not.toBeInTheDocument()
       // Diacritic-insensitive: "medellin" (typed) still matches "Medellín".
       expect(screen.getByText('Parqueadero 12')).toBeInTheDocument()
     })
@@ -445,7 +462,7 @@ describe('PropertiesPage', () => {
 
       expect(screen.getByText('P-07')).toBeInTheDocument()
       expect(screen.queryByText('Parqueadero 12')).not.toBeInTheDocument()
-      expect(screen.getByText('Apartamento 302')).toBeInTheDocument()
+      expect(compactProperties().getByText('Apartamento 302')).toBeInTheDocument()
     })
 
     it('shows a "no results" empty state (distinct from the "no data" one) when the search matches nothing', async () => {
@@ -470,11 +487,112 @@ describe('PropertiesPage', () => {
 
       const search = await screen.findByLabelText('Buscar inmuebles')
       await user.type(search, 'casa')
-      expect(screen.queryByText('Apartamento 302')).not.toBeInTheDocument()
+      expect(compactProperties().queryByText('Apartamento 302')).not.toBeInTheDocument()
 
       await user.clear(search)
-      expect(screen.getByText('Apartamento 302')).toBeInTheDocument()
-      expect(screen.getByText('Casa 14')).toBeInTheDocument()
+      const list = compactProperties()
+      expect(list.getByText('Apartamento 302')).toBeInTheDocument()
+      expect(list.getByText('Casa 14')).toBeInTheDocument()
+    })
+  })
+
+  describe('responsive presentation - desktop table / compact list (Figma candidate, node 353:2)', () => {
+    it('renders Propiedades as a real table with column headers, duplicating the same row data the compact list shows', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      renderPage()
+
+      // jsdom doesn't compute the implicit table/columnheader ARIA roles
+      // here (it never applies the UA default `table { display: table }`,
+      // and the WAI-ARIA algorithm suppresses those roles without it) - a
+      // real browser does, see e2e/properties-preview.spec.ts for the
+      // role-based assertion against this exact markup. Text queries below
+      // don't depend on that and still verify the real column headers/data.
+      const table = within(await screen.findByTestId('properties-table'))
+      expect(table.getByText('Inmueble')).toBeInTheDocument()
+      expect(table.getByText('Tipo')).toBeInTheDocument()
+      expect(table.getByText('Modalidad')).toBeInTheDocument()
+      expect(table.getByText('Estado')).toBeInTheDocument()
+      expect(table.getByText('Apartamento 302')).toBeInTheDocument()
+      expect(table.getByText('Bogotá')).toBeInTheDocument()
+      expect(table.getByText('Disponible')).toBeInTheDocument()
+
+      // The compact list has the exact same property, just in the other
+      // presentation - both always render, CSS picks one per breakpoint.
+      expect(compactProperties().getByText('Apartamento 302')).toBeInTheDocument()
+    })
+
+    it("shows the BY_ROOMS room-count detail inside the table's Modalidad column, only once occupancy is ready", async () => {
+      resolveOneAdministration()
+      const byRooms = { ...PROPERTY_1, rentalMode: 'BY_ROOMS' as const }
+      listPropertiesByAdministration.mockResolvedValueOnce([byRooms])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      renderPage()
+
+      const table = within(await screen.findByTestId('properties-table'))
+      expect(table.getByText('Por habitaciones')).toBeInTheDocument()
+      // Occupancy resolves to "ready" with zero rooms/subjects configured -
+      // the honest "0 de 0" detail, not a guess.
+      expect(await table.findByText('0 de 0 habitaciones ocupadas')).toBeInTheDocument()
+    })
+
+    it('renders Parqueaderos as one bordered list of compact rows, not a card grid', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([])
+      listParkingsByAdministration.mockResolvedValueOnce([PARKING_1, PARKING_2])
+      renderPage()
+
+      const list = within(await screen.findByTestId('parking-list'))
+      expect(list.getByText('Parqueadero 12')).toBeInTheDocument()
+      expect(list.getByText('P-07')).toBeInTheDocument()
+    })
+  })
+
+  describe('accessible search announcements (role="status", no focus movement)', () => {
+    it('announces the Propiedades result count without moving focus away from the search input', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1, PROPERTY_2])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      const user = userEvent.setup()
+      renderPage()
+
+      const search = await screen.findByLabelText('Buscar inmuebles')
+      // No announcement at all while the search is empty - nothing to report yet.
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+      await user.type(search, 'casa')
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Se encontró 1 resultado.')
+      expect(search).toHaveFocus()
+    })
+
+    it('announces "no matches" via the same live region when Propiedades search finds nothing', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1, PROPERTY_2])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      const user = userEvent.setup()
+      renderPage()
+
+      const search = await screen.findByLabelText('Buscar inmuebles')
+      await user.type(search, 'xyz-no-match')
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Intenta con otro nombre, dirección o ciudad.')
+      expect(search).toHaveFocus()
+    })
+
+    it('announces the Parqueaderos result count independently, without moving focus', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([])
+      listParkingsByAdministration.mockResolvedValueOnce([PARKING_1, PARKING_2])
+      const user = userEvent.setup()
+      renderPage()
+
+      const search = await screen.findByLabelText('Buscar parqueaderos')
+      await user.type(search, 'p-07')
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Se encontró 1 resultado.')
+      expect(search).toHaveFocus()
     })
   })
 })

@@ -1,15 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Parking } from '@/features/parking/domain/parking.types'
-import { ParkingListCard } from '@/features/parking/presentation/ParkingListCard'
-import { derivePropertyListDisplay } from '@/features/properties/presentation/derivePropertyListDisplay'
-import { PropertyListCard } from '@/features/properties/presentation/PropertyListCard'
+import { ParkingsSection, PropertiesSection } from '@/features/properties/presentation/PropertiesPage'
 import type { PropertyOccupancyMap } from '@/features/properties/application/usePropertyOccupancy'
 import type { Property } from '@/features/properties/domain/property.types'
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
-import { EmptyState } from '@/shared/ui/EmptyState'
-import { BuildingIcon, CarIcon } from '@/shared/ui/icons'
 import { AppShellPreview } from './AppShellPreview'
 import styles from './PropertiesVisualPreview.module.css'
 
@@ -37,26 +33,34 @@ const parkings: Parking[] = [
 ]
 
 /**
- * Visual-only preview of the real /properties list cards (PropertyListCard,
- * ParkingListCard) through mock fixtures - same technique as
+ * Visual-only preview of the real /properties presentation (PropertiesSection
+ * and ParkingsSection - the table/compact-card/row split, not a
+ * re-implementation) through mock fixtures - same technique as
  * DashboardVisualPreview, reached the same way (`/ui-preview?view=properties`).
- * Deliberately NOT gated behind `import.meta.env.DEV` like
- * DashboardVisualPreview is - this one needs to stay reachable from the
- * production-style build so Playwright (and an independent reviewer) can
- * exercise it without a real Supabase session, which neither can obtain
- * against the real authenticated route.
+ * Gated by UiPreviewPage behind `VITE_ENABLE_PROPERTIES_PREVIEW` instead of
+ * `import.meta.env.DEV` like DashboardVisualPreview is - a real `pnpm build`
+ * (no flag set) never exposes this route at all, but it still needs to stay
+ * reachable from the *review/E2E* production-style build (`.env.e2e` sets
+ * the flag), since Playwright and an independent reviewer have no way to
+ * obtain a real Supabase session against the real authenticated route.
  *
- * Renders the real list cards and the real derivePropertyListDisplay/
- * usePropertyOccupancy shapes (not a re-implementation) so this preview
- * can't visually drift from what /properties actually renders. Search/
- * filter *behavior* is already covered by PropertiesPage.test.tsx against
- * the real page - this preview exists for visual/responsive/light-dark
- * review of the cards and grid, not to re-verify that logic.
+ * Renders the exact same exported section components /properties uses, fed
+ * plain mock query objects (same pattern as DashboardContent's own props)
+ * instead of a re-implementation, so this preview can't visually drift from
+ * what /properties actually renders. Search/filter *behavior* and the
+ * accessible live-region announcements are already covered by
+ * PropertiesPage.test.tsx against the real page - this preview exists for
+ * visual/responsive/light-dark review of the table/cards/rows, not to
+ * re-verify that logic (no search input is wired up here).
  */
 export default function PropertiesVisualPreview() {
   const { t } = useTranslation('properties')
   const { t: parkingT } = useTranslation('parking')
   const [empty, setEmpty] = useState(false)
+
+  const propertiesQuery = { data: empty ? [] : properties, isLoading: false, isError: false }
+  const parkingsQuery = { data: empty ? [] : parkings, isLoading: false, isError: false }
+  const propertiesForAssociation = { data: properties, isSuccess: true }
 
   return (
     <AppShellPreview fullViewport>
@@ -84,39 +88,17 @@ export default function PropertiesVisualPreview() {
 
         <section className={styles['section']}>
           <h2 className="text-h3">{t('sections.properties')}</h2>
-          {empty ? (
-            <EmptyState icon={<BuildingIcon size={24} />} title={t('empty.title')} description={t('empty.description')} />
-          ) : (
-            <div className={styles['grid']}>
-              {properties.map((property) => {
-                const { status, detail } = derivePropertyListDisplay(property, occupancy, t)
-                return <PropertyListCard key={property.id} property={property} status={status} detail={detail} />
-              })}
-            </div>
-          )}
+          <PropertiesSection query={propertiesQuery} occupancy={occupancy} searchTerm="" />
         </section>
 
         <section className={styles['section']}>
           <h2 className="text-h3">{parkingT('section.title')}</h2>
-          {empty ? (
-            <EmptyState
-              icon={<CarIcon size={24} />}
-              title={parkingT('section.empty.title')}
-              description={parkingT('section.empty.description')}
-            />
-          ) : (
-            <div className={styles['grid']}>
-              {parkings.map((parking) => {
-                const associatedPropertyName =
-                  parking.propertyId != null
-                    ? (properties.find((property) => property.id === parking.propertyId)?.name ?? null)
-                    : null
-                return (
-                  <ParkingListCard key={parking.id} parking={parking} associatedPropertyName={associatedPropertyName} />
-                )
-              })}
-            </div>
-          )}
+          <ParkingsSection
+            query={parkingsQuery}
+            propertiesQuery={propertiesForAssociation}
+            emptyAction={<Button disabled>{t('addProperty.cta')}</Button>}
+            searchTerm=""
+          />
         </section>
       </div>
     </AppShellPreview>

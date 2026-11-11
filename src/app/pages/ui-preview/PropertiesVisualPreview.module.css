@@ -2,7 +2,3 @@
 .page { display: flex; flex-direction: column; gap: var(--space-5); }
 .header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
 .section { display: flex; flex-direction: column; gap: var(--space-3); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4); }
-@media (min-width: 1024px) {
-  .grid { gap: var(--space-5); }
-}

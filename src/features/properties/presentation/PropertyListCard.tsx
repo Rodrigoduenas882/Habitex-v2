@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import type { PropertyOccupancyStatus } from '@/features/properties/application/usePropertyOccupancy'
 import { cx } from '@/shared/lib/cx'
-import { Badge, type BadgeTone } from '@/shared/ui/Badge'
+import { Badge } from '@/shared/ui/Badge'
 import { Card } from '@/shared/ui/Card'
 import { BuildingIcon, HomeIcon } from '@/shared/ui/icons'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import type { Property } from '../domain/property.types'
+import { PROPERTY_STATUS_LABEL_KEY, PROPERTY_STATUS_TONE } from './derivePropertyListDisplay'
 import styles from './PropertyListCard.module.css'
 
 export interface PropertyListCardProps {
@@ -17,31 +19,15 @@ export interface PropertyListCardProps {
   detail: string
 }
 
-const STATUS_TONE: Record<PropertyOccupancyStatus, BadgeTone> = {
-  rented: 'success',
-  available: 'info',
-  unknown: 'neutral',
-}
-
-const STATUS_LABEL_KEY: Record<
-  PropertyOccupancyStatus,
-  'occupancy.rented' | 'occupancy.available' | 'occupancy.statusUnknown'
-> = {
-  rented: 'occupancy.rented',
-  available: 'occupancy.available',
-  unknown: 'occupancy.statusUnknown',
-}
-
 /**
- * Real property card - decoupled from the Dashboard's mock PropertySummary.
- * Now shares both the same occupancy badge AND the same placeholder
- * language (propertyType icon + overlaid status badge) as the Dashboard's
- * PropertyCard - status/detail are computed once by usePropertyOccupancy +
+ * The compact card used below the 1024px breakpoint (the approved Figma
+ * candidate's "tarjetas compactas en móvil" - the desktop breakpoint uses
+ * PropertiesPage's own table instead, see its PropertyTable section). A
+ * single inline icon identity row, not a 120px photo-style header - that
+ * larger header language is the Dashboard carousel's own card, not this
+ * list's. status/detail are computed once by usePropertyOccupancy +
  * derivePropertyOccupancyStatus, never re-derived here (see that hook's own
- * doc comment); the icon-based placeholder is duplicated locally rather
- * than imported cross-feature from dashboard/presentation, which stays
- * untouched this increment. A shared shared/ui/PropertyPlaceholder is a
- * reasonable dedupe candidate later.
+ * doc comment).
  */
 export function PropertyListCard({ property, status, detail }: PropertyListCardProps) {
   const { t } = useTranslation('properties')
@@ -49,26 +35,24 @@ export function PropertyListCard({ property, status, detail }: PropertyListCardP
 
   return (
     <Card className={styles['card']}>
-      <div className={styles['image']}>
-        <PropertyIcon size={40} aria-hidden="true" className={styles['propertyIcon']} />
-        <span className={styles['badgeOverlay']}>
-          <Badge tone={STATUS_TONE[status]}>{t(STATUS_LABEL_KEY[status])}</Badge>
-        </span>
-      </div>
-      <div className={styles['body']}>
-        <p className={styles['name']}>{property.name}</p>
-        <p className="text-caption">{property.city}</p>
-        <p className={cx('text-caption', styles['detail'])}>{property.address}</p>
-        {/* BY_ROOMS only - for FULL_PROPERTY, `detail` is the same text the
-            propertyType badge below already shows, so rendering it again
-            here would just be a literal duplicate line. */}
-        {property.rentalMode === 'BY_ROOMS' ? (
-          <p className={cx('text-caption', 'text-muted')}>{detail}</p>
-        ) : null}
-        <div className={styles['meta']}>
-          <Badge tone="neutral">{t(`propertyType.${property.propertyType}`)}</Badge>
-          <Badge tone="neutral">{t(`rentalMode.${property.rentalMode}`)}</Badge>
+      <div className={styles['header']}>
+        <IconBadge icon={<PropertyIcon size={18} />} tone="neutral" size={36} radius="md" />
+        <div className={styles['identity']}>
+          <p className={styles['name']}>{property.name}</p>
+          <p className="text-caption">{property.city}</p>
+          <p className="text-caption text-muted">{property.address}</p>
         </div>
+        <Badge tone={PROPERTY_STATUS_TONE[status]}>{t(PROPERTY_STATUS_LABEL_KEY[status])}</Badge>
+      </div>
+      {/* BY_ROOMS only - for FULL_PROPERTY, `detail` is the same text the
+          propertyType badge below already shows, so rendering it again
+          here would just be a literal duplicate line. */}
+      {property.rentalMode === 'BY_ROOMS' ? (
+        <p className={cx('text-caption', 'text-muted')}>{detail}</p>
+      ) : null}
+      <div className={styles['meta']}>
+        <Badge tone="neutral">{t(`propertyType.${property.propertyType}`)}</Badge>
+        <Badge tone="neutral">{t(`rentalMode.${property.rentalMode}`)}</Badge>
       </div>
     </Card>
   )

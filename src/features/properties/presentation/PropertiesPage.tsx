@@ -8,16 +8,22 @@ import { useParkings } from '@/features/parking/application/useParkings'
 import type { Parking } from '@/features/parking/domain/parking.types'
 import { ParkingListCard } from '@/features/parking/presentation/ParkingListCard'
 import { Alert } from '@/shared/ui/Alert'
+import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { EmptyState } from '@/shared/ui/EmptyState'
-import { BuildingIcon, CarIcon } from '@/shared/ui/icons'
+import { BuildingIcon, CarIcon, HomeIcon } from '@/shared/ui/icons'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import { Input } from '@/shared/ui/Input'
 import { Skeleton } from '@/shared/ui/Skeleton'
-import { derivePropertyListDisplay } from './derivePropertyListDisplay'
+import { derivePropertyListDisplay, PROPERTY_STATUS_LABEL_KEY, PROPERTY_STATUS_TONE } from './derivePropertyListDisplay'
 import styles from './PropertiesPage.module.css'
 import { PropertyListCard } from './PropertyListCard'
 import { useProperties } from '../application/useProperties'
-import { usePropertyOccupancy, type PropertyOccupancyMap } from '../application/usePropertyOccupancy'
+import {
+  derivePropertyOccupancyStatus,
+  usePropertyOccupancy,
+  type PropertyOccupancyMap,
+} from '../application/usePropertyOccupancy'
 import type { Property } from '../domain/property.types'
 
 /** Lowercase + diacritic-stripped, so "bogota" matches "Bogotá" - a single
@@ -46,13 +52,42 @@ function GridSkeleton({ testId }: { testId: string }) {
   )
 }
 
-interface PropertiesSectionProps {
-  query: UseQueryResult<Property[]>
+export interface PropertiesSectionProps {
+  /** Narrowed to just the fields this section reads (not the full
+   * UseQueryResult) so PropertiesVisualPreview can pass plain mock objects
+   * instead of a real query result - same pattern DashboardContent's own
+   * props use for its query-shaped props. */
+  query: Pick<UseQueryResult<Property[]>, 'data' | 'isLoading' | 'isError'>
   occupancy: PropertyOccupancyMap
   searchTerm: string
 }
 
-function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSectionProps) {
+/** A visually-hidden announcement of the active search's own result count
+ * (or lack of it) - a localized live region per section, not a change to
+ * the shared/ui EmptyState primitive, which stays purely visual. Screen
+ * readers announce it on update without any focus movement, since nothing
+ * here ever calls .focus(). */
+function SearchResultsStatus({
+  searchTerm,
+  resultCount,
+  resultsAnnouncement,
+  noResultsAnnouncement,
+}: {
+  searchTerm: string
+  resultCount: number
+  resultsAnnouncement: string
+  noResultsAnnouncement: string
+}) {
+  if (!searchTerm.trim()) return null
+
+  return (
+    <p role="status" aria-live="polite" className="sr-only">
+      {resultCount > 0 ? resultsAnnouncement : noResultsAnnouncement}
+    </p>
+  )
+}
+
+export function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSectionProps) {
   const { t } = useTranslation('properties')
 
   if (query.isLoading) {
@@ -83,34 +118,104 @@ function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSectionPr
     matchesSearch(searchTerm, property.name, property.address, property.city),
   )
 
-  if (visible.length === 0) {
-    return (
-      <EmptyState
-        icon={<BuildingIcon size={24} />}
-        title={t('search.noResults.title', { query: searchTerm })}
-        description={t('search.noResults.description', { query: searchTerm })}
-      />
-    )
-  }
-
   return (
-    <div className={styles['grid']}>
-      {visible.map((property) => {
-        const { status, detail } = derivePropertyListDisplay(property, occupancy, t)
-        return <PropertyListCard key={property.id} property={property} status={status} detail={detail} />
-      })}
-    </div>
+    <>
+      <SearchResultsStatus
+        searchTerm={searchTerm}
+        resultCount={visible.length}
+        resultsAnnouncement={t('search.resultsAnnouncement', { count: visible.length })}
+        noResultsAnnouncement={t('search.noResults.description', { query: searchTerm })}
+      />
+      {visible.length === 0 ? (
+        <EmptyState
+          icon={<BuildingIcon size={24} />}
+          title={t('search.noResults.title', { query: searchTerm })}
+          description={t('search.noResults.description', { query: searchTerm })}
+        />
+      ) : (
+        <>
+          {/* Desktop (>=1024px): a real data table - the approved Figma
+              candidate's "tabla de inmuebles en escritorio". Both this and
+              the compact list below always render; CSS (not JS) picks one
+              per breakpoint, the same technique AppShell already uses for
+              its sidebar vs. drawer+bottom-nav. */}
+          <div
+            className={styles['tableWrap']}
+            role="region"
+            aria-label={t('sections.properties')}
+            tabIndex={0}
+            data-testid="properties-table"
+          >
+            <table className={styles['table']}>
+              <caption className="sr-only">{t('sections.properties')}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{t('table.property')}</th>
+                  <th scope="col">{t('table.type')}</th>
+                  <th scope="col">{t('table.rentalMode')}</th>
+                  <th scope="col">{t('table.status')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((property) => {
+                  const { status, occupiedRooms, totalRooms } = derivePropertyOccupancyStatus(property, occupancy)
+                  const PropertyIcon = property.propertyType === 'HOUSE' ? HomeIcon : BuildingIcon
+
+                  return (
+                    <tr key={property.id}>
+                      <td>
+                        <div className={styles['propertyCell']}>
+                          <IconBadge icon={<PropertyIcon size={16} />} tone="neutral" size={32} radius="md" />
+                          <div>
+                            <p className={styles['name']}>{property.name}</p>
+                            <p className="text-caption">{property.city}</p>
+                            <p className="text-caption text-muted">{property.address}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <Badge tone="neutral">{t(`propertyType.${property.propertyType}`)}</Badge>
+                      </td>
+                      <td>
+                        {t(`rentalMode.${property.rentalMode}`)}
+                        {property.rentalMode === 'BY_ROOMS' && occupancy.status === 'ready' ? (
+                          <p className="text-caption text-muted">
+                            {t('occupancy.roomsDetail', { occupied: occupiedRooms, total: totalRooms })}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td>
+                        <Badge tone={PROPERTY_STATUS_TONE[status]}>{t(PROPERTY_STATUS_LABEL_KEY[status])}</Badge>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Below 1024px: the compact card - "tarjetas compactas en
+              móvil". See the table above for why both always render. */}
+          <div className={styles['compactList']} data-testid="properties-compact-list">
+            {visible.map((property) => {
+              const { status, detail } = derivePropertyListDisplay(property, occupancy, t)
+              return <PropertyListCard key={property.id} property={property} status={status} detail={detail} />
+            })}
+          </div>
+        </>
+      )}
+    </>
   )
 }
 
-interface ParkingsSectionProps {
-  query: UseQueryResult<Parking[]>
-  propertiesQuery: UseQueryResult<Property[]>
+export interface ParkingsSectionProps {
+  query: Pick<UseQueryResult<Parking[]>, 'data' | 'isLoading' | 'isError'>
+  propertiesQuery: Pick<UseQueryResult<Property[]>, 'data' | 'isSuccess'>
   emptyAction: ReactNode
   searchTerm: string
 }
 
-function ParkingsSection({ query, propertiesQuery, emptyAction, searchTerm }: ParkingsSectionProps) {
+export function ParkingsSection({ query, propertiesQuery, emptyAction, searchTerm }: ParkingsSectionProps) {
   const { t } = useTranslation('parking')
 
   if (query.isLoading) {
@@ -141,33 +246,43 @@ function ParkingsSection({ query, propertiesQuery, emptyAction, searchTerm }: Pa
 
   const visible = parkings.filter((parking) => matchesSearch(searchTerm, parking.identifier, parking.location))
 
-  if (visible.length === 0) {
-    return (
-      <EmptyState
-        icon={<CarIcon size={24} />}
-        title={t('section.search.noResults.title', { query: searchTerm })}
-        description={t('section.search.noResults.description', { query: searchTerm })}
-      />
-    )
-  }
-
   return (
-    <div className={styles['grid']}>
-      {visible.map((parking) => {
-        const associatedPropertyName =
-          parking.propertyId && properties
-            ? (properties.find((property) => property.id === parking.propertyId)?.name ?? null)
-            : null
+    <>
+      <SearchResultsStatus
+        searchTerm={searchTerm}
+        resultCount={visible.length}
+        resultsAnnouncement={t('section.search.resultsAnnouncement', { count: visible.length })}
+        noResultsAnnouncement={t('section.search.noResults.description', { query: searchTerm })}
+      />
+      {visible.length === 0 ? (
+        <EmptyState
+          icon={<CarIcon size={24} />}
+          title={t('section.search.noResults.title', { query: searchTerm })}
+          description={t('section.search.noResults.description', { query: searchTerm })}
+        />
+      ) : (
+        // One shared bordered container, each parking a compact divided row
+        // inside it - the approved Figma candidate's "filas compactas para
+        // parqueaderos", a single pattern at every width (unlike Properties,
+        // which switches between a table and a card by breakpoint).
+        <div className={styles['parkingList']} data-testid="parking-list">
+          {visible.map((parking) => {
+            const associatedPropertyName =
+              parking.propertyId && properties
+                ? (properties.find((property) => property.id === parking.propertyId)?.name ?? null)
+                : null
 
-        return (
-          <ParkingListCard
-            key={parking.id}
-            parking={parking}
-            associatedPropertyName={associatedPropertyName}
-          />
-        )
-      })}
-    </div>
+            return (
+              <ParkingListCard
+                key={parking.id}
+                parking={parking}
+                associatedPropertyName={associatedPropertyName}
+              />
+            )
+          })}
+        </div>
+      )}
+    </>
   )
 }
 

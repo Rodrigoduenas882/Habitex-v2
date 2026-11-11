@@ -59,6 +59,8 @@
     "search": {
       "label": "Buscar parqueaderos",
       "placeholder": "Identificador o ubicación",
+      "resultsAnnouncement_one": "Se encontró {{count}} resultado.",
+      "resultsAnnouncement_other": "Se encontraron {{count}} resultados.",
       "noResults": {
         "title": "Sin resultados para \"{{query}}\"",
         "description": "Intenta con otro identificador o ubicación."

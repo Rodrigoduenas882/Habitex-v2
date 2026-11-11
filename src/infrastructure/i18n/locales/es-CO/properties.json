@@ -24,10 +24,18 @@
   "search": {
     "label": "Buscar inmuebles",
     "placeholder": "Nombre, dirección o ciudad",
+    "resultsAnnouncement_one": "Se encontró {{count}} resultado.",
+    "resultsAnnouncement_other": "Se encontraron {{count}} resultados.",
     "noResults": {
       "title": "Sin resultados para \"{{query}}\"",
       "description": "Intenta con otro nombre, dirección o ciudad."
     }
+  },
+  "table": {
+    "property": "Inmueble",
+    "type": "Tipo",
+    "rentalMode": "Modalidad",
+    "status": "Estado"
   },
   "errors": {
     "propertiesTitle": "No pudimos cargar tus inmuebles",
