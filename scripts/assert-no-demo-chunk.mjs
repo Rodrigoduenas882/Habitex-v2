@@ -1,14 +1,15 @@
 // Fail-closed guard run after a normal `pnpm build` (chained in
 // package.json's `build` script, same technique as assert-local-e2e-env.mjs).
 //
-// PropertiesVisualPreview is a design/QA-only view built entirely on local
-// mock fixtures (fake inmuebles, addresses, parkings). Route-gating it is
-// not enough: a `lazy(() => import(...))` that is merely rendered
-// conditionally still leaves a reachable dynamic import, so Rollup keeps
-// emitting its chunk into dist/ - shipped, fetchable, and inspectable by
-// anyone, even though no route renders it. It is excluded at build time
-// instead, via the `__ENABLE_PROPERTIES_PREVIEW__` define (see
-// vite.config.ts and UiPreviewPage.tsx).
+// PropertiesVisualPreview and RentalsVisualPreview are design/QA-only views
+// built entirely on local mock fixtures (fake inmuebles, addresses,
+// parkings, arriendos, contratos). Route-gating either is not enough: a
+// `lazy(() => import(...))` that is merely rendered conditionally still
+// leaves a reachable dynamic import, so Rollup keeps emitting its chunk
+// into dist/ - shipped, fetchable, and inspectable by anyone, even though
+// no route renders it. Both are excluded at build time instead, via their
+// own `__ENABLE_*_PREVIEW__` define (see vite.config.ts and
+// UiPreviewPage.tsx).
 //
 // That exclusion depends on esbuild's dead-code elimination actually
 // folding the define away, which is exactly the kind of thing a config or
@@ -28,13 +29,17 @@ import { join } from 'node:path'
 
 const DIST_DIR = 'dist'
 const SCAN_EXTENSIONS = new Set(['.js', '.css', '.html'])
-// String literals from PropertiesVisualPreview.tsx's own fixtures/copy -
-// minifiers rename identifiers but never alter string literal contents, so
-// these survive in the built output verbatim regardless of chunk naming.
+// String literals from PropertiesVisualPreview.tsx's / RentalsVisualPreview.tsx's
+// own fixtures/copy - minifiers rename identifiers but never alter string
+// literal contents, so these survive in the built output verbatim
+// regardless of chunk naming.
 const DEMO_CONTENT_MARKERS = [
   'demo-prop-1',
   'demo-parking-1',
   'Vista de demostración · Inmuebles y Parqueaderos',
+  'demo-rental-base',
+  'demo-contract-base',
+  'Vista de demostración · Arriendos y Contratos',
 ]
 
 function listFilesRecursively(dir) {
@@ -81,9 +86,9 @@ if (offendingFiles.length > 0) {
   const details = offendingFiles.map(({ file, marker }) => `${file} (matched "${marker}")`).join(', ')
   console.error(
     `[assert-no-demo-chunk] ${DIST_DIR} contains demo-fixture content: ${details}. ` +
-      'A normal production build must not emit the Properties visual preview. Check that ' +
-      '__ENABLE_PROPERTIES_PREVIEW__ (vite.config.ts) is still false here and that UiPreviewPage.tsx ' +
-      'still guards the import() itself, not just its rendering.',
+      'A normal production build must not emit the Properties or Rentals visual preview. Check that ' +
+      '__ENABLE_PROPERTIES_PREVIEW__/__ENABLE_RENTALS_PREVIEW__ (vite.config.ts) are still false here and ' +
+      'that UiPreviewPage.tsx still guards each import() itself, not just its rendering.',
   )
   process.exit(1)
 }

@@ -6,6 +6,8 @@ import { Alert } from '@/shared/ui/Alert'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
+import { KeyIcon } from '@/shared/ui/icons'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import type { RentalActivationErrorCode, RentalLifecycleErrorCode, RentalRelationship } from '../domain/rental.types'
 import styles from './RentalListCard.module.css'
 import { RENTAL_STATUS_TONE } from './rental-status-tone'
@@ -205,16 +207,20 @@ function LifecycleConfirmAction({
 }
 
 /**
- * Same visual family as PropertyListCard/ParkingListCard (Card, spacing
- * tokens, tone="badge" for the status). The primary heading is now the
- * resolved subject label (what's being rented) rather than a generic
+ * Same visual family as PropertyListCard/ParkingListCard - an IconBadge
+ * identity header (icon + subject/tenant + status Badge, docs/DESIGN.md
+ * §16) instead of a flat stack of paragraphs. The primary heading is still
+ * the resolved subject label (what's being rented) rather than a generic
  * status-derived phrase (DS-002) - `identity` carries that plus the current
  * tenant name and rent amount, each with its own honest, translated
  * fallback when not yet resolved (see useRentalIdentities' own doc comment
  * for exactly what null means per field - e.g. a DRAFT rental with no term
  * version yet legitimately has `rentAmount: null`, not a fabricated 0).
  * status is still shown via the same Badge, exactly as the backend reports
- * it, never derived from dates.
+ * it, never derived from dates. One icon for every row (KeyIcon) rather
+ * than branching by subject type - RentalRelationship doesn't carry
+ * subjectType, and resolving it would mean a new cross-reference this
+ * increment has no reason to add.
  */
 export function RentalListCard({ rental, identity, activation, cancelDraft, startEnding, endRental }: RentalListCardProps) {
   const { t } = useTranslation(['rentals', 'administration'])
@@ -224,8 +230,14 @@ export function RentalListCard({ rental, identity, activation, cancelDraft, star
 
   return (
     <Card className={styles['card']}>
-      <p className={styles['title']}>{identity.subjectLabel ?? t('list.subjectUnknown')}</p>
-      <p className="text-body-sm">{identity.tenantName ?? t('list.tenantUnknown')}</p>
+      <div className={styles['header']}>
+        <IconBadge icon={<KeyIcon size={18} />} tone="neutral" size={36} radius="md" />
+        <div className={styles['identity']}>
+          <p className={styles['title']}>{identity.subjectLabel ?? t('list.subjectUnknown')}</p>
+          <p className="text-body-sm text-muted">{identity.tenantName ?? t('list.tenantUnknown')}</p>
+        </div>
+        <Badge tone={RENTAL_STATUS_TONE[rental.status]}>{t(`status.${rental.status}`)}</Badge>
+      </div>
       <p className={cx('text-body-sm', 'tabular-nums')}>
         {identity.rentAmount !== null ? formatAmount(identity.rentAmount) : t('list.rentAmountUnknown')}
       </p>
@@ -243,9 +255,6 @@ export function RentalListCard({ rental, identity, activation, cancelDraft, star
       {rental.paymentTiming ? (
         <p className="text-caption text-muted">{t(`paymentTiming.${rental.paymentTiming}`)}</p>
       ) : null}
-      <div className={styles['meta']}>
-        <Badge tone={RENTAL_STATUS_TONE[rental.status]}>{t(`status.${rental.status}`)}</Badge>
-      </div>
       {rental.status === 'DRAFT' ? (
         // Plain navigation, deliberately subordinate (ghost) to whichever
         // primary/destructive lifecycle action is on this same card (DS-002)

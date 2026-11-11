@@ -8,3 +8,5 @@
  * UiPreviewPage.tsx and vite.config.ts for the full rationale.
  */
 declare const __ENABLE_PROPERTIES_PREVIEW__: boolean
+/** Same mechanism, for RentalsVisualPreview (Sprint 3) - see vite.config.ts. */
+declare const __ENABLE_RENTALS_PREVIEW__: boolean
