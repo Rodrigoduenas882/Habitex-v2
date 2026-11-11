@@ -10,8 +10,8 @@ import type { Property } from '../domain/property.types'
 type PropertiesSectionT = UseTranslationResponse<'properties', undefined>['t']
 
 /** Shared occupancy-status -> Badge tone/label mapping - the single
- * definition every surface that shows this badge (PropertyListCard,
- * PropertiesPage's desktop table) reads from, never its own copy. */
+ * definition every surface that shows this badge (PropertyListCard, the
+ * desktop table's Ocupación column) reads from, never its own copy. */
 export const PROPERTY_STATUS_TONE: Record<PropertyOccupancyStatus, BadgeTone> = {
   rented: 'success',
   available: 'info',
@@ -27,30 +27,58 @@ export const PROPERTY_STATUS_LABEL_KEY: Record<
   unknown: 'occupancy.statusUnknown',
 }
 
+export interface UnitsAndOccupancy {
+  /** "Unidades" per the approved Figma correspondence (docs/DESIGN.md §15):
+   * 1 for FULL_PROPERTY, the enabled room count for BY_ROOMS. `null` only
+   * when the occupancy cross-reference isn't ready (loading/errored) -
+   * never guessed, never defaulted to 0. */
+  units: number | null
+  /** "Ocupación"'s numerator - `null` under the same not-ready condition as
+   * `units` (always both-or-neither). */
+  occupiedUnits: number | null
+}
+
 /**
- * This section's own i18n-formatted detail string, built from the shared,
- * pure derivePropertyOccupancyStatus (see usePropertyOccupancy's own doc
- * comment) - the status computation itself is never re-derived here, only
- * formatted into this feature's own copy (properties.json's `occupancy`
- * keys, not dashboard.json's). A separate file (not inlined in
+ * The single source for the desktop table's Unidades/Ocupación columns AND
+ * the compact card's combined caption below - both read from here instead
+ * of re-deriving FULL_PROPERTY-vs-BY_ROOMS branching twice. Built from the
+ * shared, pure derivePropertyOccupancyStatus (see usePropertyOccupancy's
+ * own doc comment) - never a second computation of "is this occupied".
+ */
+export function deriveUnitsAndOccupancy(property: Property, occupancy: PropertyOccupancyMap): UnitsAndOccupancy {
+  if (occupancy.status !== 'ready') {
+    return { units: null, occupiedUnits: null }
+  }
+
+  const entry = occupancy.byPropertyId.get(property.id)
+
+  if (property.rentalMode === 'FULL_PROPERTY') {
+    return { units: 1, occupiedUnits: entry?.isOccupied ? 1 : 0 }
+  }
+
+  return { units: entry?.totalRooms ?? 0, occupiedUnits: entry?.occupiedRooms ?? 0 }
+}
+
+/**
+ * The compact card's own i18n-formatted "X de Y unidades ocupadas" caption
+ * (properties.json's `table.unitsOccupancy`, not dashboard.json's) - `null`
+ * while deriveUnitsAndOccupancy isn't ready yet, so the card simply omits
+ * the line instead of showing a guess. A separate file (not inlined in
  * PropertiesPage.tsx) so PropertiesVisualPreview can reuse the exact same
  * formatting instead of drifting with its own copy, and so that file keeps
- * exporting only a component (react-refresh/only-export-components).
+ * exporting only components (react-refresh/only-export-components).
  */
 export function derivePropertyListDisplay(
   property: Property,
   occupancy: PropertyOccupancyMap,
   t: PropertiesSectionT,
-): { status: ReturnType<typeof derivePropertyOccupancyStatus>['status']; detail: string } {
-  const { status, occupiedRooms, totalRooms } = derivePropertyOccupancyStatus(property, occupancy)
+): { status: PropertyOccupancyStatus; unitsOccupancyLabel: string | null } {
+  const { status } = derivePropertyOccupancyStatus(property, occupancy)
+  const { units, occupiedUnits } = deriveUnitsAndOccupancy(property, occupancy)
 
-  if (property.rentalMode === 'FULL_PROPERTY') {
-    return { status, detail: t(`propertyType.${property.propertyType}`) }
+  if (units === null || occupiedUnits === null) {
+    return { status, unitsOccupancyLabel: null }
   }
 
-  if (occupancy.status !== 'ready') {
-    return { status, detail: t('rentalMode.BY_ROOMS') }
-  }
-
-  return { status, detail: t('occupancy.roomsDetail', { occupied: occupiedRooms, total: totalRooms }) }
+  return { status, unitsOccupancyLabel: t('table.unitsOccupancy', { occupied: occupiedUnits, total: units }) }
 }

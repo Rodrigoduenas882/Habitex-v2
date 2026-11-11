@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import type { PropertyOccupancyStatus } from '@/features/properties/application/usePropertyOccupancy'
-import { cx } from '@/shared/lib/cx'
 import { Badge } from '@/shared/ui/Badge'
 import { Card } from '@/shared/ui/Card'
 import { BuildingIcon, HomeIcon } from '@/shared/ui/icons'
@@ -14,22 +13,22 @@ export interface PropertyListCardProps {
   /** Shared occupancy computation (see usePropertyOccupancy's own doc
    * comment) - this card never re-derives it on its own. */
   status: PropertyOccupancyStatus
-  /** One short, already-translated secondary line - computed by the caller
-   * (PropertiesPage), same pattern as the Dashboard's PropertyCard. */
-  detail: string
+  /** "X de Y unidades ocupadas" (see deriveUnitsAndOccupancy /
+   * derivePropertyListDisplay) - `null` while occupancy isn't ready yet, in
+   * which case the line is simply omitted instead of guessed. */
+  unitsOccupancyLabel: string | null
 }
 
 /**
  * The compact card used below the 1024px breakpoint (the approved Figma
- * candidate's "tarjetas compactas en móvil" - the desktop breakpoint uses
- * PropertiesPage's own table instead, see its PropertyTable section). A
- * single inline icon identity row, not a 120px photo-style header - that
- * larger header language is the Dashboard carousel's own card, not this
- * list's. status/detail are computed once by usePropertyOccupancy +
- * derivePropertyOccupancyStatus, never re-derived here (see that hook's own
- * doc comment).
+ * candidate's "tarjetas compactas en móvil", docs/DESIGN.md §15 - the
+ * desktop breakpoint uses PropertiesPage's own table instead). A single
+ * inline icon identity row, not a 120px photo-style header - that larger
+ * header language is the Dashboard carousel's own card, not this list's.
+ * Shows modalidad (the rentalMode badge, always known) and units/occupancy
+ * (only when known) without losing this compact shape or overflowing.
  */
-export function PropertyListCard({ property, status, detail }: PropertyListCardProps) {
+export function PropertyListCard({ property, status, unitsOccupancyLabel }: PropertyListCardProps) {
   const { t } = useTranslation('properties')
   const PropertyIcon = property.propertyType === 'HOUSE' ? HomeIcon : BuildingIcon
 
@@ -44,12 +43,7 @@ export function PropertyListCard({ property, status, detail }: PropertyListCardP
         </div>
         <Badge tone={PROPERTY_STATUS_TONE[status]}>{t(PROPERTY_STATUS_LABEL_KEY[status])}</Badge>
       </div>
-      {/* BY_ROOMS only - for FULL_PROPERTY, `detail` is the same text the
-          propertyType badge below already shows, so rendering it again
-          here would just be a literal duplicate line. */}
-      {property.rentalMode === 'BY_ROOMS' ? (
-        <p className={cx('text-caption', 'text-muted')}>{detail}</p>
-      ) : null}
+      {unitsOccupancyLabel ? <p className="text-caption text-muted">{unitsOccupancyLabel}</p> : null}
       <div className={styles['meta']}>
         <Badge tone="neutral">{t(`propertyType.${property.propertyType}`)}</Badge>
         <Badge tone="neutral">{t(`rentalMode.${property.rentalMode}`)}</Badge>

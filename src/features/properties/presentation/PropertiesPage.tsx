@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -14,16 +14,24 @@ import { EmptyState } from '@/shared/ui/EmptyState'
 import { BuildingIcon, CarIcon, HomeIcon } from '@/shared/ui/icons'
 import { IconBadge } from '@/shared/ui/IconBadge'
 import { Input } from '@/shared/ui/Input'
+import { Select } from '@/shared/ui/Select'
 import { Skeleton } from '@/shared/ui/Skeleton'
-import { derivePropertyListDisplay, PROPERTY_STATUS_LABEL_KEY, PROPERTY_STATUS_TONE } from './derivePropertyListDisplay'
+import {
+  derivePropertyListDisplay,
+  deriveUnitsAndOccupancy,
+  PROPERTY_STATUS_LABEL_KEY,
+  PROPERTY_STATUS_TONE,
+} from './derivePropertyListDisplay'
 import styles from './PropertiesPage.module.css'
 import { PropertyListCard } from './PropertyListCard'
-import { useProperties } from '../application/useProperties'
 import {
-  derivePropertyOccupancyStatus,
-  usePropertyOccupancy,
-  type PropertyOccupancyMap,
-} from '../application/usePropertyOccupancy'
+  DEFAULT_PROPERTY_FILTERS,
+  matchesPropertyFilters,
+  uniqueCities,
+  type PropertyFilters,
+} from './propertyFilters'
+import { useProperties } from '../application/useProperties'
+import { derivePropertyOccupancyStatus, usePropertyOccupancy, type PropertyOccupancyMap } from '../application/usePropertyOccupancy'
 import type { Property } from '../domain/property.types'
 
 /** Lowercase + diacritic-stripped, so "bogota" matches "Bogotá" - a single
@@ -52,6 +60,93 @@ function GridSkeleton({ testId }: { testId: string }) {
   )
 }
 
+export interface PropertiesFiltersProps {
+  searchTerm: string
+  onSearchTermChange: (value: string) => void
+  filters: PropertyFilters
+  onFiltersChange: (filters: PropertyFilters) => void
+  /** Unique cities of the already-loaded list - see uniqueCities(). */
+  cityOptions: string[]
+  /** The occupancy cross-reference isn't 'ready' yet (loading or failed), so
+   * every property currently derives to "Sin datos" - the Ocupación filter
+   * still works (and "Sin datos" is one of its real options), but it says so
+   * instead of silently looking broken. */
+  occupancyPending: boolean
+}
+
+/**
+ * Text search + the three local filters (Ciudad, Tipo, Ocupación) over the
+ * already-loaded list - no new query, no RPC, combined by AND (see
+ * matchesPropertyFilters and docs/DESIGN.md §15). Exported as its own
+ * component so PropertiesVisualPreview renders these exact controls rather
+ * than a look-alike copy that could drift from them.
+ */
+export function PropertiesFilters({
+  searchTerm,
+  onSearchTermChange,
+  filters,
+  onFiltersChange,
+  cityOptions,
+  occupancyPending,
+}: PropertiesFiltersProps) {
+  const { t } = useTranslation('properties')
+
+  return (
+    <div className={styles['filters']}>
+      <Input
+        label={t('search.label')}
+        placeholder={t('search.placeholder')}
+        type="search"
+        value={searchTerm}
+        onChange={(event) => {
+          onSearchTermChange(event.target.value)
+        }}
+      />
+      <Select
+        label={t('filters.city.label')}
+        value={filters.city}
+        onChange={(event) => {
+          onFiltersChange({ ...filters, city: event.target.value })
+        }}
+      >
+        <option value="all">{t('filters.city.all')}</option>
+        {cityOptions.map((city) => (
+          <option key={city} value={city}>
+            {city}
+          </option>
+        ))}
+      </Select>
+      <Select
+        label={t('filters.type.label')}
+        value={filters.propertyType}
+        onChange={(event) => {
+          onFiltersChange({ ...filters, propertyType: event.target.value as PropertyFilters['propertyType'] })
+        }}
+      >
+        <option value="all">{t('filters.type.all')}</option>
+        <option value="HOUSE">{t('propertyType.HOUSE')}</option>
+        <option value="APARTMENT">{t('propertyType.APARTMENT')}</option>
+      </Select>
+      <Select
+        label={t('filters.occupancy.label')}
+        hint={occupancyPending ? t('filters.occupancy.loadingHint') : undefined}
+        value={filters.occupancyStatus}
+        onChange={(event) => {
+          onFiltersChange({
+            ...filters,
+            occupancyStatus: event.target.value as PropertyFilters['occupancyStatus'],
+          })
+        }}
+      >
+        <option value="all">{t('filters.occupancy.all')}</option>
+        <option value="rented">{t('occupancy.rented')}</option>
+        <option value="available">{t('occupancy.available')}</option>
+        <option value="unknown">{t('occupancy.statusUnknown')}</option>
+      </Select>
+    </div>
+  )
+}
+
 export interface PropertiesSectionProps {
   /** Narrowed to just the fields this section reads (not the full
    * UseQueryResult) so PropertiesVisualPreview can pass plain mock objects
@@ -60,34 +155,44 @@ export interface PropertiesSectionProps {
   query: Pick<UseQueryResult<Property[]>, 'data' | 'isLoading' | 'isError'>
   occupancy: PropertyOccupancyMap
   searchTerm: string
+  filters: PropertyFilters
 }
 
-/** A visually-hidden announcement of the active search's own result count
+/**
+ * A visually-hidden announcement of the active search's own result count
  * (or lack of it) - a localized live region per section, not a change to
- * the shared/ui EmptyState primitive, which stays purely visual. Screen
- * readers announce it on update without any focus movement, since nothing
- * here ever calls .focus(). */
+ * the shared/ui EmptyState primitive, which stays purely visual. Permanently
+ * mounted (the `<p>` itself, not just a wrapper) with empty text until a
+ * search is active - some assistive tech only reliably announces an
+ * aria-live region's *updates*, not a region that appears already carrying
+ * its first value, so this never conditionally mounts/unmounts the node
+ * itself across the first term, later terms, and clearing. Screen readers
+ * announce it without any focus movement, since nothing here ever calls
+ * .focus().
+ */
 function SearchResultsStatus({
   searchTerm,
   resultCount,
   resultsAnnouncement,
   noResultsAnnouncement,
+  testId,
 }: {
   searchTerm: string
   resultCount: number
   resultsAnnouncement: string
   noResultsAnnouncement: string
+  testId: string
 }) {
-  if (!searchTerm.trim()) return null
+  const isSearching = searchTerm.trim().length > 0
 
   return (
-    <p role="status" aria-live="polite" className="sr-only">
-      {resultCount > 0 ? resultsAnnouncement : noResultsAnnouncement}
+    <p role="status" aria-live="polite" className="sr-only" data-testid={testId}>
+      {isSearching ? (resultCount > 0 ? resultsAnnouncement : noResultsAnnouncement) : ''}
     </p>
   )
 }
 
-export function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSectionProps) {
+export function PropertiesSection({ query, occupancy, searchTerm, filters }: PropertiesSectionProps) {
   const { t } = useTranslation('properties')
 
   if (query.isLoading) {
@@ -114,8 +219,10 @@ export function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSe
     )
   }
 
-  const visible = properties.filter((property) =>
-    matchesSearch(searchTerm, property.name, property.address, property.city),
+  const visible = properties.filter(
+    (property) =>
+      matchesSearch(searchTerm, property.name, property.address, property.city) &&
+      matchesPropertyFilters(property, filters, occupancy),
   )
 
   return (
@@ -125,20 +232,25 @@ export function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSe
         resultCount={visible.length}
         resultsAnnouncement={t('search.resultsAnnouncement', { count: visible.length })}
         noResultsAnnouncement={t('search.noResults.description', { query: searchTerm })}
+        testId="properties-search-status"
       />
       {visible.length === 0 ? (
         <EmptyState
           icon={<BuildingIcon size={24} />}
-          title={t('search.noResults.title', { query: searchTerm })}
-          description={t('search.noResults.description', { query: searchTerm })}
+          title={searchTerm.trim() ? t('search.noResults.title', { query: searchTerm }) : t('search.noMatches.title')}
+          description={
+            searchTerm.trim() ? t('search.noResults.description', { query: searchTerm }) : t('search.noMatches.description')
+          }
         />
       ) : (
         <>
-          {/* Desktop (>=1024px): a real data table - the approved Figma
-              candidate's "tabla de inmuebles en escritorio". Both this and
-              the compact list below always render; CSS (not JS) picks one
-              per breakpoint, the same technique AppShell already uses for
-              its sidebar vs. drawer+bottom-nav. */}
+          {/* Desktop (>=1024px): a real data table, the approved Figma
+              candidate's "tabla de inmuebles en escritorio" with its five
+              columns (docs/DESIGN.md §15: Inmueble | Dirección | Tipo |
+              Unidades | Ocupación). Both this and the compact list below
+              always render; CSS (not JS) picks one per breakpoint, the same
+              technique AppShell already uses for its sidebar vs. drawer+
+              bottom-nav. */}
           <div
             className={styles['tableWrap']}
             role="region"
@@ -151,14 +263,16 @@ export function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSe
               <thead>
                 <tr>
                   <th scope="col">{t('table.property')}</th>
+                  <th scope="col">{t('table.address')}</th>
                   <th scope="col">{t('table.type')}</th>
-                  <th scope="col">{t('table.rentalMode')}</th>
-                  <th scope="col">{t('table.status')}</th>
+                  <th scope="col">{t('table.units')}</th>
+                  <th scope="col">{t('table.occupancy')}</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.map((property) => {
-                  const { status, occupiedRooms, totalRooms } = derivePropertyOccupancyStatus(property, occupancy)
+                  const { status } = derivePropertyOccupancyStatus(property, occupancy)
+                  const { units, occupiedUnits } = deriveUnitsAndOccupancy(property, occupancy)
                   const PropertyIcon = property.propertyType === 'HOUSE' ? HomeIcon : BuildingIcon
 
                   return (
@@ -168,24 +282,33 @@ export function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSe
                           <IconBadge icon={<PropertyIcon size={16} />} tone="neutral" size={32} radius="md" />
                           <div>
                             <p className={styles['name']}>{property.name}</p>
-                            <p className="text-caption">{property.city}</p>
-                            <p className="text-caption text-muted">{property.address}</p>
+                            <p className="text-caption text-muted">{t(`rentalMode.${property.rentalMode}`)}</p>
                           </div>
                         </div>
                       </td>
                       <td>
+                        <p className="text-caption">{property.address}</p>
+                        <p className="text-caption text-muted">{property.city}</p>
+                      </td>
+                      <td>
                         <Badge tone="neutral">{t(`propertyType.${property.propertyType}`)}</Badge>
                       </td>
-                      <td>
-                        {t(`rentalMode.${property.rentalMode}`)}
-                        {property.rentalMode === 'BY_ROOMS' && occupancy.status === 'ready' ? (
-                          <p className="text-caption text-muted">
-                            {t('occupancy.roomsDetail', { occupied: occupiedRooms, total: totalRooms })}
-                          </p>
-                        ) : null}
+                      <td className="tabular-nums">
+                        {units === null ? (
+                          <span aria-label={t('occupancy.statusUnknown')}>—</span>
+                        ) : (
+                          units
+                        )}
                       </td>
                       <td>
-                        <Badge tone={PROPERTY_STATUS_TONE[status]}>{t(PROPERTY_STATUS_LABEL_KEY[status])}</Badge>
+                        <div className={styles['occupancyCell']}>
+                          {units !== null && occupiedUnits !== null ? (
+                            <span className="tabular-nums">
+                              {occupiedUnits}/{units}
+                            </span>
+                          ) : null}
+                          <Badge tone={PROPERTY_STATUS_TONE[status]}>{t(PROPERTY_STATUS_LABEL_KEY[status])}</Badge>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -198,8 +321,15 @@ export function PropertiesSection({ query, occupancy, searchTerm }: PropertiesSe
               móvil". See the table above for why both always render. */}
           <div className={styles['compactList']} data-testid="properties-compact-list">
             {visible.map((property) => {
-              const { status, detail } = derivePropertyListDisplay(property, occupancy, t)
-              return <PropertyListCard key={property.id} property={property} status={status} detail={detail} />
+              const { status, unitsOccupancyLabel } = derivePropertyListDisplay(property, occupancy, t)
+              return (
+                <PropertyListCard
+                  key={property.id}
+                  property={property}
+                  status={status}
+                  unitsOccupancyLabel={unitsOccupancyLabel}
+                />
+              )
             })}
           </div>
         </>
@@ -253,6 +383,7 @@ export function ParkingsSection({ query, propertiesQuery, emptyAction, searchTer
         resultCount={visible.length}
         resultsAnnouncement={t('section.search.resultsAnnouncement', { count: visible.length })}
         noResultsAnnouncement={t('section.search.noResults.description', { query: searchTerm })}
+        testId="parkings-search-status"
       />
       {visible.length === 0 ? (
         <EmptyState
@@ -303,6 +434,28 @@ export default function PropertiesPage() {
   const propertyOccupancy = usePropertyOccupancy(administrationId)
   const [propertySearch, setPropertySearch] = useState('')
   const [parkingSearch, setParkingSearch] = useState('')
+  const [propertyFilters, setPropertyFilters] = useState<PropertyFilters>(DEFAULT_PROPERTY_FILTERS)
+
+  // A filter/search term that matched the previous administration's data
+  // could silently hide everything in the new one (e.g. a city that only
+  // existed there) - starting clean on every administration switch avoids
+  // that trap. Adjusted during render (React's recommended pattern for
+  // "reset state when a prop changes") instead of a useEffect, since a
+  // direct setState in an effect body trips react-hooks/set-state-in-effect.
+  const [prevAdministrationId, setPrevAdministrationId] = useState(administrationId)
+  if (administrationId !== prevAdministrationId) {
+    setPrevAdministrationId(administrationId)
+    setPropertySearch('')
+    setParkingSearch('')
+    setPropertyFilters(DEFAULT_PROPERTY_FILTERS)
+  }
+
+  // Recomputed only when the Properties list itself changes - not on every
+  // filter/search keystroke.
+  const cityOptions = useMemo(
+    () => (propertiesQuery.isSuccess ? uniqueCities(propertiesQuery.data) : []),
+    [propertiesQuery.isSuccess, propertiesQuery.data],
+  )
 
   const addPropertyCta = (
     <Button
@@ -353,17 +506,21 @@ export default function PropertiesPage() {
           <section className={styles['section']}>
             <h2 className="text-h3">{t('sections.properties')}</h2>
             {propertiesQuery.isSuccess && propertiesQuery.data.length > 0 ? (
-              <Input
-                label={t('search.label')}
-                placeholder={t('search.placeholder')}
-                type="search"
-                value={propertySearch}
-                onChange={(event) => {
-                  setPropertySearch(event.target.value)
-                }}
+              <PropertiesFilters
+                searchTerm={propertySearch}
+                onSearchTermChange={setPropertySearch}
+                filters={propertyFilters}
+                onFiltersChange={setPropertyFilters}
+                cityOptions={cityOptions}
+                occupancyPending={propertyOccupancy.status !== 'ready'}
               />
             ) : null}
-            <PropertiesSection query={propertiesQuery} occupancy={propertyOccupancy} searchTerm={propertySearch} />
+            <PropertiesSection
+              query={propertiesQuery}
+              occupancy={propertyOccupancy}
+              searchTerm={propertySearch}
+              filters={propertyFilters}
+            />
           </section>
 
           <section className={styles['section']}>

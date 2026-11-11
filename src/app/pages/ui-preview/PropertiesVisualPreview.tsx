@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Parking } from '@/features/parking/domain/parking.types'
-import { ParkingsSection, PropertiesSection } from '@/features/properties/presentation/PropertiesPage'
+import {
+  ParkingsSection,
+  PropertiesFilters,
+  PropertiesSection,
+} from '@/features/properties/presentation/PropertiesPage'
+import { DEFAULT_PROPERTY_FILTERS, uniqueCities } from '@/features/properties/presentation/propertyFilters'
 import type { PropertyOccupancyMap } from '@/features/properties/application/usePropertyOccupancy'
 import type { Property } from '@/features/properties/domain/property.types'
 import { Alert } from '@/shared/ui/Alert'
@@ -44,19 +49,22 @@ const parkings: Parking[] = [
  * the flag), since Playwright and an independent reviewer have no way to
  * obtain a real Supabase session against the real authenticated route.
  *
- * Renders the exact same exported section components /properties uses, fed
+ * Renders the exact same exported components /properties uses
+ * (PropertiesFilters included, so the search box and the Ciudad/Tipo/
+ * Ocupación selects here are the real controls, not a look-alike copy), fed
  * plain mock query objects (same pattern as DashboardContent's own props)
  * instead of a re-implementation, so this preview can't visually drift from
- * what /properties actually renders. Search/filter *behavior* and the
- * accessible live-region announcements are already covered by
- * PropertiesPage.test.tsx against the real page - this preview exists for
- * visual/responsive/light-dark review of the table/cards/rows, not to
- * re-verify that logic (no search input is wired up here).
+ * what /properties actually renders. Filter *correctness* against real
+ * queries and the accessible live-region announcements stay covered by
+ * PropertiesPage.test.tsx against the real page; this preview exists for
+ * visual/responsive/light-dark review of the table/cards/rows/controls.
  */
 export default function PropertiesVisualPreview() {
   const { t } = useTranslation('properties')
   const { t: parkingT } = useTranslation('parking')
   const [empty, setEmpty] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filters, setFilters] = useState(DEFAULT_PROPERTY_FILTERS)
 
   const propertiesQuery = { data: empty ? [] : properties, isLoading: false, isError: false }
   const parkingsQuery = { data: empty ? [] : parkings, isLoading: false, isError: false }
@@ -88,7 +96,22 @@ export default function PropertiesVisualPreview() {
 
         <section className={styles['section']}>
           <h2 className="text-h3">{t('sections.properties')}</h2>
-          <PropertiesSection query={propertiesQuery} occupancy={occupancy} searchTerm="" />
+          {empty ? null : (
+            <PropertiesFilters
+              searchTerm={search}
+              onSearchTermChange={setSearch}
+              filters={filters}
+              onFiltersChange={setFilters}
+              cityOptions={uniqueCities(properties)}
+              occupancyPending={false}
+            />
+          )}
+          <PropertiesSection
+            query={propertiesQuery}
+            occupancy={occupancy}
+            searchTerm={search}
+            filters={filters}
+          />
         </section>
 
         <section className={styles['section']}>

@@ -26,6 +26,22 @@
   gap: var(--space-3);
 }
 
+/* Search + the three local filters (Ciudad/Tipo/Ocupación) - combinable
+   with each other and with the search, all in-memory over the already-
+   loaded list (docs/DESIGN.md §15). A plain wrapping row: each control
+   keeps its own natural width instead of stretching to fill a column. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.filters > * {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+
 /* ---------- Properties: desktop table / mobile+tablet compact cards ----------
    Same existing 1024px breakpoint as AppShell/DashboardPage (DESIGN.md §7) -
    no new breakpoint. Both .tableWrap and .compactList always render; CSS
@@ -99,6 +115,12 @@
 
 .name {
   font-weight: 600;
+}
+
+.occupancyCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 /* ---------- Parking: one shared bordered container of compact rows ---------- */

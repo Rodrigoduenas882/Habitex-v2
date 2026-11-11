@@ -29,13 +29,28 @@
     "noResults": {
       "title": "Sin resultados para \"{{query}}\"",
       "description": "Intenta con otro nombre, dirección o ciudad."
+    },
+    "noMatches": {
+      "title": "Ningún inmueble coincide con los filtros",
+      "description": "Ajusta la ciudad, el tipo o la ocupación seleccionados."
     }
   },
   "table": {
     "property": "Inmueble",
+    "address": "Dirección",
     "type": "Tipo",
-    "rentalMode": "Modalidad",
-    "status": "Estado"
+    "units": "Unidades",
+    "occupancy": "Ocupación",
+    "unitsOccupancy": "{{occupied}} de {{total}} unidades ocupadas"
+  },
+  "filters": {
+    "city": { "label": "Ciudad", "all": "Todas las ciudades" },
+    "type": { "label": "Tipo", "all": "Todos los tipos" },
+    "occupancy": {
+      "label": "Ocupación",
+      "all": "Todas",
+      "loadingHint": "Mientras se calcula la ocupación, los inmuebles pueden aparecer como \"Sin datos\"."
+    }
   },
   "errors": {
     "propertiesTitle": "No pudimos cargar tus inmuebles",
