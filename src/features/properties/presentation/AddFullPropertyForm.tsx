@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useManagementGate } from '@/features/administration/application/useManagementGate'
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
+import { ChevronLeftIcon } from '@/shared/ui/icons'
 import { useCreateFullProperty } from '../application/useCreateFullProperty'
 import styles from './AddPropertyPage.module.css'
 import { PropertyBaseFormFields } from './PropertyBaseFormFields'
@@ -51,6 +52,7 @@ export function AddFullPropertyForm({ administrationId, onBack }: AddFullPropert
   return (
     <div className={styles['page']}>
       <button type="button" className={styles['back']} onClick={onBack}>
+        <ChevronLeftIcon size={16} aria-hidden="true" />
         {t('addProperty.back')}
       </button>
       <h1 className="text-h2">{t('addProperty.optionFull.title')}</h1>

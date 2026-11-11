@@ -413,3 +413,156 @@ del menú y las tablas conservan fondos sólidos.
 El Dashboard de producción conserva sus consultas existentes y los estados
 loading/error/empty. El preview local usa la misma presentación con datos
 de demostración, marcados visiblemente y sin consultas de producto.
+
+
+## 15. Inmuebles y Parqueaderos — Sprint 2
+
+Referencia: Figma `Habitex-Design-Lab`, página 353:2, frame 353:3.
+
+**Nota de verificación.** Figma no es accesible desde el entorno de
+implementación (la URL responde 403 sin sesión autenticada), así que esta
+sección documenta la especificación tal como quedó **escrita** en la
+decisión de producto del PR #26 — no una comparación visual pixel a pixel.
+Cualquier diferencia que una revisión con acceso real a Figma encuentre
+manda sobre lo que está aquí.
+
+### 15.1 Propiedades — tabla de escritorio (≥1024px)
+
+Cinco columnas, en este orden:
+
+| Columna   | Contenido                                                      |
+| --------- | -------------------------------------------------------------- |
+| Inmueble  | Nombre + modalidad (`rentalMode`) como metadato secundario      |
+| Dirección | Dirección como principal + ciudad como secundaria              |
+| Tipo      | `propertyType` (Casa / Apartamento) en Badge neutral           |
+| Unidades  | Número de unidades arrendables                                 |
+| Ocupación | Fracción `ocupadas/totales` + Badge de estado                  |
+
+La modalidad **no** es columna propia: vive dentro de la celda Inmueble.
+Tampoco existe una columna «Estado» separada — el Badge de estado vive
+dentro de Ocupación, complementando la fracción, nunca sustituyéndola
+cuando la fracción existe.
+
+### 15.2 Unidades y Ocupación — reglas sobre el modelo de datos real
+
+Única fuente de la señal: `usePropertyOccupancy` (la misma que usa el
+Dashboard). La derivación vive en `deriveUnitsAndOccupancy`.
+
+- `FULL_PROPERTY` → Unidades `1`; Ocupación `0/1` o `1/1`.
+- `BY_ROOMS` → Unidades `totalRooms` (solo habitaciones **habilitadas**);
+  Ocupación `occupiedRooms/totalRooms`.
+- Mientras `occupancy.status !== 'ready'` (cargando o fallida): Unidades
+  muestra `—` con `aria-label` «Sin datos», Ocupación muestra **solo** el
+  Badge «Sin datos» y ninguna fracción.
+
+**Desviación forzada por el modelo de datos:** la especificación habla de
+«unidades» como un dato del inmueble, pero en el esquema real no existe tal
+columna — se deriva de `rentalMode` y del cruce de ocupación, que es una
+consulta aparte y puede no haber resuelto todavía. De ahí el estado `—` /
+«Sin datos»: es honesto y no inventa un `0` que parecería «cero unidades».
+Nunca se presentan valores de fixtures como datos reales.
+
+### 15.3 Propiedades — tarjetas compactas (<1024px)
+
+Se conserva el formato compacto: cabecera de una línea (icono, nombre,
+ciudad, dirección, Badge de estado), el caption de unidades/ocupación solo
+cuando se conoce, y los Badges de tipo y modalidad. Sin cabecera gigante y
+sin overflow horizontal. Parqueaderos mantiene su lista de filas compactas
+en todos los anchos.
+
+Tabla y tarjetas se renderizan **ambas** siempre; CSS (no JS) elige una por
+breakpoint, igual que AppShell ya hace con sidebar vs. drawer. No se
+inventan breakpoints: sigue siendo solo 1024px (§8).
+
+### 15.4 Filtros locales
+
+Ciudad, Tipo y Ocupación, combinables entre sí y con la búsqueda de texto
+existente, **por AND**. Operan en memoria sobre la lista ya cargada: sin
+consultas nuevas, sin RPC, sin paginación, sin conteos globales.
+
+- Ciudad: valores únicos de `Property.city` ya presentes en la lista.
+- Tipo: `HOUSE` / `APARTMENT`.
+- Ocupación: el mismo estado derivado que muestra el Badge.
+
+`unknown` **nunca** se clasifica como «Disponible». Se ofrece «Sin datos»
+como opción real y seleccionable del filtro de Ocupación (se eligió esto en
+vez de deshabilitar el filtro: el filtro sigue siendo útil, y reutiliza la
+etiqueta que ya usa el Badge en lugar de inventar un sinónimo). Mientras la
+señal no está `ready`, el propio `Select` lleva un hint accesible que lo
+explica.
+
+**Corrección (tercera auditoría de Codex, PR #26).** El filtro de Ciudad
+usaba `'all'` como valor centinela de «sin filtro», igual que Tipo y
+Ocupación — pero a diferencia de esos dos (uniones cerradas que nunca
+pueden ser literalmente `'all'`), Ciudad es texto libre
+(`z.string().min(1)`, ver `property-base-form.ts`): un inmueble cuya ciudad
+real fuera literalmente «all» colisionaba con el centinela y el filtro lo
+trataba como «sin filtro» en vez de filtrar por esa ciudad. La auditoría lo
+demostró sustituyendo un fixture. Corregido usando `null` como centinela de
+Ciudad (nunca puede ser una ciudad real) en vez de un string — el `<select>`
+HTML sigue usando `""` como valor de la opción «Todas las ciudades», pero
+ese valor nunca se confunde con uno de los `<option>` reales porque una
+ciudad real nunca es cadena vacía.
+
+Los filtros y la búsqueda se limpian al cambiar de administración: un valor
+que existía en la anterior podría ocultar todo en la nueva y parecer «esta
+administración no tiene inmuebles». Hoy /properties no tiene selector de
+administración en página, así que el reset es defensivo (cubierto por
+`PropertiesPage.administrationSwitch.test.tsx`).
+
+Los estados vacíos siguen diferenciados: «no hay datos» ≠ «sin resultados
+para "término"» ≠ «ningún inmueble coincide con los filtros». Propiedades y
+Parqueaderos conservan estados de carga/error independientes.
+
+### 15.5 Región de estado accesible
+
+Cada sección con datos monta su `role="status"` + `aria-live="polite"`
+**vacía desde el principio**; al buscar solo cambia su texto, nunca se
+monta ni desmonta el nodo. Algunas tecnologías asistivas solo anuncian de
+forma fiable las *actualizaciones* de una región viva, no una región que
+aparece ya con su primer valor. El foco nunca se mueve.
+
+**Corrección (tercera auditoría de Codex, PR #26).** La región solo
+anunciaba algo mientras había texto en la búsqueda (`searchTerm.trim()`):
+aplicar un filtro de Ciudad/Tipo/Ocupación sin escribir nada dejaba la
+región vacía aunque la lista visible cambiara. Corregido: en Propiedades,
+la región se activa con texto de búsqueda **o** con cualquier filtro
+activo (`isFiltering`), y el mensaje de «sin resultados» elige entre la
+redacción de búsqueda («Intenta con otro nombre, dirección o ciudad.») y la
+de filtros («Ajusta la ciudad, el tipo o la ocupación seleccionados.»)
+según si hay texto escrito. Parqueaderos no tiene filtros propios, así que
+conserva el criterio original (solo texto).
+
+### 15.6 Módulo de demostración fuera del build productivo
+
+`PropertiesVisualPreview` (fixtures ficticios) se excluye en tiempo de
+build, no solo por ruta: `__ENABLE_PROPERTIES_PREVIEW__` (define de
+`vite.config.ts`) condiciona el propio `import()`, de modo que Rollup no
+emite su chunk en un `pnpm build` normal. `scripts/assert-no-demo-chunk.mjs`
+verifica el artefacto real de `dist/` y rompe el build si reaparece.
+`pnpm build:e2e` sí lo incluye a propósito: es el build de revisión/E2E.
+
+**Corrección (tercera auditoría de Codex, PR #26) — dos defectos
+encontrados en esta misma protección:**
+
+1. **La bandera por sí sola no bastaba.** `__ENABLE_PROPERTIES_PREVIEW__`
+   se calculaba como `env['VITE_ENABLE_PROPERTIES_PREVIEW'] === 'true'`,
+   donde `env` viene de `loadEnv(mode, cwd, 'VITE_')` — y `loadEnv` fusiona
+   las variables de entorno reales del proceso (`process.env`) por encima
+   del `.env*` que corresponde al modo, sin restringir *qué* modos pueden
+   traer esa variable. La auditoría lo demostró exportando
+   `VITE_ENABLE_PROPERTIES_PREVIEW=true` en el shell y corriendo
+   `pnpm build` (modo `production`): el chunk se emitía igual, aunque
+   ningún `.env` del repo la define. Corregido con una lista explícita de
+   modos autorizados (`PREVIEW_ALLOWED_MODES`, hoy solo `'e2e'`) evaluada
+   **antes** de mirar la bandera — el modo lo decide qué script de
+   `package.json` corre, no una variable ambiental fuera de control del
+   repo.
+2. **El guard verificaba el nombre del chunk, no su contenido.** La
+   auditoría renombró el chunk generado a `index-audit.js` y el guard
+   devolvió 0 (falso «limpio»). `scripts/assert-no-demo-chunk.mjs` ahora
+   recorre `dist/` completo y busca literales de texto que solo existen en
+   los fixtures/copy de `PropertiesVisualPreview` (p. ej. `demo-prop-1`,
+   el texto de su Alert de aviso) dentro del contenido de cada archivo —
+   un minificador no altera el contenido de un string literal, así que
+   esto sobrevive sin importar cómo Rollup nombre el chunk.

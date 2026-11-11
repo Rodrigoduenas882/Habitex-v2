@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/shared/ui/Badge'
-import { Card } from '@/shared/ui/Card'
+import { CarIcon } from '@/shared/ui/icons'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import type { Parking } from '../domain/parking.types'
 import styles from './ParkingListCard.module.css'
 
@@ -17,24 +18,26 @@ export interface ParkingListCardProps {
 }
 
 /**
- * Same visual family as PropertyListCard (Card, same spacing/typography
- * tokens, same tone="neutral" badges for descriptive attributes) but not a
- * copy - Parking has no photo placeholder and a genuinely different set of
- * fields, so forcing it through PropertyListCard's layout would mean
- * conditions for fields that don't apply to properties.
+ * One compact row - the approved Figma candidate's "filas compactas para
+ * parqueaderos" (a single pattern at every width, unlike Properties which
+ * switches between a desktop table and a mobile card). Not a `Card` of its
+ * own: PropertiesPage renders a list of these inside one shared bordered
+ * container, the row itself is just content + a bottom divider (see
+ * PropertiesPage.module.css's `.parkingList`).
  */
 export function ParkingListCard({ parking, associatedPropertyName }: ParkingListCardProps) {
   const { t } = useTranslation('parking')
 
   return (
-    <Card className={styles['card']}>
-      <p className={styles['identifier']}>{parking.identifier}</p>
-      {parking.location ? <p className="text-caption text-muted">{parking.location}</p> : null}
-      {associatedPropertyName ? (
-        <p className="text-caption text-muted">
-          {t('list.associatedWith', { name: associatedPropertyName })}
-        </p>
-      ) : null}
+    <div className={styles['row']}>
+      <IconBadge icon={<CarIcon size={16} />} tone="neutral" size={32} radius="md" />
+      <div className={styles['identity']}>
+        <p className={styles['identifier']}>{parking.identifier}</p>
+        {parking.location ? <p className="text-caption text-muted">{parking.location}</p> : null}
+        {associatedPropertyName ? (
+          <p className="text-caption text-muted">{t('list.associatedWith', { name: associatedPropertyName })}</p>
+        ) : null}
+      </div>
       <div className={styles['meta']}>
         {parking.allowedVehicleType ? (
           <Badge tone="neutral">{t(`form.vehicleType.${parking.allowedVehicleType}`)}</Badge>
@@ -43,6 +46,6 @@ export function ParkingListCard({ parking, associatedPropertyName }: ParkingList
           <Badge tone="neutral">{t(parking.covered ? 'list.covered.yes' : 'list.covered.no')}</Badge>
         ) : null}
       </div>
-    </Card>
+    </div>
   )
 }

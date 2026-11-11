@@ -1,7 +1,20 @@
-.card {
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.row:hover {
+  background: var(--color-surface-hover);
+}
+
+.identity {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
 .identifier {
@@ -11,6 +24,17 @@
 .meta {
   display: flex;
   flex-wrap: wrap;
+  flex-shrink: 0;
   gap: var(--space-2);
-  margin-top: var(--space-2);
+}
+
+@media (max-width: 639px) {
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .meta {
+    width: 100%;
+    padding-left: calc(32px + var(--space-3));
+  }
 }

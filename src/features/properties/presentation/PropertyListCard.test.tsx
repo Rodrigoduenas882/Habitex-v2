@@ -22,35 +22,46 @@ function makeProperty(overrides: Partial<Property> = {}): Property {
 
 describe('PropertyListCard', () => {
   it('shows "Arrendado" (success tone) for a property the caller marks as occupied', () => {
-    render(<PropertyListCard property={makeProperty()} status="rented" detail="Apartamento" />)
+    render(<PropertyListCard property={makeProperty()} status="rented" unitsOccupancyLabel={null} />)
 
     expect(screen.getByText('Arrendado')).toBeInTheDocument()
   })
 
   it('shows "Disponible" for a property the caller marks as available', () => {
-    render(<PropertyListCard property={makeProperty()} status="available" detail="Apartamento" />)
+    render(<PropertyListCard property={makeProperty()} status="available" unitsOccupancyLabel={null} />)
 
     expect(screen.getByText('Disponible')).toBeInTheDocument()
     expect(screen.queryByText('Arrendado')).not.toBeInTheDocument()
   })
 
   it('shows the honest "Sin datos" status instead of guessing while occupancy is unknown', () => {
-    render(<PropertyListCard property={makeProperty()} status="unknown" detail="Apartamento" />)
+    render(<PropertyListCard property={makeProperty()} status="unknown" unitsOccupancyLabel={null} />)
 
     expect(screen.getByText('Sin datos')).toBeInTheDocument()
   })
 
-  it('shows the occupied/total room detail for a BY_ROOMS property, without duplicating it for FULL_PROPERTY', () => {
-    const byRooms = makeProperty({ rentalMode: 'BY_ROOMS' })
-    render(<PropertyListCard property={byRooms} status="rented" detail="1 de 3 habitaciones ocupadas" />)
+  it('shows the units/occupancy caption when known, for FULL_PROPERTY too (not just BY_ROOMS)', () => {
+    render(<PropertyListCard property={makeProperty()} status="rented" unitsOccupancyLabel="1 de 1 unidades ocupadas" />)
 
-    expect(screen.getByText('1 de 3 habitaciones ocupadas')).toBeInTheDocument()
+    expect(screen.getByText('1 de 1 unidades ocupadas')).toBeInTheDocument()
   })
 
-  it('does not render the detail line for a FULL_PROPERTY property - it would just repeat the propertyType badge', () => {
-    render(<PropertyListCard property={makeProperty()} status="available" detail="Apartamento" />)
+  it('shows the units/occupancy caption for a BY_ROOMS property', () => {
+    const byRooms = makeProperty({ rentalMode: 'BY_ROOMS' })
+    render(<PropertyListCard property={byRooms} status="rented" unitsOccupancyLabel="1 de 3 unidades ocupadas" />)
 
-    // "Apartamento" still renders exactly once, via the propertyType badge.
-    expect(screen.getAllByText('Apartamento')).toHaveLength(1)
+    expect(screen.getByText('1 de 3 unidades ocupadas')).toBeInTheDocument()
+  })
+
+  it('omits the units/occupancy caption entirely while it is not known yet, instead of guessing', () => {
+    render(<PropertyListCard property={makeProperty()} status="unknown" unitsOccupancyLabel={null} />)
+
+    expect(screen.queryByText(/unidades ocupadas/)).not.toBeInTheDocument()
+  })
+
+  it('always shows the modalidad (rentalMode) badge, independently of whether units/occupancy is known', () => {
+    render(<PropertyListCard property={makeProperty()} status="unknown" unitsOccupancyLabel={null} />)
+
+    expect(screen.getByText('Inmueble completo')).toBeInTheDocument()
   })
 })

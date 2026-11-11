@@ -56,6 +56,16 @@
       "title": "Aún no tienes parqueaderos",
       "description": "Registra un parqueadero independiente o asociado a uno de tus inmuebles."
     },
+    "search": {
+      "label": "Buscar parqueaderos",
+      "placeholder": "Identificador o ubicación",
+      "resultsAnnouncement_one": "Se encontró {{count}} resultado.",
+      "resultsAnnouncement_other": "Se encontraron {{count}} resultados.",
+      "noResults": {
+        "title": "Sin resultados para \"{{query}}\"",
+        "description": "Intenta con otro identificador o ubicación."
+      }
+    },
     "errors": {
       "listFailed": "No pudimos cargar tus parqueaderos. Intenta de nuevo."
     }

@@ -27,7 +27,7 @@ export function PropertyTypeSelector({ onSelect }: PropertyTypeSelectorProps) {
           onSelect('full')
         }}
       >
-        <IconBadge icon={<BuildingIcon size={20} />} tone="primary" size={40} radius="md" />
+        <IconBadge icon={<BuildingIcon size={20} />} tone="primary" size={40} radius="md" className={styles['optionIcon']} />
         <p className="text-h3" aria-hidden="true">
           {t('addProperty.optionFull.title')}
         </p>
@@ -42,7 +42,7 @@ export function PropertyTypeSelector({ onSelect }: PropertyTypeSelectorProps) {
           onSelect('rooms')
         }}
       >
-        <IconBadge icon={<KeyIcon size={20} />} tone="primary" size={40} radius="md" />
+        <IconBadge icon={<KeyIcon size={20} />} tone="primary" size={40} radius="md" className={styles['optionIcon']} />
         <p className="text-h3" aria-hidden="true">
           {t('addProperty.optionRooms.title')}
         </p>
@@ -57,7 +57,7 @@ export function PropertyTypeSelector({ onSelect }: PropertyTypeSelectorProps) {
           onSelect('parking')
         }}
       >
-        <IconBadge icon={<CarIcon size={20} />} tone="primary" size={40} radius="md" />
+        <IconBadge icon={<CarIcon size={20} />} tone="primary" size={40} radius="md" className={styles['optionIcon']} />
         <p className="text-h3" aria-hidden="true">
           {t('addProperty.optionParking.title')}
         </p>
