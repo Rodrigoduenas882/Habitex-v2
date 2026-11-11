@@ -3,6 +3,18 @@ import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 
+// Third-audit P1 (PR #26, b56eb91): `loadEnv(mode, cwd, 'VITE_')` merges
+// real `process.env` VITE_-prefixed vars on top of whatever `.env*` file
+// matches `mode` - it does not restrict *which* vars `mode` allows through.
+// A `VITE_ENABLE_PROPERTIES_PREVIEW=true` left set in the shell/CI
+// environment therefore still enabled the demo chunk even during a
+// `production`-mode `pnpm build`, regardless of `.env` itself never setting
+// it. The flag alone was never trustworthy - only the *mode* is under this
+// repo's control (chosen by which `vite build --mode …` script runs, not by
+// ambient env). So the preview is now gated on an explicit mode allowlist
+// first, and the flag only matters once that allowlist already says yes.
+const PREVIEW_ALLOWED_MODES = new Set(['e2e'])
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // `import.meta.env['VITE_ENABLE_PROPERTIES_PREVIEW']` alone only gates
@@ -18,6 +30,8 @@ export default defineConfig(({ mode }) => {
   // `dist/assets` entirely - verified by diffing `dist` between
   // `pnpm build` and `pnpm build:e2e`.
   const env = loadEnv(mode, process.cwd(), 'VITE_')
+  const enablePropertiesPreview =
+    PREVIEW_ALLOWED_MODES.has(mode) && env['VITE_ENABLE_PROPERTIES_PREVIEW'] === 'true'
   return {
     plugins: [react()],
     resolve: {
@@ -26,7 +40,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      __ENABLE_PROPERTIES_PREVIEW__: JSON.stringify(env['VITE_ENABLE_PROPERTIES_PREVIEW'] === 'true'),
+      __ENABLE_PROPERTIES_PREVIEW__: JSON.stringify(enablePropertiesPreview),
     },
     // `supabase/config.toml`'s own `site_url` (committed, shared by every
     // local/disposable Supabase stack this project starts) has always been

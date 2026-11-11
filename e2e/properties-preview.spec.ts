@@ -170,7 +170,9 @@ test.describe('/ui-preview?view=properties', () => {
       await expect(page.getByText('Apartamento 302', { exact: true })).toBeHidden()
 
       await page.getByLabel('Buscar inmuebles').fill('')
-      await page.getByLabel('Ciudad').selectOption('all')
+      // "" is the sentinel for "no city filter" - "all" is reserved for a
+      // literal city value now (see propertyFilters.ts's own doc comment).
+      await page.getByLabel('Ciudad').selectOption('')
       await expect(compactList.getByText('Apartamento 302', { exact: true })).toBeVisible()
       await expect(compactList.getByText('Casa 14', { exact: true })).toBeVisible()
       await expect(compactList.getByText('Casa 22', { exact: true })).toBeVisible()

@@ -491,6 +491,19 @@ etiqueta que ya usa el Badge en lugar de inventar un sinónimo). Mientras la
 señal no está `ready`, el propio `Select` lleva un hint accesible que lo
 explica.
 
+**Corrección (tercera auditoría de Codex, PR #26).** El filtro de Ciudad
+usaba `'all'` como valor centinela de «sin filtro», igual que Tipo y
+Ocupación — pero a diferencia de esos dos (uniones cerradas que nunca
+pueden ser literalmente `'all'`), Ciudad es texto libre
+(`z.string().min(1)`, ver `property-base-form.ts`): un inmueble cuya ciudad
+real fuera literalmente «all» colisionaba con el centinela y el filtro lo
+trataba como «sin filtro» en vez de filtrar por esa ciudad. La auditoría lo
+demostró sustituyendo un fixture. Corregido usando `null` como centinela de
+Ciudad (nunca puede ser una ciudad real) en vez de un string — el `<select>`
+HTML sigue usando `""` como valor de la opción «Todas las ciudades», pero
+ese valor nunca se confunde con uno de los `<option>` reales porque una
+ciudad real nunca es cadena vacía.
+
 Los filtros y la búsqueda se limpian al cambiar de administración: un valor
 que existía en la anterior podría ocultar todo en la nueva y parecer «esta
 administración no tiene inmuebles». Hoy /properties no tiene selector de
@@ -509,11 +522,47 @@ monta ni desmonta el nodo. Algunas tecnologías asistivas solo anuncian de
 forma fiable las *actualizaciones* de una región viva, no una región que
 aparece ya con su primer valor. El foco nunca se mueve.
 
+**Corrección (tercera auditoría de Codex, PR #26).** La región solo
+anunciaba algo mientras había texto en la búsqueda (`searchTerm.trim()`):
+aplicar un filtro de Ciudad/Tipo/Ocupación sin escribir nada dejaba la
+región vacía aunque la lista visible cambiara. Corregido: en Propiedades,
+la región se activa con texto de búsqueda **o** con cualquier filtro
+activo (`isFiltering`), y el mensaje de «sin resultados» elige entre la
+redacción de búsqueda («Intenta con otro nombre, dirección o ciudad.») y la
+de filtros («Ajusta la ciudad, el tipo o la ocupación seleccionados.»)
+según si hay texto escrito. Parqueaderos no tiene filtros propios, así que
+conserva el criterio original (solo texto).
+
 ### 15.6 Módulo de demostración fuera del build productivo
 
 `PropertiesVisualPreview` (fixtures ficticios) se excluye en tiempo de
 build, no solo por ruta: `__ENABLE_PROPERTIES_PREVIEW__` (define de
 `vite.config.ts`) condiciona el propio `import()`, de modo que Rollup no
 emite su chunk en un `pnpm build` normal. `scripts/assert-no-demo-chunk.mjs`
-verifica el artefacto real de `dist/assets` y rompe el build si reaparece.
+verifica el artefacto real de `dist/` y rompe el build si reaparece.
 `pnpm build:e2e` sí lo incluye a propósito: es el build de revisión/E2E.
+
+**Corrección (tercera auditoría de Codex, PR #26) — dos defectos
+encontrados en esta misma protección:**
+
+1. **La bandera por sí sola no bastaba.** `__ENABLE_PROPERTIES_PREVIEW__`
+   se calculaba como `env['VITE_ENABLE_PROPERTIES_PREVIEW'] === 'true'`,
+   donde `env` viene de `loadEnv(mode, cwd, 'VITE_')` — y `loadEnv` fusiona
+   las variables de entorno reales del proceso (`process.env`) por encima
+   del `.env*` que corresponde al modo, sin restringir *qué* modos pueden
+   traer esa variable. La auditoría lo demostró exportando
+   `VITE_ENABLE_PROPERTIES_PREVIEW=true` en el shell y corriendo
+   `pnpm build` (modo `production`): el chunk se emitía igual, aunque
+   ningún `.env` del repo la define. Corregido con una lista explícita de
+   modos autorizados (`PREVIEW_ALLOWED_MODES`, hoy solo `'e2e'`) evaluada
+   **antes** de mirar la bandera — el modo lo decide qué script de
+   `package.json` corre, no una variable ambiental fuera de control del
+   repo.
+2. **El guard verificaba el nombre del chunk, no su contenido.** La
+   auditoría renombró el chunk generado a `index-audit.js` y el guard
+   devolvió 0 (falso «limpio»). `scripts/assert-no-demo-chunk.mjs` ahora
+   recorre `dist/` completo y busca literales de texto que solo existen en
+   los fixtures/copy de `PropertiesVisualPreview` (p. ej. `demo-prop-1`,
+   el texto de su Alert de aviso) dentro del contenido de cada archivo —
+   un minificador no altera el contenido de un string literal, así que
+   esto sobrevive sin importar cómo Rollup nombre el chunk.

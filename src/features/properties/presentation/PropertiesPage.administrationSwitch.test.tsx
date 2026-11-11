@@ -171,7 +171,7 @@ describe('PropertiesPage - search/filters reset on administration change', () =>
       within(await screen.findByTestId('properties-compact-list')).getByText('Casa 14'),
     ).toBeInTheDocument()
     expect(await screen.findByLabelText('Buscar inmuebles')).toHaveValue('')
-    expect(screen.getByLabelText('Ciudad')).toHaveValue('all')
+    expect(screen.getByLabelText('Ciudad')).toHaveValue('')
     expect(listPropertiesByAdministration).toHaveBeenCalledWith('admin-2')
   })
 

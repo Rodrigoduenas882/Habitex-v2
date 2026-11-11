@@ -104,12 +104,17 @@ export function PropertiesFilters({
       />
       <Select
         label={t('filters.city.label')}
-        value={filters.city}
+        // The empty string is the HTML <select> value for "no city filter"
+        // (`filters.city === null`) - never a real option's value, since a
+        // real city is always a non-empty string (see PropertyFilters's own
+        // doc comment for why `null`, not an `'all'` string, is the
+        // sentinel here).
+        value={filters.city ?? ''}
         onChange={(event) => {
-          onFiltersChange({ ...filters, city: event.target.value })
+          onFiltersChange({ ...filters, city: event.target.value === '' ? null : event.target.value })
         }}
       >
-        <option value="all">{t('filters.city.all')}</option>
+        <option value="">{t('filters.city.all')}</option>
         {cityOptions.map((city) => (
           <option key={city} value={city}>
             {city}
@@ -171,23 +176,25 @@ export interface PropertiesSectionProps {
  * .focus().
  */
 function SearchResultsStatus({
-  searchTerm,
+  isActive,
   resultCount,
   resultsAnnouncement,
   noResultsAnnouncement,
   testId,
 }: {
-  searchTerm: string
+  /** Whether *any* narrowing is currently applied - text search for
+   * Parqueaderos, but text search OR a local filter for Propiedades (third
+   * audit, PR #26: filters applied with an empty search box left this
+   * region silent even though the visible count had changed). */
+  isActive: boolean
   resultCount: number
   resultsAnnouncement: string
   noResultsAnnouncement: string
   testId: string
 }) {
-  const isSearching = searchTerm.trim().length > 0
-
   return (
     <p role="status" aria-live="polite" className="sr-only" data-testid={testId}>
-      {isSearching ? (resultCount > 0 ? resultsAnnouncement : noResultsAnnouncement) : ''}
+      {isActive ? (resultCount > 0 ? resultsAnnouncement : noResultsAnnouncement) : ''}
     </p>
   )
 }
@@ -224,14 +231,23 @@ export function PropertiesSection({ query, occupancy, searchTerm, filters }: Pro
       matchesSearch(searchTerm, property.name, property.address, property.city) &&
       matchesPropertyFilters(property, filters, occupancy),
   )
+  const hasActiveFilters =
+    filters.city !== null || filters.propertyType !== 'all' || filters.occupancyStatus !== 'all'
+  // A filter alone (no text typed) still narrows the list - the live
+  // region must speak up for that case too, not just for text search.
+  const isFiltering = searchTerm.trim().length > 0 || hasActiveFilters
 
   return (
     <>
       <SearchResultsStatus
-        searchTerm={searchTerm}
+        isActive={isFiltering}
         resultCount={visible.length}
         resultsAnnouncement={t('search.resultsAnnouncement', { count: visible.length })}
-        noResultsAnnouncement={t('search.noResults.description', { query: searchTerm })}
+        noResultsAnnouncement={
+          searchTerm.trim()
+            ? t('search.noResults.description', { query: searchTerm })
+            : t('search.noMatches.description')
+        }
         testId="properties-search-status"
       />
       {visible.length === 0 ? (
@@ -379,7 +395,7 @@ export function ParkingsSection({ query, propertiesQuery, emptyAction, searchTer
   return (
     <>
       <SearchResultsStatus
-        searchTerm={searchTerm}
+        isActive={searchTerm.trim().length > 0}
         resultCount={visible.length}
         resultsAnnouncement={t('section.search.resultsAnnouncement', { count: visible.length })}
         noResultsAnnouncement={t('section.search.noResults.description', { query: searchTerm })}

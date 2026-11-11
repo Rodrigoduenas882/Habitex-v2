@@ -734,6 +734,53 @@ describe('PropertiesPage', () => {
       expect(screen.getByTestId('parkings-search-status')).toBe(region)
       expect(search).toHaveFocus()
     })
+
+    it('announces the result count when a filter alone narrows the list, with no text typed (third audit, PR #26)', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1, PROPERTY_2])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      const user = userEvent.setup()
+      renderPage()
+
+      const region = await screen.findByTestId('properties-search-status')
+      expect(region).toHaveTextContent('')
+
+      await user.selectOptions(screen.getByLabelText('Tipo'), 'HOUSE')
+      expect(region).toHaveTextContent('Se encontró 1 resultado.')
+
+      await user.selectOptions(screen.getByLabelText('Tipo'), 'all')
+      expect(region).toHaveTextContent('')
+    })
+
+    it('announces "no matches" (the filters-only wording, not the text-search one) when a filter alone excludes everything', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1, PROPERTY_2])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.selectOptions(await screen.findByLabelText('Ciudad'), 'Bogotá')
+      await user.selectOptions(screen.getByLabelText('Tipo'), 'HOUSE')
+
+      expect(screen.getByTestId('properties-search-status')).toHaveTextContent(
+        'Ajusta la ciudad, el tipo o la ocupación seleccionados.',
+      )
+    })
+
+    it('still prefers the quoted-query wording when both a filter and text search are active and nothing matches', async () => {
+      resolveOneAdministration()
+      listPropertiesByAdministration.mockResolvedValueOnce([PROPERTY_1, PROPERTY_2])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.selectOptions(await screen.findByLabelText('Ciudad'), 'Bogotá')
+      await user.type(screen.getByLabelText('Buscar inmuebles'), 'xyz-no-match')
+
+      expect(screen.getByTestId('properties-search-status')).toHaveTextContent(
+        'Intenta con otro nombre, dirección o ciudad.',
+      )
+    })
   })
 
   describe('local filters - Ciudad, Tipo, Ocupación over already-loaded data (docs/DESIGN.md §15)', () => {
@@ -754,6 +801,23 @@ describe('PropertiesPage', () => {
         'Bogotá',
         'Medellín',
       ])
+    })
+
+    it('a property whose real city is literally "all" is never confused with "no city filter" (third audit, PR #26)', async () => {
+      resolveOneAdministration()
+      const literalAllCity = { ...PROPERTY_1, id: 'prop-all-city', name: 'Bodega Central', city: 'all' }
+      listPropertiesByAdministration.mockResolvedValueOnce([literalAllCity, PROPERTY_2])
+      listParkingsByAdministration.mockResolvedValueOnce([])
+      const user = userEvent.setup()
+      renderPage()
+
+      // Selecting that exact city must show only that one property, not
+      // silently behave like "Todas las ciudades" (every property).
+      await user.selectOptions(await screen.findByLabelText('Ciudad'), 'all')
+
+      const list = compactProperties()
+      expect(list.getByText('Bodega Central')).toBeInTheDocument()
+      expect(list.queryByText('Casa 14')).not.toBeInTheDocument()
     })
 
     it('filters by Ciudad without touching the text search', async () => {
@@ -866,7 +930,7 @@ describe('PropertiesPage', () => {
       await user.selectOptions(screen.getByLabelText('Tipo'), 'APARTMENT')
       expect(compactProperties().queryByText('Casa 14')).not.toBeInTheDocument()
 
-      await user.selectOptions(screen.getByLabelText('Ciudad'), 'all')
+      await user.selectOptions(screen.getByLabelText('Ciudad'), '')
       await user.selectOptions(screen.getByLabelText('Tipo'), 'all')
 
       const list = compactProperties()
