@@ -16,6 +16,7 @@ import { generateInvitationToken, sha256Hex } from '@/features/invitations/domai
 import { Alert } from '@/shared/ui/Alert'
 import { Button } from '@/shared/ui/Button'
 import { EmptyState } from '@/shared/ui/EmptyState'
+import { ChevronLeftIcon } from '@/shared/ui/icons'
 import { Input } from '@/shared/ui/Input'
 import { Select } from '@/shared/ui/Select'
 import { Skeleton } from '@/shared/ui/Skeleton'
@@ -28,6 +29,8 @@ import {
   type AddRentalDraftFormValues,
 } from './add-rental-draft-form'
 import styles from './AddRentalDraftForm.module.css'
+import { RentalFlowLayout } from './RentalFlowLayout'
+import { RentalSummaryPanel } from './RentalSummaryPanel'
 import { useCreateRentalDraft } from '../application/useCreateRentalDraft'
 import { useRentalSubjects } from '../application/useRentalSubjects'
 import { useTenantCandidates } from '../application/useTenantCandidates'
@@ -202,6 +205,13 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
     shouldUnregister: false,
   })
   const tenantMode = watch('tenantMode')
+  // Live-updating resumen values (docs/DESIGN.md §16.6) - plain lookups
+  // against already-fetched real data, never a second read: a subject/
+  // tenant not yet chosen simply resolves to null, shown as "Sin definir" by
+  // RentalSummaryPanel.
+  const watchedSubjectId = watch('rentalSubjectId')
+  const watchedFullName = watch('fullName')
+  const watchedExistingTenantId = watch('existingTenantPersonId')
 
   const candidates = tenantCandidatesQuery.data ?? []
   // "Existente" is only a trustworthy choice once we know for certain there
@@ -236,6 +246,7 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
     return (
       <div className={styles['page']} data-testid="add-rental-subjects-loading">
         <button type="button" className={styles['back']} onClick={onBack}>
+          <ChevronLeftIcon size={16} aria-hidden="true" />
           {t('addRental.back')}
         </button>
         <Skeleton height={32} width={240} />
@@ -248,6 +259,7 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
     return (
       <div className={styles['page']}>
         <button type="button" className={styles['back']} onClick={onBack}>
+          <ChevronLeftIcon size={16} aria-hidden="true" />
           {t('addRental.back')}
         </button>
         <Alert tone="danger" title={t('errors.subjectsTitle')}>
@@ -263,6 +275,7 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
     return (
       <div className={styles['page']}>
         <button type="button" className={styles['back']} onClick={onBack}>
+          <ChevronLeftIcon size={16} aria-hidden="true" />
           {t('addRental.back')}
         </button>
         <EmptyState
@@ -274,12 +287,29 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
     )
   }
 
+  const selectedSubjectLabel = subjects.find((subject) => subject.id === watchedSubjectId)?.label ?? null
+  const selectedTenantName =
+    tenantMode === 'existing'
+      ? (candidates.find((candidate) => candidate.id === watchedExistingTenantId)?.fullName ?? null)
+      : watchedFullName.trim() !== ''
+        ? watchedFullName.trim()
+        : null
+
   return (
-    <div className={styles['page']}>
+    <RentalFlowLayout step={2} variant="stacked">
       <button type="button" className={styles['back']} onClick={onBack}>
+        <ChevronLeftIcon size={16} aria-hidden="true" />
         {t('addRental.back')}
       </button>
       <h1 className="text-h2">{t('form.title')}</h1>
+
+      <RentalSummaryPanel
+        subjectLabel={selectedSubjectLabel}
+        tenantName={selectedTenantName}
+        rentAmount={null}
+        startDate={null}
+        endDate={null}
+      />
 
       {createRentalDraft.isError ? <Alert tone="danger">{t('form.errors.createFailed')}</Alert> : null}
 
@@ -290,125 +320,129 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
         noValidate
         className={styles['form']}
       >
-        <h2 className="text-h3">{t(`form.sectionSubject.${subjectType}`)}</h2>
+        <div className={styles['formSection']}>
+          <h2 className="text-h3">{t(`form.sectionSubject.${subjectType}`)}</h2>
 
-        <Select
-          label={t('form.subject.label')}
-          error={errors.rentalSubjectId?.message}
-          disabled={createRentalDraft.isPending}
-          {...register('rentalSubjectId')}
-        >
-          <option value="">{t('form.subject.placeholder')}</option>
-          {subjects.map((subject) => (
-            <option key={subject.id} value={subject.id}>
-              {subject.label}
-            </option>
-          ))}
-        </Select>
-
-        <h2 className="text-h3">{t('form.sectionTenant')}</h2>
-
-        <Select
-          label={t('form.tenantMode.label')}
-          disabled={createRentalDraft.isPending}
-          {...register('tenantMode')}
-        >
-          <option value="new">{t('form.tenantMode.new')}</option>
-          <option value="existing" disabled={existingTenantUnavailable}>
-            {t('form.tenantMode.existing')}
-          </option>
-        </Select>
-
-        {existingTenantUnavailable ? (
-          <p className="text-caption text-muted">
-            {tenantCandidatesQuery.isLoading
-              ? t('form.existingTenant.loadingHint')
-              : tenantCandidatesQuery.isError
-                ? t('form.existingTenant.errorHint')
-                : t('form.existingTenant.emptyHint')}
-          </p>
-        ) : null}
-
-        {tenantMode === 'existing' && !existingTenantUnavailable ? (
           <Select
-            label={t('form.existingTenant.label')}
-            error={errors.existingTenantPersonId?.message}
+            label={t('form.subject.label')}
+            error={errors.rentalSubjectId?.message}
             disabled={createRentalDraft.isPending}
-            {...register('existingTenantPersonId')}
+            {...register('rentalSubjectId')}
           >
-            <option value="">{t('form.existingTenant.placeholder')}</option>
-            {candidates.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {candidate.fullName}
+            <option value="">{t('form.subject.placeholder')}</option>
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id}>
+                {subject.label}
               </option>
             ))}
           </Select>
-        ) : null}
+        </div>
 
-        {tenantMode === 'new' ? (
-          <>
-            <Input
-              label={t('form.newTenant.fullName.label')}
-              error={errors.fullName?.message}
-              disabled={createRentalDraft.isPending}
-              {...register('fullName')}
-            />
+        <div className={styles['formSection']}>
+          <h2 className="text-h3">{t('form.sectionTenant')}</h2>
+
+          <Select
+            label={t('form.tenantMode.label')}
+            disabled={createRentalDraft.isPending}
+            {...register('tenantMode')}
+          >
+            <option value="new">{t('form.tenantMode.new')}</option>
+            <option value="existing" disabled={existingTenantUnavailable}>
+              {t('form.tenantMode.existing')}
+            </option>
+          </Select>
+
+          {existingTenantUnavailable ? (
+            <p className="text-caption text-muted">
+              {tenantCandidatesQuery.isLoading
+                ? t('form.existingTenant.loadingHint')
+                : tenantCandidatesQuery.isError
+                  ? t('form.existingTenant.errorHint')
+                  : t('form.existingTenant.emptyHint')}
+            </p>
+          ) : null}
+
+          {tenantMode === 'existing' && !existingTenantUnavailable ? (
             <Select
-              label={t('form.newTenant.documentType.label')}
+              label={t('form.existingTenant.label')}
+              error={errors.existingTenantPersonId?.message}
               disabled={createRentalDraft.isPending}
-              {...register('documentType')}
+              {...register('existingTenantPersonId')}
             >
-              <option value="">{t('form.newTenant.documentType.none')}</option>
-              {DOCUMENT_TYPE_OPTIONS.map((documentType) => (
-                <option key={documentType} value={documentType}>
-                  {t(`form.newTenant.documentType.${documentType}`)}
+              <option value="">{t('form.existingTenant.placeholder')}</option>
+              {candidates.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.fullName}
                 </option>
               ))}
             </Select>
-            <Input
-              label={t('form.newTenant.documentNumber.label')}
-              error={errors.documentNumber?.message}
-              disabled={createRentalDraft.isPending}
-              {...register('documentNumber')}
-            />
-            <Select
-              label={t('form.newTenant.documentCountry.label')}
-              disabled={createRentalDraft.isPending}
-              {...register('documentCountry')}
-            >
-              <option value="">{t('form.newTenant.documentCountry.none')}</option>
-              {COUNTRY_OPTIONS.map((country) => (
-                <option key={country} value={country}>
-                  {t(`countries.${country}`)}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label={t('form.newTenant.nationalityCountry.label')}
-              disabled={createRentalDraft.isPending}
-              {...register('nationalityCountry')}
-            >
-              <option value="">{t('form.newTenant.nationalityCountry.none')}</option>
-              {COUNTRY_OPTIONS.map((country) => (
-                <option key={country} value={country}>
-                  {t(`countries.${country}`)}
-                </option>
-              ))}
-            </Select>
-            <Input
-              type="email"
-              label={t('form.newTenant.email.label')}
-              error={errors.email?.message}
-              disabled={createRentalDraft.isPending}
-              {...register('email')}
-            />
-            <Input
-              label={t('form.newTenant.phone.label')}
-              disabled={createRentalDraft.isPending}
-              {...register('phone')}
-            />
-          </>
-        ) : null}
+          ) : null}
+
+          {tenantMode === 'new' ? (
+            <>
+              <Input
+                label={t('form.newTenant.fullName.label')}
+                error={errors.fullName?.message}
+                disabled={createRentalDraft.isPending}
+                {...register('fullName')}
+              />
+              <Select
+                label={t('form.newTenant.documentType.label')}
+                disabled={createRentalDraft.isPending}
+                {...register('documentType')}
+              >
+                <option value="">{t('form.newTenant.documentType.none')}</option>
+                {DOCUMENT_TYPE_OPTIONS.map((documentType) => (
+                  <option key={documentType} value={documentType}>
+                    {t(`form.newTenant.documentType.${documentType}`)}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                label={t('form.newTenant.documentNumber.label')}
+                error={errors.documentNumber?.message}
+                disabled={createRentalDraft.isPending}
+                {...register('documentNumber')}
+              />
+              <Select
+                label={t('form.newTenant.documentCountry.label')}
+                disabled={createRentalDraft.isPending}
+                {...register('documentCountry')}
+              >
+                <option value="">{t('form.newTenant.documentCountry.none')}</option>
+                {COUNTRY_OPTIONS.map((country) => (
+                  <option key={country} value={country}>
+                    {t(`countries.${country}`)}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label={t('form.newTenant.nationalityCountry.label')}
+                disabled={createRentalDraft.isPending}
+                {...register('nationalityCountry')}
+              >
+                <option value="">{t('form.newTenant.nationalityCountry.none')}</option>
+                {COUNTRY_OPTIONS.map((country) => (
+                  <option key={country} value={country}>
+                    {t(`countries.${country}`)}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                type="email"
+                label={t('form.newTenant.email.label')}
+                error={errors.email?.message}
+                disabled={createRentalDraft.isPending}
+                {...register('email')}
+              />
+              <Input
+                label={t('form.newTenant.phone.label')}
+                disabled={createRentalDraft.isPending}
+                {...register('phone')}
+              />
+            </>
+          ) : null}
+        </div>
 
         <Button
           type="submit"
@@ -423,6 +457,6 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
           <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
         ) : null}
       </form>
-    </div>
+    </RentalFlowLayout>
   )
 }

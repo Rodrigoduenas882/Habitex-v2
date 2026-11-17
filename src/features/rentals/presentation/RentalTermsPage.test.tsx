@@ -182,6 +182,36 @@ describe('RentalTermsPage', () => {
     expect(screen.getByLabelText('Fecha real de inicio')).toBeEnabled()
   })
 
+  it('places the resumen del arriendo after the header and before the first field, in the editable form (P1 fix, second correction - Figma 370:477)', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])
+    getCurrent.mockResolvedValueOnce(null)
+    renderPage()
+    await screen.findByRole('button', { name: 'Guardar términos' })
+
+    const header = await screen.findByRole('heading', { level: 1 })
+    const summary = screen.getByRole('region', { name: 'Resumen del arriendo' })
+    const firstField = screen.getByLabelText('Fecha real de inicio')
+
+    expect(header.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(summary.compareDocumentPosition(firstField) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('places the resumen del arriendo after the header and before the first field, in the read-only view (P1 fix, second correction - Figma 370:622)', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([UPDATED_RELATIONSHIP])
+    getCurrent.mockResolvedValueOnce(TERM_VERSION)
+    renderPage()
+    await screen.findByText('Estos términos ya fueron registrados y no se pueden editar todavía.')
+
+    const header = await screen.findByRole('heading', { level: 1 })
+    const summary = screen.getByRole('region', { name: 'Resumen del arriendo' })
+    const firstField = screen.getByLabelText('Fecha real de inicio')
+
+    expect(header.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(summary.compareDocumentPosition(firstField) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('renders the shared context header (heading + nav) above the page\'s own description and form (DS-002)', async () => {
     resolveOneAdministration()
     listByAdministration.mockResolvedValueOnce([RENTAL_DRAFT])

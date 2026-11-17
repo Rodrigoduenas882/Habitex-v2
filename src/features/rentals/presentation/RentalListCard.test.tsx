@@ -157,6 +157,13 @@ describe('RentalListCard', () => {
       expect(screen.queryByText('Canon pendiente de definir')).not.toBeInTheDocument()
     })
 
+    it('renders a 75-character subject name with no spaces in full, never truncated (P2 fix, Codex NO-GO on PR #29 - see e2e/rentals-preview.spec.ts for the real-browser bounding-box check)', () => {
+      const longName = 'a'.repeat(75)
+      render(<RentalListCard identity={{ ...BASE_IDENTITY, subjectLabel: longName }} rental={BASE} />)
+
+      expect(screen.getByText(longName)).toBeInTheDocument()
+    })
+
     it('never renders any raw UUID-shaped string anywhere, even when every identity field is missing', () => {
       const { container } = render(
         <RentalListCard identity={{ subjectLabel: null, tenantName: null, rentAmount: null }} rental={BASE} />,
@@ -580,6 +587,18 @@ describe('RentalListCard', () => {
       expect(screen.queryByRole('button', { name: 'Confirmar cancelación' })).not.toBeInTheDocument()
     })
 
+    it('restores keyboard focus to "Cancelar" when "Volver" exits confirming state (P2 fix, Codex NO-GO on PR #29)', async () => {
+      const user = userEvent.setup()
+      render(
+        <RentalListCard identity={BASE_IDENTITY} rental={{ ...BASE, status: 'DRAFT' }} cancelDraft={cancelDraftProps()} />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+      await user.click(screen.getByRole('button', { name: 'Volver' }))
+
+      expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveFocus()
+    })
+
     it('disables Cancelar and shows the management-access reason when blocked for that reason', () => {
       render(
         <RentalListCard identity={BASE_IDENTITY}
@@ -740,6 +759,16 @@ describe('RentalListCard', () => {
 
       expect(onConfirm).not.toHaveBeenCalled()
       expect(screen.getByRole('button', { name: 'Terminar arriendo' })).toBeInTheDocument()
+    })
+
+    it('restores keyboard focus to "Terminar arriendo" when "Volver" exits confirming state (P2 fix, Codex NO-GO on PR #29)', async () => {
+      const user = userEvent.setup()
+      render(<RentalListCard identity={BASE_IDENTITY} rental={{ ...BASE, status: 'ENDING' }} endRental={endRentalProps()} />)
+
+      await user.click(screen.getByRole('button', { name: 'Terminar arriendo' }))
+      await user.click(screen.getByRole('button', { name: 'Volver' }))
+
+      expect(screen.getByRole('button', { name: 'Terminar arriendo' })).toHaveFocus()
     })
 
     it('is never disabled by expired management access (not gated)', () => {

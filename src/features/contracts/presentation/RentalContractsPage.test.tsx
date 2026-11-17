@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/infrastructure/i18n/i18n'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
 import type { Contract } from '../domain/contract.types'
-import RentalContractsPage from './RentalContractsPage'
+import RentalContractsPage, { ContractCard } from './RentalContractsPage'
 
 const { listAccessibleAdministrations } = vi.hoisted(() => ({
   listAccessibleAdministrations: vi.fn(),
@@ -354,6 +354,21 @@ describe('RentalContractsPage', () => {
     expect(screen.queryByRole('button', { name: 'Confirmar terminación' })).not.toBeInTheDocument()
   })
 
+  it('restores keyboard focus to "Terminar contrato" when "Volver" exits confirming state (P2 fix, Codex NO-GO on PR #29)', async () => {
+    resolveOneAdministration()
+    listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+    listByRelationship.mockResolvedValueOnce([
+      makeContract({ status: 'SIGNED', signedFileId: 'file-2', signedAt: '2026-03-01T00:00:00Z' }),
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Terminar contrato' }))
+    await user.click(await screen.findByRole('button', { name: 'Volver' }))
+
+    expect(screen.getByRole('button', { name: 'Terminar contrato' })).toHaveFocus()
+  })
+
   it('disables the confirm button while termination is pending, preventing a duplicate submission', async () => {
     resolveOneAdministration()
     listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
@@ -636,5 +651,99 @@ describe('RentalContractsPage', () => {
 
     const card = await screen.findByText('Generado en Habitex')
     expect(within(card.closest('div') as HTMLElement).getByText('Versión 2')).toBeInTheDocument()
+  })
+
+  describe('P1 visual fix: resumen + contrato externo sections (Codex NO-GO on PR #29)', () => {
+    it('shows the resumen del arriendo panel alongside the page content', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([])
+      renderPage()
+
+      expect(await screen.findByRole('region', { name: 'Resumen del arriendo' })).toBeInTheDocument()
+    })
+
+    it('splits "Registrar contrato externo firmado" into document/signature-date/parties sections, with no invented signature-date field', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([])
+      renderPage()
+
+      await screen.findByText('Registrar contrato externo firmado')
+      // "Documento del contrato" is also RegisterHabitexGeneratedForm's file
+      // label text - query by heading role to target this form's own
+      // subsection title unambiguously.
+      expect(screen.getByRole('heading', { level: 4, name: 'Documento del contrato' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 4, name: 'Fecha de firma' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 4, name: 'Partes del contrato' })).toBeInTheDocument()
+      // No persisted/editable signature-date field - only the honest note.
+      expect(screen.queryByLabelText(/fecha de firma/i)).not.toBeInTheDocument()
+      // Neither the lessor nor (in this test file's default empty-identity
+      // mocks) the tenant resolve to a real name - both show the honest
+      // "Sin definir" fallback, never a fabricated value. Scoped to the
+      // "Partes del contrato" subsection so it can't accidentally match the
+      // resumen panel's own, separate "Sin definir" rows.
+      const partiesSection = screen.getByRole('heading', { level: 4, name: 'Partes del contrato' }).closest('div')
+      expect(within(partiesSection as HTMLElement).getByText('Arrendador', { exact: false })).toBeInTheDocument()
+      expect(within(partiesSection as HTMLElement).getByText('Arrendatario', { exact: false })).toBeInTheDocument()
+      expect(within(partiesSection as HTMLElement).getAllByText('Sin definir')).toHaveLength(2)
+    })
+  })
+
+  describe('ContractCard previewMode (P2 fix: preview must make zero real backend calls, Codex NO-GO on PR #29)', () => {
+    function renderContractCard(contract: Contract) {
+      const client = createTestQueryClient()
+      return render(
+        <QueryClientProvider client={client}>
+          <ContractCard
+            contract={contract}
+            administrationId="admin-1"
+            relationshipId="rel-1"
+            managementBlocked={false}
+            previewMode
+          />
+        </QueryClientProvider>,
+      )
+    }
+
+    it('never renders a download button, and never calls the file repository, even when documentFileId/signedFileId are present', () => {
+      renderContractCard(makeContract({ status: 'SIGNED', documentFileId: 'file-1', signedFileId: 'file-2' }))
+
+      expect(screen.queryByRole('button', { name: 'Descargar documento' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Descargar copia firmada' })).not.toBeInTheDocument()
+      expect(getFileById).not.toHaveBeenCalled()
+    })
+
+    it('"Marcar como compartido" never calls markShared', async () => {
+      const user = userEvent.setup()
+      renderContractCard(makeContract({ status: 'GENERATED' }))
+
+      await user.click(screen.getByRole('button', { name: 'Marcar como compartido' }))
+
+      expect(markShared).not.toHaveBeenCalled()
+    })
+
+    it('completing the two-step "Terminar contrato" confirmation never calls terminate', async () => {
+      const user = userEvent.setup()
+      renderContractCard(makeContract({ status: 'SIGNED', signedFileId: 'file-2' }))
+
+      await user.click(screen.getByRole('button', { name: 'Terminar contrato' }))
+      await user.click(await screen.findByRole('button', { name: 'Confirmar terminación' }))
+
+      expect(terminate).not.toHaveBeenCalled()
+    })
+
+    it('"Adjuntar copia firmada" never calls uploadFile/attachSignedCopy', async () => {
+      const user = userEvent.setup()
+      renderContractCard(makeContract({ status: 'GENERATED' }))
+
+      const fileInput = screen.getByLabelText('Archivo de la copia firmada')
+      const file = new File(['firmado'], 'firmado.pdf', { type: 'application/pdf' })
+      await user.upload(fileInput, file)
+      await user.click(screen.getByRole('button', { name: 'Adjuntar copia firmada' }))
+
+      expect(uploadFile).not.toHaveBeenCalled()
+      expect(attachSignedCopy).not.toHaveBeenCalled()
+    })
   })
 })

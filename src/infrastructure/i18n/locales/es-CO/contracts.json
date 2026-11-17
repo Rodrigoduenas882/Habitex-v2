@@ -53,7 +53,13 @@
       "description": "Sube el contrato que ya fue firmado fuera de Habitex.",
       "fileLabel": "Documento firmado",
       "submit": "Registrar contrato externo",
-      "submitting": "Registrando contrato…"
+      "submitting": "Registrando contrato…",
+      "documentSection": "Documento del contrato",
+      "signatureDateSection": "Fecha de firma",
+      "signatureDateNote": "Este formulario no registra una fecha de firma independiente - el modelo actual no la guarda como dato propio. Una vez el contrato quede firmado, el historial de abajo muestra la fecha real de registro.",
+      "partiesSection": "Partes del contrato",
+      "lessorLabel": "Arrendador",
+      "tenantLabel": "Arrendatario"
     },
     "fileRequired": "Selecciona un archivo.",
     "termsUnavailable": "No encontramos las condiciones financieras de este arriendo. Completa los términos antes de registrar un contrato."

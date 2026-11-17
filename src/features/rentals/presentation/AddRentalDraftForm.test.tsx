@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -88,6 +88,35 @@ describe('AddRentalDraftForm', () => {
 
     expect(await screen.findByText('Completa los datos del arriendo')).toBeInTheDocument()
     expect(screen.queryByText('¿Qué vas a arrendar?')).not.toBeInTheDocument()
+  })
+
+  it('places the resumen del arriendo after the title and before the subject/tenant form (P1 fix, second correction - Figma 370:3)', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    const title = await screen.findByText('Completa los datos del arriendo')
+    const summary = screen.getByRole('region', { name: 'Resumen del arriendo' })
+    const firstField = screen.getByLabelText('Activo a arrendar')
+
+    expect(title.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(summary.compareDocumentPosition(firstField) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows the selected subject/tenant live in the resumen panel, before the form has been submitted', async () => {
+    listRentalSubjects.mockResolvedValueOnce([SUBJECT_1])
+    listTenantCandidates.mockResolvedValueOnce([])
+    const user = userEvent.setup()
+    renderForm()
+    await waitForSubjectsToSettle()
+
+    await user.selectOptions(screen.getByLabelText('Activo a arrendar'), 'subj-1')
+    await user.type(screen.getByLabelText('Nombre completo'), 'Nuevo Arrendatario')
+
+    const summary = screen.getByRole('region', { name: 'Resumen del arriendo' })
+    expect(within(summary).getByText('la florida')).toBeInTheDocument()
+    expect(within(summary).getByText('Nuevo Arrendatario')).toBeInTheDocument()
   })
 
   it('shows a loading state while rental subjects are resolving, and calls the real port with administrationId + subjectType', () => {

@@ -566,3 +566,248 @@ encontrados en esta misma protección:**
    el texto de su Alert de aviso) dentro del contenido de cada archivo —
    un minificador no altera el contenido de un string literal, así que
    esto sobrevive sin importar cómo Rollup nombre el chunk.
+
+
+## 16. Arriendos, Términos y Contratos — Sprint 3
+
+Issue #28. Referencia: Figma `Habitex-Design-Lab` (misma URL de §15).
+
+**Nota de verificación.** Igual que en §15, Figma respondió 403 sin sesión
+autenticada desde este entorno — no hay forma de comparar contra el diseño
+real pixel a pixel. Esta sección documenta las decisiones tomadas para
+mantener el mismo lenguaje visual ya aprobado en los Sprints 1 y 2
+(`IconBadge` + identidad + Badge de estado, back-button con `ChevronLeftIcon`,
+`Card` para contenedores con borde, agrupación de formularios por sección)
+en vez de inventar un patrón nuevo sin poder verificarlo contra Figma.
+Cualquier diferencia que una revisión con acceso real a Figma encuentre
+manda sobre lo que está aquí.
+
+### 16.1 Alcance de este sprint
+
+Solo UI/UX sobre los módulos de Arriendos y Contratos ya existentes — sin
+tocar RPC, RLS, migraciones, permisos, límites de plan ni el ciclo de vida
+DRAFT→ACTIVE→ENDING→ENDED / DRAFT→CANCELLED. Las confirmaciones de dos
+pasos para Cancelar/Terminar arriendo/Terminar contrato ya existían antes
+de este sprint (`LifecycleConfirmAction`/`TerminateContractAction`) — se
+conservan exactamente, no se tocaron.
+
+### 16.2 Listado de arriendos (`RentalListCard`)
+
+Mismo lenguaje de tarjeta que `PropertyListCard`/`ParkingListCard` (Sprint
+2): una cabecera con `IconBadge` (`KeyIcon`, tono neutral — un solo ícono
+para toda la tarjeta, no uno por tipo de sujeto, porque
+`RentalRelationship` no trae `subjectType` y resolverlo exigiría un nuevo
+cruce de datos que este incremento no necesita) + bloque de identidad
+(sujeto arrendado en negrita, arrendatario como texto secundario) + Badge
+de estado alineado a la derecha. El canon, las fechas de vigencia y el día/
+momento de pago quedan como líneas de caption debajo, exactamente con el
+mismo contenido/formato que ya tenían (ninguna prueba de contenido de texto
+cambió). Las acciones (Activar, Cancelar, Iniciar cierre, Terminar
+arriendo, navegación a Términos/Contratos/Cargos/Pagos) no se tocaron.
+
+### 16.3 Crear arriendo (`AddRentalDraftForm`) y Términos (`RentalTermsPage`)
+
+Dos cambios, ambos ya establecidos en el formulario de Propiedades
+(`AddPropertyPage.module.css`), aplicados aquí por primera vez a Arriendos:
+
+- El botón "Volver" ahora lleva `ChevronLeftIcon` antes del texto (antes
+  era texto plano) — mismo patrón que `AddFullPropertyForm`.
+- Cada sección (`¿Cuál inmueble?`/`¿A quién se lo arriendas?` en el
+  formulario de creación; `Fechas y pago`/`Condiciones financieras` en
+  Términos) se envuelve en un `div.formSection` propio (gap menor que el
+  del formulario completo) en vez de ser un `h2` suelto dentro del mismo
+  flex column que todo lo demás — la misma jerarquía visual que
+  `AddFullPropertyForm`'s `formSection`, nunca un `Card` con borde
+  (ese patrón no existe para secciones de formulario en ningún formulario
+  existente del repo; introducirlo aquí habría sido inconsistente).
+- Términos agrega un hint accesible al selector de "Momento de pago"
+  explicando qué significa anticipado/vencido — pura aclaración de copy,
+  no cambia la validación ni el guardado. El aviso de guardado parcial
+  (`termsForm.errors.partialFailure`) y la vista de solo lectura ya
+  existían; no se modificaron.
+
+### 16.4 Contratos (`RentalContractsPage`)
+
+- Los dos formularios de registro ("Registrar contrato Habitex"/
+  "Registrar contrato externo firmado") reemplazan su `<div>` con
+  `border`/`border-radius` manuales por el primitive `Card` (§5 — "no
+  hardcodear border+radius+shadow cuando ya existe un primitive"). El
+  `<form>` sigue siendo el elemento de formulario real (necesario para que
+  `onSubmit` dispare con Enter) — `Card` se anida *dentro* de él, mismo
+  patrón que `ParkingForm` ya usaba.
+- `ContractCard` (la fila de cada contrato) ahora tiene la misma cabecera
+  `IconBadge` (`FileTextIcon`) + identidad + Badge que el resto de las
+  tarjetas de lista de la app, en vez de solo un Badge + caption de versión
+  sueltos.
+- Integridad SHA-256, origen EXTERNAL/HABITEX_GENERATED, los cuatro
+  estados GENERATED/SHARED/SIGNED/TERMINATED, la subida/descarga de
+  archivos y el manejo de fallos parciales no cambiaron — solo el envoltorio
+  visual.
+
+### 16.5 Preview de QA (`RentalsVisualPreview`)
+
+Mismo mecanismo exacto que `PropertiesVisualPreview` (§15.6), con su propia
+bandera independiente: `VITE_ENABLE_RENTALS_PREVIEW` /
+`__ENABLE_RENTALS_PREVIEW__`, el mismo allowlist de modos
+(`PREVIEW_ALLOWED_MODES`, solo `'e2e'`) y el mismo guard de contenido
+(`scripts/assert-no-demo-chunk.mjs`, ahora con marcadores propios de este
+preview). `pnpm build` normal nunca emite su chunk; `pnpm build:e2e` sí,
+verificado en ambas direcciones.
+
+Reutiliza los componentes reales (`RentalListCard`, y `ContractCard`
+exportado desde `RentalContractsPage.tsx` con el mismo principio que
+`PropertiesSection`/`ParkingsSection` en Sprint 2) en vez de una copia
+visual aparte — así el preview no puede desviarse de lo que la página real
+renderiza. `RentalListCard` recibe sus acciones como callbacks no-op
+(`() => {}`), porque ese componente nunca llama una mutación por sí mismo —
+es la página real (`RentalsPage`) quien las conecta, así que el preview
+simplemente no las conecta a nada.
+
+**Corrección (segunda auditoría de Codex, PR #29) — `ContractCard` sí hacía
+tráfico real.** La versión anterior de esta sección decía que las
+mutaciones de `ContractCard` (`useMarkContractShared`/`useTerminateContract`)
+podían quedarse reales porque un clic contra un fixture "simplemente falla
+igual que una llamada no autenticada" — pero `useContractFile` (detrás de
+los botones de descarga) es un `useQuery` que se dispara automáticamente al
+montar en cuanto un fixture trae `documentFileId`/`signedFileId`, es decir
+un GET real sin sesión contra Supabase apenas carga esta página pública, no
+solo una falla disparada por clic. Corregido con la prop `previewMode` de
+`ContractCard` (ver `ContractCardProps`, `RentalContractsPage.tsx`): omite
+los botones de descarga por completo (ese `useQuery` nunca llega a montarse)
+y convierte las acciones mutantes (marcar compartido, adjuntar copia
+firmada, terminar) en no-op — la UI de confirmación en dos pasos de
+"Terminar contrato" sigue siendo demostrable igual que antes, solo la
+llamada final queda suprimida. El Alert del preview ya no afirma que las
+acciones "fallarán de forma segura"; dice explícitamente que no hacen
+ninguna llamada real.
+
+Cubierto en `e2e/rentals-preview.spec.ts`: alcanzabilidad sin sesión,
+variedad completa de estados de Arriendos y Contratos, ausencia de UUIDs/
+copy de firma avanzada, Light/Dark, overflow horizontal en
+320/375/768/1024/1440 (los anchos pedidos en el Issue #28) en ambos temas, y
+ausencia total de peticiones de red reales (ver §16.6).
+
+### 16.6 Corrección del P1 visual y de los tres P2 — segunda auditoría de Codex (PR #29)
+
+**P1 — jerarquía visual de Creación/Condiciones/Contrato.** Verificación
+directa de Figma (conexión autenticada del usuario, no de este entorno) de
+los candidatos `370:3` (01 Selección), `370:477` (03 Condiciones) y
+`370:716` (Contrato externo). Decisión de producto: recuperar la jerarquía
+en las rutas existentes (`/rentals/new`, `/rentals/:id/terms`,
+`/rentals/:id/contracts`), sin pantalla nueva de revisión/activación (esa
+sigue viviendo en `/rentals`, sin tocar) y sin inventar campos/RPC.
+
+- **`RentalStepper`** (`src/features/rentals/presentation/RentalStepper.tsx`):
+  indicador puramente informativo de 4 pasos (Selección → Arrendatario →
+  Condiciones → Contrato). `currentStep` lo deriva cada página de en qué
+  ruta/sub-estado real está el usuario — nunca hay `onStepClick`, nunca crea
+  una ruta nueva, nunca simula un wizard transaccional. Un paso anterior al
+  actual se muestra "completado" solo porque llegar al paso siguiente ya
+  implica que su precondición real en el backend se cumplió (p. ej. llegar a
+  `/rentals/:id/terms` implica que `create_rental_draft` ya tuvo éxito) —
+  nunca una suposición del cliente sobre datos que podrían no existir. Se
+  renderiza como `<ol>` plano, nunca como heading, para no introducir un
+  segundo nivel de encabezado en ninguna página.
+- **`RentalSummaryPanel`** (mismo directorio): "resumen del arriendo"
+  (inmueble/arrendatario/canon/fechas) de solo lectura, nunca un formulario.
+  Cada página le pasa exactamente los datos reales que ya tiene resueltos —
+  `useRentalIdentities` para inmueble/arrendatario (mismo caché que
+  `RentalContextHeader` ya usa, DS-002), y en el formulario de creación/
+  condiciones, los valores que react-hook-form ya tiene en vivo (`watch`) —
+  nunca un dato inventado. Un campo no resuelto todavía muestra "Sin
+  definir" (i18n), igual convención que `RentalListCard`.
+- **`RentalFlowLayout`** (mismo directorio): shell compartido que siempre
+  renderiza `RentalStepper` primero; lo que sigue depende de `variant`:
+  - `variant="sidebar"` (default, sin cambios desde el primer fix de este
+    P1) — grid de dos columnas (contenido / resumen lateral en ≥1024px,
+    apilado debajo en mobile/tablet — reutiliza el breakpoint existente de
+    1024px, §7/§8, sin introducir uno nuevo). Es el único modo que usa
+    `RentalContractsPage` (paso 4, vía import cross-feature, mismo patrón ya
+    establecido por `RentalContextHeader`) — ver la corrección más abajo
+    sobre por qué el resto de los pasos ya no usa este modo.
+  - `variant="stacked"` (`AddRentalPage` paso 1, `AddRentalDraftForm` paso
+    2, `RentalTermsPage` paso 3) — sin grid, sin columna lateral: el
+    componente solo envuelve `children` tal cual, sin inyectar ni reordenar
+    nada. Quien llama decide dónde exactamente va `RentalSummaryPanel`
+    dentro de `children` — ver la corrección siguiente.
+
+**Corrección (segunda auditoría de Codex, PR #29) — el resumen quedaba
+después del contenido, no antes.** La primera versión de este fix inyectaba
+`RentalSummaryPanel` siempre como columna lateral (`variant="sidebar"`
+único, vía una prop `summary`) para los 4 pasos — en desktop quedaba al lado
+del contenido, pero en mobile/tablet el grid de una columna lo apilaba
+**debajo** del selector/formulario, nunca antes, contradiciendo los
+candidatos de Figma `370:3` (01 Selección), `370:477` (03 Condiciones) y
+`370:622`, donde el resumen aparece justo después del título/stepper y
+antes del contenido principal, en cualquier ancho. Corregido eliminando el
+slot de resumen fijo de `RentalFlowLayout` para el modo `stacked`: ahora
+`AddRentalPage`, `AddRentalDraftForm` y `RentalTermsPage` (sus dos retornos,
+editable y solo-lectura) renderizan `<RentalSummaryPanel>` ellos mismos,
+como un elemento más de `children`, inmediatamente después de su propio
+título/`RentalContextHeader` y antes del selector/primer campo. Como
+`.pageStacked` (el contenedor de este modo) es una columna flex simple sin
+ningún `@media`, el orden en el DOM es el orden en pantalla **en cualquier
+ancho** — no hay forma de que 320px y 1440px difieran, porque ninguna regla
+responsive reordena esos tres bloques (el único `@media` de
+`RentalFlowLayout.module.css` pertenece exclusivamente al grid de
+`variant="sidebar"`, y el único `@media` de `RentalTermsPage.module.css`
+solo reordena los *campos dentro* del formulario, nunca el resumen frente
+al formulario). Verificado con aserciones de orden real en el DOM
+(`compareDocumentPosition`) en `AddRentalPage.test.tsx`,
+`AddRentalDraftForm.test.tsx` y `RentalTermsPage.test.tsx` (ambas ramas).
+`RentalContractsPage` (paso 4) no se tocó — conserva `variant="sidebar"`
+(default) con su resumen lateral en escritorio, tal como pidió esta
+corrección explícitamente.
+
+**Nota de verificación en navegador real.** No fue posible correr la
+confirmación visual en Chromium contra las rutas autenticadas reales
+(`/rentals/new`, `/rentals/:id/terms`) desde este entorno: el harness de
+E2E autenticado (`e2e-authenticated/`, `playwright.e2e-local.config.ts`)
+requiere una pila local de Supabase vía Docker (`pnpm exec supabase
+start`), y el daemon de Docker no estaba corriendo en esta sesión
+(`supabase status` falló con `dockerDesktopLinuxEngine` inalcanzable).
+Arrancar Docker Desktop y la pila completa de Supabase para esta
+verificación puntual se consideró una acción desproporcionada frente al
+alcance pedido ("limita el cambio al layout... y a sus pruebas"). La
+garantía de orden documentada arriba (ausencia de `@media` entre esos tres
+bloques, más las aserciones de `compareDocumentPosition`) es la evidencia
+disponible; no sustituye una captura real si en algún momento se corre el
+harness autenticado.
+- **Condiciones** (`RentalTermsPage`): `.formSection` pasa de columna única
+  a grid de 2 columnas en ≥1024px / 1 columna en mobile (el `h2` de cada
+  sección ocupa el ancho completo vía `grid-column: 1 / -1`), tanto en el
+  formulario editable como en la vista de solo lectura.
+- **Contrato externo** (`RegisterExternalSignedForm` en
+  `RentalContractsPage.tsx`): se separa visualmente en tres subsecciones —
+  "Documento del contrato" (el input de archivo real, sin cambios de
+  comportamiento), "Fecha de firma" y "Partes del contrato". La fecha de
+  firma **no es un campo**: es una nota de texto explicando honestamente que
+  este formulario/RPC (`register_external_signed_contract`) no tiene una
+  fecha de firma persistente propia — inventar un input (editable o incluso
+  solo-lectura) habría fabricado un dato que el modelo no respalda. "Partes
+  del contrato" muestra solo lo que este frontend ya resuelve: el nombre del
+  arrendatario actual (`useRentalIdentities`, mismo origen que
+  `RentalSummaryPanel`) y "Sin definir" para el arrendador, honesto porque
+  ningún repository de esta feature lee el nombre del participante LESSOR.
+
+**P2.1 — foco al cancelar confirmaciones.** `LifecycleConfirmAction`
+(`RentalListCard.tsx`) y `TerminateContractAction`
+(`RentalContractsPage.tsx`) ya movían el foco al botón de confirmación al
+entrar en modo confirmación, pero al pulsar "Volver" el foco caía a
+`<body>` — rompiendo la secuencia de Tab para cualquiera que saliera de la
+confirmación sin completarla. Corregido con un segundo ref al botón
+disparador original y un ref de "estaba confirmando" que detecta la
+transición confirming→false específicamente (nunca en el montaje inicial) y
+devuelve el foco a ese disparador.
+
+**P2.2 — nombres largos sin espacios a 320px.** Un `subjectLabel`/
+`tenantName` puede ser una cadena larga sin espacios. `RentalListCard`
+(`.identity p`), `RentalContextHeader` (`.title`, con `min-width: 0` además
+de `overflow-wrap`, necesario porque es un hijo flex) y `RentalSummaryPanel`
+(`.rowValue`) ahora usan `overflow-wrap: anywhere` — mismo patrón ya
+establecido por `KpiCard`/`AttentionPanel`. Fixture adversarial de ~72
+caracteres sin espacios en `RentalsVisualPreview`, verificado por bounding
+box en `e2e/rentals-preview.spec.ts` a 320px.
+
+**P2.3 — preview aislado del backend real.** Ver la corrección documentada
+arriba en §16.5.

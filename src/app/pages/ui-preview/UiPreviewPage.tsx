@@ -28,6 +28,10 @@ const DashboardVisualPreview = lazy(() => import('./DashboardVisualPreview'))
 // entirely, not merely hiding it behind a runtime route check.
 const PropertiesVisualPreview = __ENABLE_PROPERTIES_PREVIEW__ ? lazy(() => import('./PropertiesVisualPreview')) : null
 
+// Same mechanism, separate flag (Sprint 3) - see RentalsVisualPreview's own
+// doc comment and vite.config.ts's enableRentalsPreview.
+const RentalsVisualPreview = __ENABLE_RENTALS_PREVIEW__ ? lazy(() => import('./RentalsVisualPreview')) : null
+
 /**
  * Internal design-system evaluation tool. Public on purpose (see router.tsx):
  * it exists to review the visual language, not to expose product data, and
@@ -54,6 +58,11 @@ export default function UiPreviewPage() {
   // `.env.e2e` (and any future review-only env) sets it.
   if (view === 'properties' && PropertiesVisualPreview) {
     return <Suspense fallback={null}><PropertiesVisualPreview /></Suspense>
+  }
+
+  // Same reasoning, Sprint 3: gated behind VITE_ENABLE_RENTALS_PREVIEW.
+  if (view === 'rentals' && RentalsVisualPreview) {
+    return <Suspense fallback={null}><RentalsVisualPreview /></Suspense>
   }
 
   return (

@@ -1,0 +1,29 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-self: flex-start;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowLabel {
+  font-size: var(--font-size-caption);
+  color: var(--color-muted);
+}
+
+.rowValue {
+  font-size: var(--font-size-body-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rowValueMuted {
+  font-weight: 400;
+  color: var(--color-muted);
+}

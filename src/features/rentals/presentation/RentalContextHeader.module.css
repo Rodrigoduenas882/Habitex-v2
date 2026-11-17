@@ -11,6 +11,15 @@
   gap: var(--space-3);
 }
 
+/* A subject label can be one long, unbroken run of characters with no
+   spaces (adversarial P2 fix, Codex NO-GO on PR #29) - min-width:0 lets this
+   flex item actually shrink below its content size, and overflow-wrap
+   breaks the word instead of overflowing the row at narrow widths. */
+.title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .nav {
   display: flex;
   flex-wrap: wrap;

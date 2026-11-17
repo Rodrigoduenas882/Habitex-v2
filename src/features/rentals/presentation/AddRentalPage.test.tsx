@@ -120,6 +120,20 @@ describe('AddRentalPage', () => {
     expect(listRentalSubjects).not.toHaveBeenCalled()
   })
 
+  it('places the resumen del arriendo after the title and before the type selector (P1 fix, second correction - Figma 370:3)', async () => {
+    resolveOneAdministration()
+    renderPage()
+
+    const title = await screen.findByText('¿Qué vas a arrendar?')
+    const summary = screen.getByRole('region', { name: 'Resumen del arriendo' })
+    const firstOption = screen.getByRole('button', { name: 'Inmueble completo' })
+
+    // title -> summary -> content, in that DOM order (DOCUMENT_POSITION_FOLLOWING
+    // means the argument comes AFTER the node it's called on).
+    expect(title.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(summary.compareDocumentPosition(firstOption) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('choosing a category shows the subject/tenant form, still without calling create_rental_draft', async () => {
     resolveOneAdministration()
     listRentalSubjects.mockReturnValueOnce(new Promise(() => {}))
