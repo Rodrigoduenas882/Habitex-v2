@@ -12,6 +12,7 @@ import { Select } from '@/shared/ui/Select'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import { RentalContextHeader } from './RentalContextHeader'
 import { RentalFlowLayout } from './RentalFlowLayout'
+import { RentalSummaryPanel } from './RentalSummaryPanel'
 import styles from './RentalTermsPage.module.css'
 import {
   RENTAL_TERMS_FORM_DEFAULTS,
@@ -215,17 +216,15 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
   // version somehow still rendered as an editable, submittable form).
   if (termVersion || relationship.status !== 'DRAFT') {
     return (
-      <RentalFlowLayout
-        step={3}
-        summary={{
-          subjectLabel: identity.subjectLabel,
-          tenantName: identity.tenantName,
-          rentAmount: termVersion?.rentAmount ?? null,
-          startDate: termVersion?.effectiveFrom ?? relationship.realStartDate,
-          endDate: relationship.expectedEndDate,
-        }}
-      >
+      <RentalFlowLayout step={3} variant="stacked">
         <RentalContextHeader administrationId={administrationId} relationshipId={relationshipId} activeSection="terms" />
+        <RentalSummaryPanel
+          subjectLabel={identity.subjectLabel}
+          tenantName={identity.tenantName}
+          rentAmount={termVersion?.rentAmount ?? null}
+          startDate={termVersion?.effectiveFrom ?? relationship.realStartDate}
+          endDate={relationship.expectedEndDate}
+        />
         <RentalTermsReadOnlyView termVersion={termVersion} relationship={relationship} />
       </RentalFlowLayout>
     )
@@ -251,17 +250,15 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
   const liveRentAmount = watchedRentAmount.trim() !== '' && Number.isFinite(parsedRentAmount) ? parsedRentAmount : null
 
   return (
-    <RentalFlowLayout
-      step={3}
-      summary={{
-        subjectLabel: identity.subjectLabel,
-        tenantName: identity.tenantName,
-        rentAmount: liveRentAmount,
-        startDate: watchedRealStartDate.trim() !== '' ? watchedRealStartDate : null,
-        endDate: watchedExpectedEndDate.trim() !== '' ? watchedExpectedEndDate : null,
-      }}
-    >
+    <RentalFlowLayout step={3} variant="stacked">
       <RentalContextHeader administrationId={administrationId} relationshipId={relationshipId} activeSection="terms" />
+      <RentalSummaryPanel
+        subjectLabel={identity.subjectLabel}
+        tenantName={identity.tenantName}
+        rentAmount={liveRentAmount}
+        startDate={watchedRealStartDate.trim() !== '' ? watchedRealStartDate : null}
+        endDate={watchedExpectedEndDate.trim() !== '' ? watchedExpectedEndDate : null}
+      />
       <p className="text-body-sm text-muted">{t('termsForm.description')}</p>
 
       {saveRentalTerms.isError ? (

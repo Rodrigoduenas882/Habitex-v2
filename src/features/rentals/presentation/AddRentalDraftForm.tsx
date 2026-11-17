@@ -30,6 +30,7 @@ import {
 } from './add-rental-draft-form'
 import styles from './AddRentalDraftForm.module.css'
 import { RentalFlowLayout } from './RentalFlowLayout'
+import { RentalSummaryPanel } from './RentalSummaryPanel'
 import { useCreateRentalDraft } from '../application/useCreateRentalDraft'
 import { useRentalSubjects } from '../application/useRentalSubjects'
 import { useTenantCandidates } from '../application/useTenantCandidates'
@@ -295,21 +296,20 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
         : null
 
   return (
-    <RentalFlowLayout
-      step={2}
-      summary={{
-        subjectLabel: selectedSubjectLabel,
-        tenantName: selectedTenantName,
-        rentAmount: null,
-        startDate: null,
-        endDate: null,
-      }}
-    >
+    <RentalFlowLayout step={2} variant="stacked">
       <button type="button" className={styles['back']} onClick={onBack}>
         <ChevronLeftIcon size={16} aria-hidden="true" />
         {t('addRental.back')}
       </button>
       <h1 className="text-h2">{t('form.title')}</h1>
+
+      <RentalSummaryPanel
+        subjectLabel={selectedSubjectLabel}
+        tenantName={selectedTenantName}
+        rentAmount={null}
+        startDate={null}
+        endDate={null}
+      />
 
       {createRentalDraft.isError ? <Alert tone="danger">{t('form.errors.createFailed')}</Alert> : null}
 

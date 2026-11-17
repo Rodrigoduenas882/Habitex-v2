@@ -716,13 +716,63 @@ sigue viviendo en `/rentals`, sin tocar) y sin inventar campos/RPC.
   condiciones, los valores que react-hook-form ya tiene en vivo (`watch`) —
   nunca un dato inventado. Un campo no resuelto todavía muestra "Sin
   definir" (i18n), igual convención que `RentalListCard`.
-- **`RentalFlowLayout`** (mismo directorio): shell compartido stepper +
-  grid de dos columnas (contenido / resumen lateral en ≥1024px, apilado
-  debajo en mobile/tablet — reutiliza el breakpoint existente de 1024px,
-  §7/§8, sin introducir uno nuevo). Usado por `AddRentalPage` (paso 1),
-  `AddRentalDraftForm` (paso 2), `RentalTermsPage` (paso 3) y, vía import
-  cross-feature (mismo patrón ya establecido por `RentalContextHeader`),
-  `RentalContractsPage` (paso 4).
+- **`RentalFlowLayout`** (mismo directorio): shell compartido que siempre
+  renderiza `RentalStepper` primero; lo que sigue depende de `variant`:
+  - `variant="sidebar"` (default, sin cambios desde el primer fix de este
+    P1) — grid de dos columnas (contenido / resumen lateral en ≥1024px,
+    apilado debajo en mobile/tablet — reutiliza el breakpoint existente de
+    1024px, §7/§8, sin introducir uno nuevo). Es el único modo que usa
+    `RentalContractsPage` (paso 4, vía import cross-feature, mismo patrón ya
+    establecido por `RentalContextHeader`) — ver la corrección más abajo
+    sobre por qué el resto de los pasos ya no usa este modo.
+  - `variant="stacked"` (`AddRentalPage` paso 1, `AddRentalDraftForm` paso
+    2, `RentalTermsPage` paso 3) — sin grid, sin columna lateral: el
+    componente solo envuelve `children` tal cual, sin inyectar ni reordenar
+    nada. Quien llama decide dónde exactamente va `RentalSummaryPanel`
+    dentro de `children` — ver la corrección siguiente.
+
+**Corrección (segunda auditoría de Codex, PR #29) — el resumen quedaba
+después del contenido, no antes.** La primera versión de este fix inyectaba
+`RentalSummaryPanel` siempre como columna lateral (`variant="sidebar"`
+único, vía una prop `summary`) para los 4 pasos — en desktop quedaba al lado
+del contenido, pero en mobile/tablet el grid de una columna lo apilaba
+**debajo** del selector/formulario, nunca antes, contradiciendo los
+candidatos de Figma `370:3` (01 Selección), `370:477` (03 Condiciones) y
+`370:622`, donde el resumen aparece justo después del título/stepper y
+antes del contenido principal, en cualquier ancho. Corregido eliminando el
+slot de resumen fijo de `RentalFlowLayout` para el modo `stacked`: ahora
+`AddRentalPage`, `AddRentalDraftForm` y `RentalTermsPage` (sus dos retornos,
+editable y solo-lectura) renderizan `<RentalSummaryPanel>` ellos mismos,
+como un elemento más de `children`, inmediatamente después de su propio
+título/`RentalContextHeader` y antes del selector/primer campo. Como
+`.pageStacked` (el contenedor de este modo) es una columna flex simple sin
+ningún `@media`, el orden en el DOM es el orden en pantalla **en cualquier
+ancho** — no hay forma de que 320px y 1440px difieran, porque ninguna regla
+responsive reordena esos tres bloques (el único `@media` de
+`RentalFlowLayout.module.css` pertenece exclusivamente al grid de
+`variant="sidebar"`, y el único `@media` de `RentalTermsPage.module.css`
+solo reordena los *campos dentro* del formulario, nunca el resumen frente
+al formulario). Verificado con aserciones de orden real en el DOM
+(`compareDocumentPosition`) en `AddRentalPage.test.tsx`,
+`AddRentalDraftForm.test.tsx` y `RentalTermsPage.test.tsx` (ambas ramas).
+`RentalContractsPage` (paso 4) no se tocó — conserva `variant="sidebar"`
+(default) con su resumen lateral en escritorio, tal como pidió esta
+corrección explícitamente.
+
+**Nota de verificación en navegador real.** No fue posible correr la
+confirmación visual en Chromium contra las rutas autenticadas reales
+(`/rentals/new`, `/rentals/:id/terms`) desde este entorno: el harness de
+E2E autenticado (`e2e-authenticated/`, `playwright.e2e-local.config.ts`)
+requiere una pila local de Supabase vía Docker (`pnpm exec supabase
+start`), y el daemon de Docker no estaba corriendo en esta sesión
+(`supabase status` falló con `dockerDesktopLinuxEngine` inalcanzable).
+Arrancar Docker Desktop y la pila completa de Supabase para esta
+verificación puntual se consideró una acción desproporcionada frente al
+alcance pedido ("limita el cambio al layout... y a sus pruebas"). La
+garantía de orden documentada arriba (ausencia de `@media` entre esos tres
+bloques, más las aserciones de `compareDocumentPosition`) es la evidencia
+disponible; no sustituye una captura real si en algún momento se corre el
+harness autenticado.
 - **Condiciones** (`RentalTermsPage`): `.formSection` pasa de columna única
   a grid de 2 columnas en ≥1024px / 1 columna en mobile (el `h2` de cada
   sección ocupa el ancho completo vía `grid-column: 1 / -1`), tanto en el
