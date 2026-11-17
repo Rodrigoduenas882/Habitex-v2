@@ -811,3 +811,88 @@ box en `e2e/rentals-preview.spec.ts` a 320px.
 
 **P2.3 — preview aislado del backend real.** Ver la corrección documentada
 arriba en §16.5.
+
+
+## 17. Cobros, Pagos y Recibos — Sprint 4
+
+Issue #30. Referencia: Figma `Habitex-Design-Lab` (misma URL de §15/§16).
+
+**Nota de verificación.** Igual que en §15/§16, Figma respondió 403 sin
+sesión autenticada desde este entorno — confirmado de nuevo para este
+sprint, sin forma de comparar contra el diseño real pixel a pixel. Esta
+sección documenta las decisiones tomadas para extender el mismo lenguaje
+visual ya aprobado en los Sprints 2/3 (`IconBadge` + identidad + Badge de
+estado, `Card` anidado dentro de `<form>`, `Alert` para estados de éxito
+persistente) a Cobros y Pagos, en vez de inventar un patrón nuevo sin poder
+verificarlo contra Figma. Cualquier diferencia que una revisión con acceso
+real a Figma encuentre manda sobre lo que está aquí.
+
+### 17.1 Alcance de este sprint
+
+Cobros (`RentalChargesPage`), Pagos y Recibos (ambos dentro de
+`RentalPaymentsPage` — Recibos no tiene feature/ruta propia, ver
+`docs/agentic/PROGRESS.md` INC-015) ya eran visualmente maduros antes de
+este sprint: ambas páginas ya usaban `Card`/`Badge`/`Alert`/`Button`/
+`Input`/`Select`/`Textarea`/`EmptyState`/`Skeleton` y el `RentalContextHeader`
+compartido de Sprint 3 — este no es un rediseño desde cero como Properties
+(§15) o Rentals (§16), sino un pulido acotado de los huecos concretos
+identificados. Solo UI/UX: sin cambios en dominio, infraestructura,
+aplicación, `composition.ts`, RPC, reglas de negocio, permisos,
+validaciones, redondeos, idempotencia de `report_payment` ni recuperación
+ante fallos/reintentos — verificado explícitamente por `habitex-reviewer`
+con `git diff` dirigido contra esas capas (0 resultados).
+
+### 17.2 Cobros (`ChargeCard`)
+
+El header pasa de un `Badge` + caption de tipo sueltos a el mismo patrón
+`IconBadge` + identidad + `Badge` que `RentalListCard`/`ContractCard` ya
+usan (§16.2/§16.4): `IconBadge icon={<WalletIcon/>} tone="neutral" size={36}
+radius="md"` (reutiliza `WalletIcon`, ya usado en el `EmptyState` de esta
+misma página — sin ícono nuevo) + un bloque de identidad con el tipo de
+cargo como título en negrita y la descripción como línea secundaria muted
+(antes un párrafo suelto debajo del header) + el `Badge` de estado
+existente, ahora alineado a la derecha. `charge.description` es texto
+libre, así que su contenedor usa `overflow-wrap: anywhere` (mismo patrón
+que `RentalListCard.module.css`). El resto de la tarjeta (período,
+vencimiento, `Valor`/`Pagado`/`Saldo`) no cambió. Los estados de carga/
+error/vacío (`Skeleton`/`Alert`/`EmptyState`) ya existían y siguen
+coherentes con el nuevo header sin necesitar cambios.
+
+### 17.3 Pagos (`PaymentCard`, `PaymentReportForm`)
+
+- **Header de `PaymentCard`**: mismo patrón `IconBadge`+identidad — título
+  en negrita = el monto ya formateado (sin cambiar texto/estilo), línea
+  secundaria muted = fecha + método (`"{{date}} · {{method}}"`, o solo la
+  fecha cuando no hay método, sin separador colgante). Esta línea
+  secundaria **duplica deliberadamente** datos que ya aparecen como
+  captions independientes en la zona de Detalles — mismo principio
+  "escaneo rápido arriba, detalle completo abajo" que `RentalListCard`/
+  `ContractCard` ya establecieron, no un descuido.
+- **`PaymentReportForm`**: se envuelve en `Card`, mismo patrón que
+  `RegisterExternalSignedForm`/`RegisterHabitexGeneratedForm` (§16.4) — el
+  `<form>` sigue siendo el elemento real (necesario para que `onSubmit`
+  dispare con Enter), `Card` se anida *dentro* de él.
+
+### 17.4 Recibos (`PaymentReceiptSummary`)
+
+El recibo ya emitido pasa de dos `<p>` sueltas (sin ningún tratamiento
+visual — la superficie menos pulida de las tres features antes de este
+sprint) a un `Alert tone="success"` con el mismo número/fecha que ya se
+mostraba, reutilizando el mismo vocabulario visual que esta página ya usa
+para "éxito persistente" (la línea de allocation completa). Esto diferencia
+visualmente el recibo que emite Habitex del comprobante que adjunta la
+persona (`PaymentProofDownloadButton`, zona de Detalles, botón ghost de
+descarga) — pedido explícito del Issue #30. **No se agregó ningún botón de
+descarga/archivo para el recibo**: `issue_receipt` nunca setea `file_id` en
+el backend desplegado (confirmado, ningún RPC/policy en todo el schema lo
+popula) — inventar una descarga habría fabricado una funcionalidad
+inexistente. El resto de la lógica (hint de "sin allocations", botón
+"Emitir recibo", manejo de la carrera `receipt_already_issued`) no cambió.
+
+### 17.5 i18n
+
+Se agregaron `card.header.subtitle`/`card.header.subtitleNoMethod` a
+`payments.json` (es y es-CO). De paso se corrigió un drift preexistente
+sin relación con este sprint: `es/payments.json` le faltaba la key
+`reportForm.errors.idempotency_key_reused` que `es-CO/payments.json` ya
+tenía — copiada tal cual, ambos locales quedan de nuevo byte-idénticos.

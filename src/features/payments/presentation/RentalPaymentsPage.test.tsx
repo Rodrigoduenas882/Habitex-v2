@@ -1557,6 +1557,30 @@ describe('RentalPaymentsPage', () => {
       expect(await screen.findByText('Valor: $12.500.000')).toBeInTheDocument()
     })
 
+    it('shows the header subtitle as "date · method" when a method exists (IconBadge+identity header, Sprint 4)', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ paymentMethod: 'BANK_TRANSFER' })])
+      renderPage()
+
+      // Deliberate duplication with the Details zone below (same "fast scan
+      // header, full detail below" pattern as RentalListCard/ContractCard) -
+      // the header subtitle repeats the method already shown by the
+      // Details zone's own "Método de pago:" line.
+      expect(await screen.findByText(/· Transferencia bancaria$/)).toBeInTheDocument()
+      expect(screen.getByText('Método de pago: Transferencia bancaria')).toBeInTheDocument()
+    })
+
+    it('shows only the date in the header subtitle when paymentMethod is null, never a dangling separator', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ paymentMethod: null })])
+      renderPage()
+
+      await screen.findByText('Valor: $500.000')
+      expect(screen.queryByText(/·/)).not.toBeInTheDocument()
+    })
+
     it('renders a REPORTED payment with every optional field absent (no method/reference/notes/proof) cleanly', async () => {
       resolveOneAdministration()
       listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])

@@ -15,6 +15,10 @@
   },
   "card": {
     "amount": "Valor: {{amount}}",
+    "header": {
+      "subtitle": "{{date}} · {{method}}",
+      "subtitleNoMethod": "{{date}}"
+    },
     "paymentDate": "Fecha de pago: {{date}}",
     "paymentMethod": "Método de pago: {{method}}",
     "externalReference": "Referencia: {{reference}}",

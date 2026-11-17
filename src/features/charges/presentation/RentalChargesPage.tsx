@@ -12,6 +12,7 @@ import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { WalletIcon } from '@/shared/ui/icons'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import styles from './RentalChargesPage.module.css'
 import { useCharges } from '../application/useCharges'
@@ -61,21 +62,25 @@ interface ChargeCardProps {
   charge: Charge
 }
 
-/** One read-only charge row: type, description, period (when present), due
- * date, amount/paid/balance (all `.tabular-nums` per DESIGN.md §4) and a
- * Badge for financial_status. No edit/delete/void action anywhere - charges
- * are strictly read-only in this increment (see this feature's own scope
- * notes). */
+/** One read-only charge row: an IconBadge identity header (icon + charge
+ * type/description + status Badge, same visual family as RentalListCard's
+ * own header, docs/DESIGN.md §16.2) followed by period (when present), due
+ * date, amount/paid/balance (all `.tabular-nums` per DESIGN.md §4). No
+ * edit/delete/void action anywhere - charges are strictly read-only in this
+ * increment (see this feature's own scope notes). */
 function ChargeCard({ charge }: ChargeCardProps) {
   const { t } = useTranslation('charges')
 
   return (
     <Card className={styles['chargeCard']}>
       <div className={styles['chargeHeader']}>
+        <IconBadge icon={<WalletIcon size={18} />} tone="neutral" size={36} radius="md" />
+        <div className={styles['identity']}>
+          <p className={styles['title']}>{t(`type.${charge.chargeType}`)}</p>
+          <p className="text-body-sm text-muted">{charge.description}</p>
+        </div>
         <Badge tone={STATUS_TONE[charge.financialStatus]}>{t(`financialStatus.${charge.financialStatus}`)}</Badge>
-        <span className="text-caption text-muted">{t(`type.${charge.chargeType}`)}</span>
       </div>
-      <p className="text-body-sm">{charge.description}</p>
       {charge.periodStart && charge.periodEnd ? (
         <p className="text-caption text-muted">
           {t('list.period', { start: formatDate(charge.periodStart), end: formatDate(charge.periodEnd) })}

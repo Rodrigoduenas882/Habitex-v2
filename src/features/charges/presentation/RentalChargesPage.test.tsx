@@ -214,13 +214,18 @@ describe('RentalChargesPage', () => {
     ])
     renderPage()
 
-    expect(await screen.findByText('Renta')).toBeInTheDocument()
-    expect(screen.getByText('Renta de enero')).toBeInTheDocument()
+    const title = await screen.findByText('Renta')
+    const description = screen.getByText('Renta de enero')
+    expect(description).toBeInTheDocument()
     expect(screen.getByText(/Periodo:/)).toBeInTheDocument()
     expect(screen.getByText(/Vence el/)).toBeInTheDocument()
     expect(screen.getByText('Valor: $1.000.000')).toBeInTheDocument()
     expect(screen.getByText('Pagado: $400.000')).toBeInTheDocument()
     expect(screen.getByText('Saldo: $600.000')).toBeInTheDocument()
+    // The IconBadge+identity header (P1 visual increment, Sprint 4) pairs
+    // the type title with the description as its own secondary line -
+    // never two unrelated nodes that merely happen to coexist on the page.
+    expect(title.parentElement).toContainElement(description)
   })
 
   it('omits the period line when periodStart/periodEnd are null', async () => {

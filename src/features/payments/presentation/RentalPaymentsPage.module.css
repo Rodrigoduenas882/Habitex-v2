@@ -22,16 +22,30 @@
   flex-direction: column;
 }
 
-/* Header zone: status + amount, the card's primary "what/how much" anchor
-   (DS-003). Separated from the sections below it by .cardSection's own
-   border-top, so no border is declared here. */
+/* Header zone: IconBadge + identity (amount/date+method) + status Badge,
+   the card's primary "what/how much" anchor (DS-003), same structure as
+   RentalListCard's own header. Separated from the sections below it by
+   .cardSection's own border-top, so no border is declared here. */
 .paymentHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+  gap: var(--space-3);
   padding-bottom: var(--space-3);
+}
+
+/* Same principle as RentalListCard's own .identity - a long external
+   reference/notes value never widens this block past the card, and a
+   long, unbroken run of characters can still break mid-word. */
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.identity p {
+  overflow-wrap: anywhere;
 }
 
 /* Shared wrapper for every zone after the header (details/application/

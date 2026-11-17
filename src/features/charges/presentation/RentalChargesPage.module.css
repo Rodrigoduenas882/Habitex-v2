@@ -27,8 +27,28 @@
 .chargeHeader {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* charge.description is free text (manual charges, or system-generated
+   copy) that can be one long, unbroken run of characters with no spaces -
+   overflow-wrap:anywhere lets it break mid-word instead of overflowing the
+   card at narrow widths, same pattern already used by RentalListCard/
+   RentalContextHeader. */
+.identity p {
+  overflow-wrap: anywhere;
+}
+
+.title {
+  font-weight: 600;
 }
 
 .amounts {
