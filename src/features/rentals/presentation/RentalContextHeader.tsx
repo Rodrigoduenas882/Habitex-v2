@@ -80,7 +80,7 @@ export function RentalContextHeader({ administrationId, relationshipId, activeSe
   return (
     <div className={styles['header']}>
       <div className={styles['titleRow']}>
-        <h1 className="text-h2">{identity.subjectLabel ?? t('list.subjectUnknown')}</h1>
+        <h1 className={cx('text-h2', styles['title'])}>{identity.subjectLabel ?? t('list.subjectUnknown')}</h1>
         <Badge tone={RENTAL_STATUS_TONE[relationship.status]}>{t(`status.${relationship.status}`)}</Badge>
       </div>
       {identity.tenantName ? <p className="text-body-sm text-muted">{identity.tenantName}</p> : null}

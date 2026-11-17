@@ -6,11 +6,13 @@ import { useManagementGate } from '@/features/administration/application/useMana
 import { AdministrationPicker } from '@/features/administration/presentation/AdministrationPicker'
 import { fileRepository } from '@/features/documents/composition'
 import type { FileMetadata } from '@/features/documents/domain/file.types'
+import { useRentalIdentities } from '@/features/rentals/application/useRentalIdentities'
 import { useRentalTermVersion } from '@/features/rentals/application/useRentalTermVersion'
 import { useRentals } from '@/features/rentals/application/useRentals'
 import type { RentalTermVersion } from '@/features/rentals/domain/rental-terms.types'
 import type { RentalRelationship } from '@/features/rentals/domain/rental.types'
 import { RentalContextHeader } from '@/features/rentals/presentation/RentalContextHeader'
+import { RentalFlowLayout } from '@/features/rentals/presentation/RentalFlowLayout'
 import { Alert } from '@/shared/ui/Alert'
 import { Badge, type BadgeTone } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -125,6 +127,12 @@ interface AttachSignedCopyActionProps {
   relationshipId: string
   contractId: string
   managementBlocked: boolean
+  /** True only inside RentalsVisualPreview (P2 fix, Codex NO-GO on PR #29):
+   * guards submit() so this action never issues a real upload/attach call
+   * against the backend from the unauthenticated demo - see ContractCard's
+   * own doc comment for the full previewMode rationale. Defaults to false,
+   * so the real page's behavior is unchanged. */
+  previewMode?: boolean
 }
 
 /**
@@ -142,6 +150,7 @@ function AttachSignedCopyAction({
   relationshipId,
   contractId,
   managementBlocked,
+  previewMode = false,
 }: AttachSignedCopyActionProps) {
   const { t } = useTranslation(['contracts', 'administration'])
   const uploadFile = useUploadContractFile()
@@ -153,6 +162,7 @@ function AttachSignedCopyAction({
   const isPending = uploadFile.isPending || attachSignedCopy.isPending
 
   const submit = () => {
+    if (previewMode) return
     const file = selectedFile
     if (!file) {
       setFileRequired(true)
@@ -250,7 +260,10 @@ interface TerminateContractActionProps {
  * onConfirm. Once confirming, the single trigger button is replaced by two
  * distinct elements (destructive "Confirmar terminación" + secondary
  * "Volver"), never the same element relabeled in place, and focus moves to
- * the confirm button on that transition.
+ * the confirm button on that transition - and back to the original trigger
+ * when "Volver" exits confirming (P2 fix, Codex NO-GO on PR #29: focus
+ * previously fell back to <body>, breaking the keyboard Tab sequence for
+ * anyone leaving the confirmation without committing it).
  */
 function TerminateContractAction({
   disabled,
@@ -261,18 +274,24 @@ function TerminateContractAction({
 }: TerminateContractActionProps) {
   const { t } = useTranslation('contracts')
   const [confirming, setConfirming] = useState(false)
+  const triggerButtonRef = useRef<HTMLButtonElement>(null)
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
+  const wasConfirmingRef = useRef(false)
 
   useEffect(() => {
     if (confirming) {
       confirmButtonRef.current?.focus()
+    } else if (wasConfirmingRef.current) {
+      triggerButtonRef.current?.focus()
     }
+    wasConfirmingRef.current = confirming
   }, [confirming])
 
   if (!confirming) {
     return (
       <>
         <Button
+          ref={triggerButtonRef}
           type="button"
           variant="destructive"
           size="sm"
@@ -325,6 +344,21 @@ export interface ContractCardProps {
   administrationId: string
   relationshipId: string
   managementBlocked: boolean
+  /**
+   * True only inside RentalsVisualPreview. P2 fix (Codex NO-GO on PR #29):
+   * this component previously still made real, automatic GET calls on mount
+   * (useContractFile, via the download buttons below, whenever a fixture
+   * carries a documentFileId/signedFileId) and real mutate() calls on click
+   * (markShared/terminate) from the unauthenticated demo - both now reaching
+   * an actual Supabase endpoint instead of staying purely visual. previewMode
+   * skips the download buttons entirely (no useContractFile query ever
+   * mounts) and turns the mutating actions' callbacks into no-ops, the same
+   * convention RentalListCard's own preview wiring already uses for its
+   * lifecycle actions - the two-step confirm/back UI stays fully
+   * demonstrable, only the final network call is suppressed. Defaults to
+   * false, so the real /rentals/:id/contracts page is unaffected.
+   */
+  previewMode?: boolean
 }
 
 /** One contract row: origin/status/version/dates, download links for
@@ -334,14 +368,17 @@ export interface ContractCardProps {
  * TERMINATED/DRAFT get none).
  *
  * Exported (Sprint 3, same reuse principle as PropertiesSection/
- * ParkingsSection in Sprint 2) so ContractsVisualPreview can render this
- * exact component instead of a look-alike copy. Its mutation hooks
- * (useMarkContractShared/useTerminateContract) stay real either way - a
- * click against preview-only fixture ids simply fails the same way any
- * invalid/unauthenticated call would in production (RLS/network error,
- * shown through this component's own existing error handling), never a
- * faked success. */
-export function ContractCard({ contract, administrationId, relationshipId, managementBlocked }: ContractCardProps) {
+ * ParkingsSection in Sprint 2) so RentalsVisualPreview can render this exact
+ * component instead of a look-alike copy - with previewMode true there (see
+ * this props' own doc comment) so that reuse never reaches the real
+ * backend. */
+export function ContractCard({
+  contract,
+  administrationId,
+  relationshipId,
+  managementBlocked,
+  previewMode = false,
+}: ContractCardProps) {
   const { t } = useTranslation(['contracts', 'administration'])
   const markShared = useMarkContractShared()
   const terminate = useTerminateContract()
@@ -377,14 +414,14 @@ export function ContractCard({ contract, administrationId, relationshipId, manag
       ) : null}
 
       <div className={styles['downloadRow']}>
-        {contract.documentFileId ? (
+        {contract.documentFileId && !previewMode ? (
           <ContractFileDownloadButton
             administrationId={administrationId}
             fileId={contract.documentFileId}
             label={t('list.downloadDocument')}
           />
         ) : null}
-        {contract.signedFileId ? (
+        {contract.signedFileId && !previewMode ? (
           <ContractFileDownloadButton
             administrationId={administrationId}
             fileId={contract.signedFileId}
@@ -403,6 +440,7 @@ export function ContractCard({ contract, administrationId, relationshipId, manag
             disabled={managementBlocked || isMarkSharedPending}
             aria-disabled={managementBlocked ? 'true' : undefined}
             onClick={() => {
+              if (previewMode) return
               markShared.mutate({ administrationId, rentalRelationshipId: relationshipId, contractId: contract.id })
             }}
           >
@@ -420,6 +458,7 @@ export function ContractCard({ contract, administrationId, relationshipId, manag
             relationshipId={relationshipId}
             contractId={contract.id}
             managementBlocked={managementBlocked}
+            previewMode={previewMode}
           />
         </div>
       ) : null}
@@ -432,6 +471,7 @@ export function ContractCard({ contract, administrationId, relationshipId, manag
             isPending={isTerminatePending}
             errorMessage={terminateError ? contractErrorMessage(t, terminateError) : null}
             onConfirm={() => {
+              if (previewMode) return
               terminate.mutate({ administrationId, rentalRelationshipId: relationshipId, contractId: contract.id })
             }}
           />
@@ -569,6 +609,20 @@ function RegisterHabitexGeneratedForm({
  * CONTRACT_SIGNED and no document hash (register_external_signed_contract
  * doesn't take one - this path records a contract already fully executed
  * outside the app).
+ *
+ * Visually split into the three sections the Figma candidate 370:716
+ * documents (docs/DESIGN.md §16.6): "Documento del contrato" (the real file
+ * upload below), "Fecha de firma" and "Partes del contrato". The signature
+ * date is a note, not a field - this form/RPC has no persisted signature
+ * date of its own (confirmed against register_external_signed_contract's
+ * own signature, see this file's scope notes), so showing an editable or
+ * even read-only date input here would fabricate a value nothing backs; the
+ * note says so honestly instead (Codex NO-GO on PR #29: do not invent a
+ * persistent field the model/RPC doesn't support). "Partes del contrato"
+ * shows only what this frontend actually resolves - the current tenant name
+ * via useRentalIdentities, same source as RentalContextHeader/
+ * RentalSummaryPanel - and an honest "Sin definir" for the lessor, since no
+ * repository in this feature reads the LESSOR participant's name.
  */
 function RegisterExternalSignedForm({
   administrationId,
@@ -577,7 +631,9 @@ function RegisterExternalSignedForm({
   termVersion,
   managementBlocked,
 }: CreationFormProps) {
-  const { t } = useTranslation(['contracts', 'administration'])
+  const { t } = useTranslation(['contracts', 'administration', 'rentals'])
+  const identities = useRentalIdentities(administrationId)
+  const tenantName = identities.byRelationshipId.get(relationshipId)?.tenantName ?? null
   const uploadFile = useUploadContractFile()
   const registerExternalSigned = useRegisterExternalSignedContract()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -642,17 +698,39 @@ function RegisterExternalSignedForm({
       <Card className={styles['creationForm']}>
         <h3 className="text-h3">{t('create.external.title')}</h3>
         <p className="text-body-sm text-muted">{t('create.external.description')}</p>
-        <Input
-          type="file"
-          label={t('create.external.fileLabel')}
-          error={fileRequired ? t('create.fileRequired') : undefined}
-          disabled={isPending || managementBlocked}
-          onChange={(event) => {
-            setSelectedFile(event.target.files?.[0] ?? null)
-            setUploadedFile(null)
-            setFileRequired(false)
-          }}
-        />
+
+        <div className={styles['creationSubsection']}>
+          <h4 className={styles['creationSubsectionTitle']}>{t('create.external.documentSection')}</h4>
+          <Input
+            type="file"
+            label={t('create.external.fileLabel')}
+            error={fileRequired ? t('create.fileRequired') : undefined}
+            disabled={isPending || managementBlocked}
+            onChange={(event) => {
+              setSelectedFile(event.target.files?.[0] ?? null)
+              setUploadedFile(null)
+              setFileRequired(false)
+            }}
+          />
+        </div>
+
+        <div className={styles['creationSubsection']}>
+          <h4 className={styles['creationSubsectionTitle']}>{t('create.external.signatureDateSection')}</h4>
+          <p className="text-caption text-muted">{t('create.external.signatureDateNote')}</p>
+        </div>
+
+        <div className={styles['creationSubsection']}>
+          <h4 className={styles['creationSubsectionTitle']}>{t('create.external.partiesSection')}</h4>
+          <p className="text-body-sm">
+            <span className="text-muted">{t('create.external.lessorLabel')}: </span>
+            {t('rentals:summary.undefined')}
+          </p>
+          <p className="text-body-sm">
+            <span className="text-muted">{t('create.external.tenantLabel')}: </span>
+            {tenantName ?? t('rentals:summary.undefined')}
+          </p>
+        </div>
+
         <Button
           type="submit"
           loading={isPending}
@@ -699,6 +777,10 @@ function RentalContractsView({ administrationId, relationshipId }: RentalContrac
   const contractsQuery = useContracts(administrationId, relationshipId)
   const termVersionQuery = useRentalTermVersion(administrationId, relationshipId)
   const managementGate = useManagementGate(administrationId)
+  // Shares the same TanStack Query cache RentalContextHeader's own
+  // useRentalIdentities call below already populates (DS-002) - never a
+  // second network request in practice.
+  const identities = useRentalIdentities(administrationId)
 
   if (rentalsQuery.isLoading || contractsQuery.isLoading) {
     return (
@@ -733,9 +815,23 @@ function RentalContractsView({ administrationId, relationshipId }: RentalContrac
   const contracts = contractsQuery.data ?? []
   const canCreate = relationship.status === 'ACTIVE' || relationship.status === 'ENDING'
   const termVersion = termVersionQuery.data ?? null
+  const identity = identities.byRelationshipId.get(relationshipId) ?? {
+    subjectLabel: null,
+    tenantName: null,
+    rentAmount: null,
+  }
 
   return (
-    <div className={styles['page']}>
+    <RentalFlowLayout
+      step={4}
+      summary={{
+        subjectLabel: identity.subjectLabel,
+        tenantName: identity.tenantName,
+        rentAmount: termVersion?.rentAmount ?? identity.rentAmount,
+        startDate: termVersion?.effectiveFrom ?? relationship.realStartDate,
+        endDate: relationship.expectedEndDate,
+      }}
+    >
       <RentalContextHeader administrationId={administrationId} relationshipId={relationshipId} activeSection="contracts" />
       <p className="text-body-sm text-muted">{t('description')}</p>
 
@@ -782,7 +878,7 @@ function RentalContractsView({ administrationId, relationshipId }: RentalContrac
           )}
         </section>
       ) : null}
-    </div>
+    </RentalFlowLayout>
   )
 }
 

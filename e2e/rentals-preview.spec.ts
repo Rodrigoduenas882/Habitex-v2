@@ -135,4 +135,47 @@ test.describe('/ui-preview?view=rentals', () => {
     await contracts.getByRole('button', { name: 'Terminar contrato' }).click()
     await expect(contracts.getByRole('button', { name: 'Confirmar terminación' })).toBeVisible()
   })
+
+  test('a 72-character subject/tenant name with no spaces never exceeds the 320px viewport (adversarial P2 fix)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 1800 })
+    await page.goto('/ui-preview?view=rentals')
+
+    const longNameText = page
+      .getByTestId('rentals-preview-grid')
+      .getByText('Apartamentoexcepcionalmentegrandeconvistapanoramicaalmarcaribecolombiano')
+      .first()
+    await expect(longNameText).toBeVisible()
+
+    const box = await longNameText.boundingBox()
+    if (box === null) {
+      throw new Error('Expected the long-name element to have a bounding box')
+    }
+    expect(box.x + box.width).toBeLessThanOrEqual(320)
+  })
+
+  test('makes zero real network requests to the backend, neither on load nor when clicking demo contract actions', async ({
+    page,
+  }) => {
+    const backendRequests: string[] = []
+    page.on('request', (request) => {
+      const url = request.url()
+      if (/supabase\.co|\/rest\/v1\/|\/storage\/v1\//.test(url)) {
+        backendRequests.push(url)
+      }
+    })
+
+    await page.goto('/ui-preview?view=rentals')
+    await expect(page.getByTestId('contracts-preview-grid').getByText('Generado en Habitex').first()).toBeVisible()
+
+    // SIGNED contract already carries a signedFileId fixture - its download
+    // button used to fire a real GET (useContractFile) merely by mounting.
+    const contracts = page.getByTestId('contracts-preview-grid')
+    await contracts.getByRole('button', { name: 'Marcar como compartido' }).click()
+    await contracts.getByRole('button', { name: 'Terminar contrato' }).click()
+    await contracts.getByRole('button', { name: 'Confirmar terminación' }).click()
+
+    expect(backendRequests).toEqual([])
+  })
 })

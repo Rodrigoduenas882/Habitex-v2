@@ -89,6 +89,24 @@
   gap: var(--space-3);
 }
 
+/* Document/signature-date/parties subsections inside "Registrar contrato
+   externo firmado" (docs/DESIGN.md §16.6, Figma 370:716) - lighter grouping
+   than .formSection (no Card-in-Card), just a label + its own content. */
+.creationSubsection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.creationSubsectionTitle {
+  margin: 0;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
 .creationSubmit {
   align-self: flex-start;
 }

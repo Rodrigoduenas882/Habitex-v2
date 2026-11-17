@@ -134,7 +134,10 @@ interface LifecycleConfirmActionProps {
  * effect on the confirming boolean - same principle as Tabs' own
  * focus-after-state-change, adapted here because the target element does
  * not exist yet on the click that triggers it, unlike Tabs where the next
- * tab is already rendered).
+ * tab is already rendered) - and back to the original trigger button when
+ * "Volver" exits confirming (P2 fix, Codex NO-GO on PR #29: focus previously
+ * fell back to <body>, breaking the keyboard Tab sequence for anyone leaving
+ * the confirmation without committing it).
  */
 function LifecycleConfirmAction({
   triggerLabel,
@@ -147,18 +150,24 @@ function LifecycleConfirmAction({
   onConfirm,
 }: LifecycleConfirmActionProps) {
   const [confirming, setConfirming] = useState(false)
+  const triggerButtonRef = useRef<HTMLButtonElement>(null)
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
+  const wasConfirmingRef = useRef(false)
 
   useEffect(() => {
     if (confirming) {
       confirmButtonRef.current?.focus()
+    } else if (wasConfirmingRef.current) {
+      triggerButtonRef.current?.focus()
     }
+    wasConfirmingRef.current = confirming
   }, [confirming])
 
   if (!confirming) {
     return (
       <div className={styles['lifecycleRow']}>
         <Button
+          ref={triggerButtonRef}
           type="button"
           variant="destructive"
           size="sm"

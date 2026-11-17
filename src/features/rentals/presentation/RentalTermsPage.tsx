@@ -11,6 +11,7 @@ import { Input } from '@/shared/ui/Input'
 import { Select } from '@/shared/ui/Select'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import { RentalContextHeader } from './RentalContextHeader'
+import { RentalFlowLayout } from './RentalFlowLayout'
 import styles from './RentalTermsPage.module.css'
 import {
   RENTAL_TERMS_FORM_DEFAULTS,
@@ -18,6 +19,7 @@ import {
   toSaveRentalTermsInput,
   type RentalTermsFormValues,
 } from './rental-terms-form'
+import { useRentalIdentities } from '../application/useRentalIdentities'
 import { useRentalTermVersion } from '../application/useRentalTermVersion'
 import { useRentals } from '../application/useRentals'
 import { SaveRentalTermsError, useSaveRentalTerms } from '../application/useSaveRentalTerms'
@@ -63,65 +65,67 @@ function RentalTermsReadOnlyView({
   return (
     <div className={styles['form']}>
       <p className="text-body-sm text-muted">{t('termsForm.readOnly.notice')}</p>
-      <Input
-        label={t('termsForm.realStartDate.label')}
-        type="date"
-        disabled
-        defaultValue={termVersion?.effectiveFrom ?? relationship.realStartDate ?? ''}
-      />
-      <Input
-        label={t('termsForm.trackingStartDate.label')}
-        type="date"
-        disabled
-        defaultValue={relationship.trackingStartDate ?? ''}
-      />
-      <Input
-        label={t('termsForm.paymentDay.label')}
-        type="number"
-        disabled
-        defaultValue={relationship.paymentDay ?? ''}
-      />
-      <Select label={t('termsForm.paymentTiming.label')} disabled defaultValue={relationship.paymentTiming ?? ''}>
-        <option value="ADVANCE">{t('paymentTiming.ADVANCE')}</option>
-        <option value="ARREARS">{t('paymentTiming.ARREARS')}</option>
-      </Select>
-      <Input
-        label={t('termsForm.expectedEndDate.label')}
-        type="date"
-        disabled
-        defaultValue={relationship.expectedEndDate ?? ''}
-      />
-      {termVersion ? (
-        <>
-          <Input
-            label={t('termsForm.rentAmount.label')}
-            type="number"
-            disabled
-            defaultValue={termVersion.rentAmount}
-          />
-          <Select
-            label={t('termsForm.administrationMode.label')}
-            disabled
-            defaultValue={termVersion.administrationMode}
-          >
-            {ADMINISTRATION_MODE_OPTIONS.map((mode) => (
-              <option key={mode} value={mode}>
-                {t(`termsForm.administrationMode.${mode}`)}
-              </option>
-            ))}
-          </Select>
-          <Select label={t('termsForm.utilitiesMode.label')} disabled defaultValue={termVersion.utilitiesMode ?? ''}>
-            <option value="">{t('termsForm.utilitiesMode.none')}</option>
-            {UTILITIES_MODE_OPTIONS.map((mode) => (
-              <option key={mode} value={mode}>
-                {t(`termsForm.utilitiesMode.${mode}`)}
-              </option>
-            ))}
-          </Select>
-        </>
-      ) : (
-        <p className="text-body-sm text-muted">{t('termsForm.readOnly.financialUnavailable')}</p>
-      )}
+      <div className={styles['formSection']}>
+        <Input
+          label={t('termsForm.realStartDate.label')}
+          type="date"
+          disabled
+          defaultValue={termVersion?.effectiveFrom ?? relationship.realStartDate ?? ''}
+        />
+        <Input
+          label={t('termsForm.trackingStartDate.label')}
+          type="date"
+          disabled
+          defaultValue={relationship.trackingStartDate ?? ''}
+        />
+        <Input
+          label={t('termsForm.paymentDay.label')}
+          type="number"
+          disabled
+          defaultValue={relationship.paymentDay ?? ''}
+        />
+        <Select label={t('termsForm.paymentTiming.label')} disabled defaultValue={relationship.paymentTiming ?? ''}>
+          <option value="ADVANCE">{t('paymentTiming.ADVANCE')}</option>
+          <option value="ARREARS">{t('paymentTiming.ARREARS')}</option>
+        </Select>
+        <Input
+          label={t('termsForm.expectedEndDate.label')}
+          type="date"
+          disabled
+          defaultValue={relationship.expectedEndDate ?? ''}
+        />
+        {termVersion ? (
+          <>
+            <Input
+              label={t('termsForm.rentAmount.label')}
+              type="number"
+              disabled
+              defaultValue={termVersion.rentAmount}
+            />
+            <Select
+              label={t('termsForm.administrationMode.label')}
+              disabled
+              defaultValue={termVersion.administrationMode}
+            >
+              {ADMINISTRATION_MODE_OPTIONS.map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(`termsForm.administrationMode.${mode}`)}
+                </option>
+              ))}
+            </Select>
+            <Select label={t('termsForm.utilitiesMode.label')} disabled defaultValue={termVersion.utilitiesMode ?? ''}>
+              <option value="">{t('termsForm.utilitiesMode.none')}</option>
+              {UTILITIES_MODE_OPTIONS.map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(`termsForm.utilitiesMode.${mode}`)}
+                </option>
+              ))}
+            </Select>
+          </>
+        ) : (
+          <p className="text-body-sm text-muted">{t('termsForm.readOnly.financialUnavailable')}</p>
+        )}
+      </div>
     </div>
   )
 }
@@ -150,11 +154,17 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
   const termVersionQuery = useRentalTermVersion(administrationId, relationshipId)
   const managementGate = useManagementGate(administrationId)
   const saveRentalTerms = useSaveRentalTerms()
+  // Shares the same TanStack Query cache RentalContextHeader's own
+  // useRentalIdentities call below already populates (DS-002) - never a
+  // second network request in practice, same reasoning as that component's
+  // own doc comment.
+  const identities = useRentalIdentities(administrationId)
 
   const schema = rentalTermsFormSchema(t)
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<RentalTermsFormValues>({
     resolver: zodResolver(schema),
@@ -182,6 +192,11 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
 
   const relationship = (rentalsQuery.data ?? []).find((rental) => rental.id === relationshipId) ?? null
   const termVersion = termVersionQuery.data ?? null
+  const identity = identities.byRelationshipId.get(relationshipId) ?? {
+    subjectLabel: null,
+    tenantName: null,
+    rentAmount: null,
+  }
 
   if (!relationship) {
     return (
@@ -200,10 +215,19 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
   // version somehow still rendered as an editable, submittable form).
   if (termVersion || relationship.status !== 'DRAFT') {
     return (
-      <div className={styles['page']}>
+      <RentalFlowLayout
+        step={3}
+        summary={{
+          subjectLabel: identity.subjectLabel,
+          tenantName: identity.tenantName,
+          rentAmount: termVersion?.rentAmount ?? null,
+          startDate: termVersion?.effectiveFrom ?? relationship.realStartDate,
+          endDate: relationship.expectedEndDate,
+        }}
+      >
         <RentalContextHeader administrationId={administrationId} relationshipId={relationshipId} activeSection="terms" />
         <RentalTermsReadOnlyView termVersion={termVersion} relationship={relationship} />
-      </div>
+      </RentalFlowLayout>
     )
   }
 
@@ -217,8 +241,26 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
     })
   })
 
+  // Live resumen values (docs/DESIGN.md §16.6) - the exact strings the form
+  // already holds, parsed only for display; an empty/invalid rentAmount
+  // simply shows "Sin definir" rather than a fabricated number.
+  const watchedRealStartDate = watch('realStartDate')
+  const watchedExpectedEndDate = watch('expectedEndDate')
+  const watchedRentAmount = watch('rentAmount')
+  const parsedRentAmount = Number(watchedRentAmount)
+  const liveRentAmount = watchedRentAmount.trim() !== '' && Number.isFinite(parsedRentAmount) ? parsedRentAmount : null
+
   return (
-    <div className={styles['page']}>
+    <RentalFlowLayout
+      step={3}
+      summary={{
+        subjectLabel: identity.subjectLabel,
+        tenantName: identity.tenantName,
+        rentAmount: liveRentAmount,
+        startDate: watchedRealStartDate.trim() !== '' ? watchedRealStartDate : null,
+        endDate: watchedExpectedEndDate.trim() !== '' ? watchedExpectedEndDate : null,
+      }}
+    >
       <RentalContextHeader administrationId={administrationId} relationshipId={relationshipId} activeSection="terms" />
       <p className="text-body-sm text-muted">{t('termsForm.description')}</p>
 
@@ -331,7 +373,7 @@ function RentalTermsForm({ administrationId, relationshipId }: RentalTermsFormPr
           <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
         ) : null}
       </form>
-    </div>
+    </RentalFlowLayout>
   )
 }
 

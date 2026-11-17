@@ -11,10 +11,24 @@
   gap: var(--space-5);
 }
 
+/* Two columns on desktop, one on mobile/tablet (docs/DESIGN.md §16.6) -
+   the section heading always spans both via grid-column: 1 / -1. Reuses the
+   existing 1024px breakpoint (§7/§8), no new one introduced. */
 .formSection {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: var(--space-4);
+}
+
+.formSection > h2 {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  .formSection {
+    grid-template-columns: repeat(2, 1fr);
+    column-gap: var(--space-5);
+  }
 }
 
 .submit {

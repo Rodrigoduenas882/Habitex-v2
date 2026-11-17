@@ -8,6 +8,7 @@ import { KeyIcon } from '@/shared/ui/icons'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import { AddRentalDraftForm } from './AddRentalDraftForm'
 import styles from './AddRentalPage.module.css'
+import { RentalFlowLayout } from './RentalFlowLayout'
 import { RentalSubjectTypeSelector } from './RentalSubjectTypeSelector'
 import type { RentalSubjectType } from '../domain/rental-subject.types'
 
@@ -81,9 +82,12 @@ export default function AddRentalPage() {
   }
 
   return (
-    <div className={styles['page']}>
+    <RentalFlowLayout
+      step={1}
+      summary={{ subjectLabel: null, tenantName: null, rentAmount: null, startDate: null, endDate: null }}
+    >
       <h1 className="text-h2">{t('addRental.title')}</h1>
       <RentalSubjectTypeSelector onSelect={setSubjectType} />
-    </div>
+    </RentalFlowLayout>
   )
 }

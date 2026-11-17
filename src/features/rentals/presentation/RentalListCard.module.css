@@ -18,6 +18,14 @@
   flex: 1;
 }
 
+/* A subject/tenant name can be one long, unbroken run of characters with no
+   spaces (adversarial P2 fix, Codex NO-GO on PR #29) - overflow-wrap:anywhere
+   lets it break mid-word instead of overflowing the card at narrow widths,
+   same pattern already used by KpiCard/AttentionPanel. */
+.identity p {
+  overflow-wrap: anywhere;
+}
+
 .title {
   font-weight: 600;
 }

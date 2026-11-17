@@ -84,6 +84,21 @@ const IDENTITY_APARTMENT_501: RentalListCardIdentity = {
   rentAmount: 900000,
 }
 const IDENTITY_UNKNOWN: RentalListCardIdentity = { subjectLabel: null, tenantName: null, rentAmount: null }
+// Adversarial fixture (P2 fix, Codex NO-GO on PR #29): a 75-character
+// subject/tenant name with no spaces at all, so overflow-wrap has to do real
+// work instead of a normal word-wrap break - see e2e/rentals-preview.spec.ts'
+// bounding-box assertion at 320px.
+const LONG_NAME = 'Apartamentoexcepcionalmentegrandeconvistapanoramicaalmarcaribecolombiano'
+const IDENTITY_LONG_NAME: RentalListCardIdentity = {
+  subjectLabel: LONG_NAME,
+  tenantName: LONG_NAME,
+  rentAmount: 1800000,
+}
+// DRAFT (not ACTIVE/ENDING/ENDED/CANCELLED): those four statuses are each
+// queried singularly (no `.first()`) in e2e/rentals-preview.spec.ts, while
+// DRAFT already expects two matches there - adding a second DRAFT fixture
+// keeps that assumption intact instead of silently breaking it.
+const LONG_NAME_RENTAL: RentalRelationship = { ...BASE_RELATIONSHIP, id: 'demo-rental-long-name', status: 'DRAFT' }
 
 const CONTRACT_BASE: Contract = {
   id: 'demo-contract-base',
@@ -153,16 +168,23 @@ const CONTRACT_TERMINATED: Contract = {
  *
  * Renders the exact exported RentalListCard/ContractCard components instead
  * of a re-implementation, so this preview can't visually drift from what
- * the real pages render. ContractCard's own mutation hooks
- * (useMarkContractShared/useTerminateContract) stay real - clicking one of
- * its actions here against a fixture id simply fails the same way an
- * invalid/unauthenticated call would in production, through the component's
- * own existing error handling; nothing here fakes a success.
- * RentalListCard's own lifecycle actions are wired to plain no-op callbacks
- * instead (not real mutations) because, unlike ContractCard, RentalListCard
- * takes its action callbacks as props rather than calling mutation hooks
- * itself - RentalsPage is what wires those for the real page, so this
- * preview wires harmless no-ops the same way.
+ * the real pages render. RentalListCard's own lifecycle actions are wired to
+ * plain no-op callbacks (RentalsPage is what wires real mutations for the
+ * real page) - every `RentalListCard` below gets harmless `() => {}`
+ * callbacks, same convention throughout this file.
+ *
+ * `ContractCard` is rendered with `previewMode` (P2 fix, Codex NO-GO on PR
+ * #29): an earlier version of this preview left ContractCard's download
+ * buttons and mutation hooks (useMarkContractShared/useTerminateContract/
+ * useContractFile) wired exactly as the real page does, on the theory that a
+ * failing call against a fixture id was itself harmless - but useContractFile
+ * is a `useQuery` that fires automatically on mount whenever a fixture
+ * carries a documentFileId/signedFileId, which is a real, unauthenticated GET
+ * against Supabase the moment this unauthenticated page loads, not just a
+ * click-triggered failure. `previewMode` skips those download buttons
+ * entirely and turns the mutating actions into no-ops (see ContractCardProps'
+ * own doc comment) - this preview now makes zero real backend calls, neither
+ * on mount nor on any demonstrative click.
  */
 export default function RentalsVisualPreview() {
   const { t } = useTranslation(['rentals', 'contracts'])
@@ -171,8 +193,9 @@ export default function RentalsVisualPreview() {
     <AppShellPreview fullViewport>
       <div className={styles['notice']}>
         <Alert tone="info" title="Vista de demostración · Arriendos y Contratos">
-          Todos los arriendos y contratos de esta vista son ficticios. Las acciones de esta página pueden intentar
-          una llamada real (sin sesión) y fallarán de forma segura - ningún dato ficticio existe en el backend.
+          Todos los arriendos y contratos de esta vista son ficticios. Las descargas de archivos y las acciones de
+          contratos (marcar compartido, adjuntar copia firmada, terminar) no hacen ninguna llamada real al backend en
+          esta demostración.
         </Alert>
       </div>
 
@@ -213,6 +236,7 @@ export default function RentalsVisualPreview() {
             />
             <RentalListCard rental={ENDED} identity={IDENTITY_HOUSE} />
             <RentalListCard rental={CANCELLED} identity={IDENTITY_APARTMENT_501} />
+            <RentalListCard rental={LONG_NAME_RENTAL} identity={IDENTITY_LONG_NAME} />
           </div>
         </section>
 
@@ -224,24 +248,28 @@ export default function RentalsVisualPreview() {
               administrationId="demo"
               relationshipId="demo-rental-active"
               managementBlocked={false}
+              previewMode
             />
             <ContractCard
               contract={CONTRACT_SHARED}
               administrationId="demo"
               relationshipId="demo-rental-active"
               managementBlocked={false}
+              previewMode
             />
             <ContractCard
               contract={CONTRACT_SIGNED}
               administrationId="demo"
               relationshipId="demo-rental-active"
               managementBlocked={false}
+              previewMode
             />
             <ContractCard
               contract={CONTRACT_TERMINATED}
               administrationId="demo"
               relationshipId="demo-rental-active"
               managementBlocked={false}
+              previewMode
             />
           </div>
         </section>

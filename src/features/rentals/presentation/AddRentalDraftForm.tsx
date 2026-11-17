@@ -29,6 +29,7 @@ import {
   type AddRentalDraftFormValues,
 } from './add-rental-draft-form'
 import styles from './AddRentalDraftForm.module.css'
+import { RentalFlowLayout } from './RentalFlowLayout'
 import { useCreateRentalDraft } from '../application/useCreateRentalDraft'
 import { useRentalSubjects } from '../application/useRentalSubjects'
 import { useTenantCandidates } from '../application/useTenantCandidates'
@@ -203,6 +204,13 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
     shouldUnregister: false,
   })
   const tenantMode = watch('tenantMode')
+  // Live-updating resumen values (docs/DESIGN.md §16.6) - plain lookups
+  // against already-fetched real data, never a second read: a subject/
+  // tenant not yet chosen simply resolves to null, shown as "Sin definir" by
+  // RentalSummaryPanel.
+  const watchedSubjectId = watch('rentalSubjectId')
+  const watchedFullName = watch('fullName')
+  const watchedExistingTenantId = watch('existingTenantPersonId')
 
   const candidates = tenantCandidatesQuery.data ?? []
   // "Existente" is only a trustworthy choice once we know for certain there
@@ -278,8 +286,25 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
     )
   }
 
+  const selectedSubjectLabel = subjects.find((subject) => subject.id === watchedSubjectId)?.label ?? null
+  const selectedTenantName =
+    tenantMode === 'existing'
+      ? (candidates.find((candidate) => candidate.id === watchedExistingTenantId)?.fullName ?? null)
+      : watchedFullName.trim() !== ''
+        ? watchedFullName.trim()
+        : null
+
   return (
-    <div className={styles['page']}>
+    <RentalFlowLayout
+      step={2}
+      summary={{
+        subjectLabel: selectedSubjectLabel,
+        tenantName: selectedTenantName,
+        rentAmount: null,
+        startDate: null,
+        endDate: null,
+      }}
+    >
       <button type="button" className={styles['back']} onClick={onBack}>
         <ChevronLeftIcon size={16} aria-hidden="true" />
         {t('addRental.back')}
@@ -432,6 +457,6 @@ export function AddRentalDraftForm({ administrationId, subjectType, onBack }: Ad
           <p className="text-caption text-muted">{t('administration:managementAccessGate.blocked')}</p>
         ) : null}
       </form>
-    </div>
+    </RentalFlowLayout>
   )
 }

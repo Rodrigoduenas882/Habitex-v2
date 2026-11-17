@@ -3,6 +3,30 @@
   "countries": {
     "CO": "Colombia"
   },
+  "stepper": {
+    "ariaLabel": "Progreso del arriendo",
+    "steps": {
+      "selection": "Selección",
+      "tenant": "Arrendatario",
+      "terms": "Condiciones",
+      "contract": "Contrato"
+    },
+    "status": {
+      "done": "completado",
+      "current": "paso actual",
+      "upcoming": "pendiente"
+    }
+  },
+  "summary": {
+    "title": "Resumen del arriendo",
+    "subjectLabel": "Activo arrendado",
+    "tenant": "Arrendatario",
+    "rentAmount": "Canon",
+    "dates": "Fechas",
+    "dateFrom": "Desde {{date}}",
+    "dateRange": "{{start}} – {{end}}",
+    "undefined": "Sin definir"
+  },
   "noAdministration": {
     "title": "Todavía no tienes una administración",
     "description": "Tu cuenta no está asociada a ninguna administración por ahora."
