@@ -10,7 +10,7 @@
   border: var(--app-shell-border, none);
   border-radius: var(--app-shell-radius, 0);
   overflow: hidden;
-  background: var(--color-background);
+  background: var(--app-shell-background);
 }
 
 /* ---------- Sidebar (desktop) ---------- */
@@ -22,8 +22,8 @@
   flex-direction: column;
   gap: var(--space-5);
   padding: var(--space-5) var(--space-4);
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  background: var(--app-shell-surface);
+  border-right: 1px solid var(--app-shell-divider);
   overflow-y: auto;
   transition: width var(--transition-base);
 }
@@ -39,7 +39,7 @@
    header row next to the close button, where a border would look clipped. */
 .sidebarBrand {
   padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--app-shell-divider);
 }
 
 .nav {
@@ -83,9 +83,13 @@
 }
 
 .navItemActive {
-  background: var(--color-primary-subtle);
-  color: var(--color-primary-subtle-foreground);
+  background: var(--app-shell-nav-active-background);
+  color: var(--color-foreground);
   font-weight: 600;
+}
+
+.navItemActive svg {
+  color: var(--app-shell-nav-active-icon);
 }
 
 /* "Próximamente" destinations: native `disabled` already removes them from
@@ -168,8 +172,8 @@
   flex-direction: column;
   gap: var(--space-6);
   padding: var(--space-5) var(--space-4);
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  background: var(--app-shell-surface);
+  border-right: 1px solid var(--app-shell-divider);
   transform: translateX(-100%);
   transition: transform var(--transition-base);
   z-index: 21;

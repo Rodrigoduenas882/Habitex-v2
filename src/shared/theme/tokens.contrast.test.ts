@@ -123,6 +123,17 @@ describe.each([
   it('text link on hover (--color-link-hover on --color-surface) meets 4.5:1', () => {
     expect(c('color-link-hover', 'color-surface')).toBeGreaterThanOrEqual(NORMAL_TEXT_MIN)
   })
+
+  // AppShell active nav item (Header/Sidebar Figma alignment) - guards the
+  // same tokens tokens.css's own comment documents a manually-calculated
+  // contrast for, so a future edit to either side is caught automatically.
+  it('active nav label (--color-foreground on --app-shell-nav-active-background) meets 4.5:1', () => {
+    expect(c('color-foreground', 'app-shell-nav-active-background')).toBeGreaterThanOrEqual(NORMAL_TEXT_MIN)
+  })
+
+  it('active nav icon (--app-shell-nav-active-icon on --app-shell-nav-active-background) meets 3:1', () => {
+    expect(c('app-shell-nav-active-icon', 'app-shell-nav-active-background')).toBeGreaterThanOrEqual(NON_TEXT_MIN)
+  })
 })
 
 // The 4 auth screens are exactly where this defect was found - guard the
