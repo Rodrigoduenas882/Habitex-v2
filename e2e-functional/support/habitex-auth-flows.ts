@@ -29,9 +29,9 @@ export async function signUpThroughRealFormAndBootstrap(
   await page.getByLabel('Confirma tu contraseña').fill(password)
   await page.getByRole('button', { name: 'Crear cuenta' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Crea tu cuenta' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Configura tu espacio' })).toBeVisible()
   await expect(page.getByLabel('Nombre completo')).toHaveValue(`${firstName} ${lastName}`)
-  await page.getByRole('button', { name: 'Crear cuenta' }).click()
+  await page.getByRole('button', { name: 'Continuar' }).click()
 
   await expect(page.getByTestId('app-shell')).toBeVisible()
 }

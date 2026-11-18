@@ -167,7 +167,7 @@ test('el nombre precargado en /bootstrap sigue siendo editable, y lo que el due√
   const nameInput = page.getByLabel('Nombre completo')
   await expect(nameInput).toHaveValue(`Propietaria Con Error De Tipeo ${RUN_ID}`)
   await nameInput.fill(CORRECTED_NAME)
-  await page.getByRole('button', { name: 'Crear cuenta' }).click()
+  await page.getByRole('button', { name: 'Continuar' }).click()
 
   await expect(page.getByTestId('app-shell')).toBeVisible()
 

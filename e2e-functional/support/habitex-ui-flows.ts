@@ -88,9 +88,9 @@ export async function signUpAndBootstrap(
   await page.getByRole('button', { name: 'Iniciar sesión' }).click()
 
   // A brand-new user lands on /bootstrap automatically (no Administration yet).
-  await expect(page.getByRole('heading', { name: 'Crea tu cuenta' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Configura tu espacio' })).toBeVisible()
   await page.getByLabel('Nombre completo').fill(fullName)
-  await page.getByRole('button', { name: 'Crear cuenta' }).click()
+  await page.getByRole('button', { name: 'Continuar' }).click()
 
   await expect(page.getByTestId('app-shell')).toBeVisible()
 }
