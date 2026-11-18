@@ -130,6 +130,39 @@
   --sidebar-width: 248px;
   --topbar-height: 64px;
 
+  /* AppShell sidebar/header - values from the APPROVED Figma frames
+     (Habitex Design Lab, nodeId 103:68/103:103 "Sidebar V3 aprobado",
+     99:2/99:36 "Header A.2 aprobado"; Sidebar V3 is the canonical source
+     for the two frames' minor iteration drift, confirmed identical on
+     background/surface in Dark). These are dedicated tokens, not reuses
+     of --color-background/--color-surface/--color-border/
+     --color-primary-subtle, because those four are shared across the rest
+     of the product (Card, Input, Button, Select, Textarea, Avatar,
+     tone.module.css, global.css, several feature pages) and the approved
+     Figma values diverge from them - changing the shared tokens would
+     have moved every other surface in the app, not just AppShell. Same
+     pattern already used above for --sidebar-width/--topbar-height.
+     Contrast measured (WCAG, calculated not estimated):
+     - Light: --color-foreground (#15181a) on --app-shell-nav-active-background
+       (#eaf0f8) measures 15.56:1 (text, needs >=4.5:1).
+     - Light: --app-shell-nav-active-icon (= --color-primary, #4667a9) on
+       --app-shell-nav-active-background (#eaf0f8) measures 4.85:1
+       (non-text/icon, needs >=3:1 per WCAG 1.4.11).
+     - Dark: --color-foreground (#edefec) on --app-shell-nav-active-background
+       (#263b51) measures 9.94:1 (text, needs >=4.5:1).
+     - Dark: --app-shell-nav-active-icon (= --color-primary-accent, #79a9d1)
+       on --app-shell-nav-active-background (#263b51) measures 4.60:1
+       (non-text/icon, needs >=3:1).
+     --app-shell-divider is a structural border (sidebar/drawer edge), not
+     a control boundary, so it follows --color-border's own looser
+     precedent (see --color-control-border's comment above for that
+     distinction) and isn't held to 3:1. */
+  --app-shell-background: #f6f8fa;
+  --app-shell-surface: #ffffff;
+  --app-shell-divider: #dde4ea;
+  --app-shell-nav-active-background: #eaf0f8;
+  --app-shell-nav-active-icon: var(--color-primary);
+
   /* Hero card surface (Login) - explicit exception, not a general pattern:
      a translucent DARK glass + light backdrop-blur, deliberately the same
      in Light and Dark app themes. This card floats over a photograph, not
@@ -223,6 +256,14 @@
 
   /* --hero-card-* intentionally NOT redefined here - see the :root
      definition/comment. It's fixed dark glass in both themes. */
+
+  /* AppShell sidebar/header (Dark) - see the :root block's own comment for
+     why these are dedicated tokens. */
+  --app-shell-background: #101820;
+  --app-shell-surface: #18232d;
+  --app-shell-divider: #344350;
+  --app-shell-nav-active-background: #263b51;
+  --app-shell-nav-active-icon: var(--color-primary-accent);
 }
 
 @media (prefers-reduced-motion: reduce) {
