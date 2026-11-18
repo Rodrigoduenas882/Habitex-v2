@@ -24,6 +24,26 @@
     "title": "Todavía no hay cargos para este arriendo",
     "description": "Genera los cargos de renta para empezar a hacer seguimiento a los pagos de este arriendo."
   },
+  "overview": {
+    "title": "Resumen financiero",
+    "totalAmount": "Total facturado",
+    "totalPaid": "Total abonado",
+    "totalBalance": "Saldo pendiente",
+    "balanceLinkHint": "Ver pagos de este arriendo"
+  },
+  "table": {
+    "type": "Tipo",
+    "description": "Descripción",
+    "dueDate": "Vencimiento",
+    "amount": "Valor",
+    "paidAmount": "Valor pagado",
+    "balance": "Saldo",
+    "status": "Estado"
+  },
+  "paymentsHistory": {
+    "title": "Historial de pagos",
+    "viewAll": "Ver todos los pagos"
+  },
   "generate": {
     "cta": "Generar cargos de renta",
     "submitting": "Generando…",

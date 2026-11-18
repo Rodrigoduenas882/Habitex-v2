@@ -278,26 +278,37 @@ interface RejectPaymentActionProps {
  * The first click only flips local `confirming` state - it never calls
  * onConfirm. Once confirming, the single trigger button is replaced by two
  * distinct elements (destructive "Confirmar rechazo" + secondary "Volver"),
- * and focus moves to the confirm button on that transition. `disabled` also
- * accounts for the sibling Confirm action's own pending state (the
+ * and focus moves to the confirm button on that transition - and back to
+ * the original "Rechazar pago" trigger when "Volver" exits confirming (P2
+ * fix, Codex NO-GO on PR #31: focus previously fell to `<body>`, breaking
+ * the keyboard Enter→Tab→Enter→Tab sequence for anyone leaving the
+ * confirmation without committing it - same fix already applied to
+ * LifecycleConfirmAction/TerminateContractAction on PR #29). `disabled`
+ * also accounts for the sibling Confirm action's own pending state (the
  * competing-transition guard), disabling both "Confirmar rechazo" and
  * "Volver" whenever either mutation for this card is in flight.
  */
 function RejectPaymentAction({ disabled, blockReasonText, isPending, errorMessage, onConfirm }: RejectPaymentActionProps) {
   const { t } = useTranslation('payments')
   const [confirming, setConfirming] = useState(false)
+  const triggerButtonRef = useRef<HTMLButtonElement>(null)
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
+  const wasConfirmingRef = useRef(false)
 
   useEffect(() => {
     if (confirming) {
       confirmButtonRef.current?.focus()
+    } else if (wasConfirmingRef.current) {
+      triggerButtonRef.current?.focus()
     }
+    wasConfirmingRef.current = confirming
   }, [confirming])
 
   if (!confirming) {
     return (
       <>
         <Button
+          ref={triggerButtonRef}
           type="button"
           variant="destructive"
           size="sm"

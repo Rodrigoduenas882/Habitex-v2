@@ -896,3 +896,108 @@ Se agregaron `card.header.subtitle`/`card.header.subtitleNoMethod` a
 sin relación con este sprint: `es/payments.json` le faltaba la key
 `reportForm.errors.idempotency_key_reused` que `es-CO/payments.json` ya
 tenía — copiada tal cual, ambos locales quedan de nuevo byte-idénticos.
+
+
+## 18. Jerarquía financiera unificada y correcciones P2 — PR #31
+
+Issue #30 (continuación). Referencia: Figma `Habitex-Design-Lab`
+[escritorio 372:3](https://www.figma.com/design/JWScoQUWsRab9SFYq7mT2z/Habitex-Design-Lab?node-id=372-3)
+y [móvil 372:330](https://www.figma.com/design/JWScoQUWsRab9SFYq7mT2z/Habitex-Design-Lab?node-id=372-330).
+
+**Nota de verificación.** Igual que en §15/§16/§17, Figma respondió 403 sin
+sesión autenticada desde este entorno — sin forma de comparar contra el
+diseño real pixel a pixel. Esta sección documenta las decisiones tomadas a
+partir de la descripción textual de la auditoría de Codex (resumen
+financiero con monto/saldo prioritarios, cobros en filas compactas para
+escritorio, historial de pagos dentro de una misma experiencia), nunca una
+inspección directa de los nodos 372:3/372:330. Cualquier diferencia que una
+revisión con acceso real a Figma encuentre manda sobre lo que está aquí.
+
+### 18.1 Alcance
+
+Se compone la jerarquía dentro de la ruta existente `/rentals/:id/charges`
+(`RentalChargesPage`) — decisión explícita de la remediación ("se admite
+una composición/overview en la ruta de Cobros existente si es la vía
+mínima segura"). **No se creó ninguna ruta nueva**; `/rentals/:id/payments`
+sigue siendo la única superficie con acciones de pago (reportar, confirmar,
+rechazar, aplicar a cargos, emitir recibo) — Cobros solo navega ahí, nunca
+duplica esa lógica. Cero cambios de dominio, RPC, RLS, consultas de
+autorización o idempotencia — verificado con `git diff` dirigido contra
+esas capas.
+
+### 18.2 Resumen financiero (`FinancialSummary`)
+
+Tres valores ("monto/saldo prioritarios"): Total facturado, Total abonado,
+Saldo pendiente — sumas planas sobre los `charges` ya obtenidos
+(`charge.amount`/`charge.paidAmount`/`charge.balance`, ya derivados
+server-side desde `public.charge_balances`; `paid_amount`/`balance` solo
+reflejan allocations `CONFIRMED`, ver `docs/agentic/PROGRESS.md`
+INC-012/014). **Nunca se suma `Payment.amount`** para estos totales —
+un pago `REPORTED`/`REJECTED` no es el mismo hecho financiero que uno ya
+asignado y confirmado, y mezclarlos era exactamente el riesgo semántico que
+la auditoría señaló. El resumen **no se muestra** cuando no hay cargos
+(nunca "$0" fabricado en todas partes — mismo principio que
+`RentalListCard`'s `rentAmountUnknown`).
+
+Deliberadamente **no es** `KpiCard` (`features/dashboard/presentation/`):
+ese primitive usa `--dashboard-glass-surface` + `backdrop-filter`, y
+`DESIGN.md` §14 reserva ese vidrio **exclusivamente** a las 4 KPI cards del
+Dashboard y el disparador del menú de usuario ("las tablas conservan
+fondos sólidos"). `FinancialSummaryTile` es un `Card` sólido (mismo
+`--color-surface` que el resto de la página) + `IconBadge` + valor
+`text-h3 tabular-nums` — ningún vidrio nuevo, ningún primitive duplicado.
+El tile de "Saldo pendiente" es la única navegación contextual al detalle
+de pagos (`to="/rentals/:id/payments"`, mismo mecanismo DS-004 que
+`KpiCard`'s propio `to`).
+
+### 18.3 Cobros en filas compactas para escritorio (`ChargesTable`)
+
+Mismo mecanismo exacto que Properties (§15.1/§15.3): un `<table>` real con
+encabezados de columna accesibles (`<th scope="col">`) y la lista de
+`ChargeCard` ya existente **siempre** se renderizan ambos en el DOM; CSS
+(`.tableWrap`/`.compactList`, no JS) elige uno por el breakpoint existente
+de 1024px — nunca uno nuevo. `display:none` saca al oculto del árbol de
+accesibilidad también. Mismos datos, mismo `STATUS_TONE`, nunca una segunda
+fuente de verdad. La columna "Valor pagado" (antes "Pagado") se renombró
+para no colisionar textualmente con el Badge de estado `PAID` ("Pagado") —
+mismo texto, significado distinto, encontrado al escribir las pruebas.
+
+### 18.4 Historial de pagos (`PaymentsHistorySection`)
+
+Lee `usePayments` (mismo query key que `/rentals/:id/payments` ya usa —
+nunca una segunda petición de red en la práctica) y muestra cada pago real
+como una fila de solo identidad (`IconBadge` + monto/fecha + Badge de
+estado, mismo patrón de header que `PaymentCard`) — **nunca** ninguna de
+las zonas de Detalles/Aplicación/Recibo/Acciones de `PaymentCard`, y
+**nunca** un total agregado de montos de pago (ver §18.2 sobre por qué). Un
+botón "Ver todos los pagos" (no un `<Link>` de texto — `--color-link` está
+documentado como exclusivo de las pantallas públicas de auth, §2) es la
+única salida hacia cualquier acción real. Estados de carga/error/vacío
+propios, independientes de la lista de cargos (un arriendo puede tener
+pagos reportados sin cargos generados todavía, `report_payment` no exige
+`charge_id` — ver INC-013) — nunca gateado por `charges.length`. El
+mensaje de "sin pagos" reutiliza textualmente `payments:empty.title`
+(nunca una copia nueva duplicada).
+
+### 18.5 P2 — overflow en Detalles de Pagos
+
+`externalReference`/`notas` son texto libre que un usuario escribe — una
+cadena de 130 caracteres sin espacios no tenía punto de quiebre válido y
+desbordaba la tarjeta (956px de ancho desplazable a un viewport de 320px,
+medido por la auditoría). Corregido con `max-width: 100%; overflow-wrap:
+anywhere;` sobre **todas** las líneas de la zona de Detalles
+(`.cardSection p`), no solo esos dos campos — mismo patrón ya establecido
+por `RentalListCard`/`RentalContextHeader`. Verificado con un fixture
+adversarial de 130 caracteres sin espacios en Chromium real (red simulada)
+a 320/375/768/1024/1440px, claro y oscuro: 0px de desbordamiento horizontal
+en los 20 casos.
+
+### 18.6 P2 — foco al cancelar «Rechazar pago»
+
+`RejectPaymentAction` (`RentalPaymentsPage.tsx`) tenía el mismo hueco que
+`LifecycleConfirmAction`/`TerminateContractAction` ya corregido en el PR
+#29 (§16.6): "Volver" devolvía el foco a `<body>`. Corregido con el mismo
+mecanismo exacto — un segundo ref al botón disparador original y un ref de
+"estaba confirmando" que detecta la transición confirming→false
+específicamente. Verificado con un test de secuencia de teclado completa
+(Enter→Tab→Enter→Tab) además de la aserción de foco directa.

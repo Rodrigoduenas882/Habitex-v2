@@ -63,6 +63,22 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* externalReference/notes are free text a tenant/owner types in - a long,
+   unbroken run with no spaces (adversarial P2 fix, Codex NO-GO on PR #31)
+   has no natural break point, so without this the paragraph's intrinsic
+   content width pushes the whole card (and the page) wider than the
+   viewport at 320/375px instead of wrapping. max-width:100% caps every
+   Details-zone line to the card's own width (align-items:flex-start above
+   means children size to content, never stretch, so this cannot be
+   skipped) and overflow-wrap lets a run with no spaces break mid-word -
+   same pattern already used by RentalListCard/RentalContextHeader. Applied
+   to every line in this zone, not just externalReference/notes, since any
+   of them could in principle hold unexpected free text. */
+.cardSection p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .downloadAction {
   display: flex;
   flex-direction: column;
