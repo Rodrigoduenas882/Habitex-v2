@@ -12,9 +12,118 @@
   gap: var(--space-2);
 }
 
-.list {
+/* Desktop table / mobile compact-card dual-render (Codex NO-GO on PR #31,
+   P1 - Figma 372:3/372:330), same exact technique as PropertiesPage
+   (docs/DESIGN.md §15.1/§15.3): both always render in the DOM, CSS alone
+   picks one per the existing 1024px breakpoint - never JS/matchMedia, and
+   `display:none` removes the hidden one from the accessibility tree too. */
+.tableWrap {
+  display: none;
+}
+
+.compactList {
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
+}
+
+@media (min-width: 1024px) {
+  .tableWrap {
+    display: block;
+    overflow-x: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .compactList {
+    display: none;
+  }
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.table th {
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* "Monto/saldo prioritarios" (Figma 372:3/372:330) - a plain Card (solid
+   --color-surface, never the Dashboard-only glass exception of DESIGN.md
+   §14) per tile, stacked on mobile, side by side on wider widths. Reuses
+   the existing 640px breakpoint already established for form/content
+   width elsewhere (docs/DESIGN.md §7), not a new one. */
+.summaryRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .summaryRow {
+    flex-direction: row;
+  }
+}
+
+.summaryTile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+}
+
+.summaryTileBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.summaryTileLink {
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.paymentHistoryList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.paymentHistoryRow {
+  display: flex;
+  align-items: center;
   gap: var(--space-3);
 }
 
@@ -27,8 +136,28 @@
 .chargeHeader {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* charge.description is free text (manual charges, or system-generated
+   copy) that can be one long, unbroken run of characters with no spaces -
+   overflow-wrap:anywhere lets it break mid-word instead of overflowing the
+   card at narrow widths, same pattern already used by RentalListCard/
+   RentalContextHeader. */
+.identity p {
+  overflow-wrap: anywhere;
+}
+
+.title {
+  font-weight: 600;
 }
 
 .amounts {

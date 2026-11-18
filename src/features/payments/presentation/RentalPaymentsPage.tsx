@@ -22,6 +22,7 @@ import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { WalletIcon } from '@/shared/ui/icons'
+import { IconBadge } from '@/shared/ui/IconBadge'
 import { Input } from '@/shared/ui/Input'
 import { Select } from '@/shared/ui/Select'
 import { Skeleton } from '@/shared/ui/Skeleton'
@@ -277,26 +278,37 @@ interface RejectPaymentActionProps {
  * The first click only flips local `confirming` state - it never calls
  * onConfirm. Once confirming, the single trigger button is replaced by two
  * distinct elements (destructive "Confirmar rechazo" + secondary "Volver"),
- * and focus moves to the confirm button on that transition. `disabled` also
- * accounts for the sibling Confirm action's own pending state (the
+ * and focus moves to the confirm button on that transition - and back to
+ * the original "Rechazar pago" trigger when "Volver" exits confirming (P2
+ * fix, Codex NO-GO on PR #31: focus previously fell to `<body>`, breaking
+ * the keyboard Enter→Tab→Enter→Tab sequence for anyone leaving the
+ * confirmation without committing it - same fix already applied to
+ * LifecycleConfirmAction/TerminateContractAction on PR #29). `disabled`
+ * also accounts for the sibling Confirm action's own pending state (the
  * competing-transition guard), disabling both "Confirmar rechazo" and
  * "Volver" whenever either mutation for this card is in flight.
  */
 function RejectPaymentAction({ disabled, blockReasonText, isPending, errorMessage, onConfirm }: RejectPaymentActionProps) {
   const { t } = useTranslation('payments')
   const [confirming, setConfirming] = useState(false)
+  const triggerButtonRef = useRef<HTMLButtonElement>(null)
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
+  const wasConfirmingRef = useRef(false)
 
   useEffect(() => {
     if (confirming) {
       confirmButtonRef.current?.focus()
+    } else if (wasConfirmingRef.current) {
+      triggerButtonRef.current?.focus()
     }
+    wasConfirmingRef.current = confirming
   }, [confirming])
 
   if (!confirming) {
     return (
       <>
         <Button
+          ref={triggerButtonRef}
           type="button"
           variant="destructive"
           size="sm"
@@ -771,6 +783,17 @@ interface PaymentReceiptSummaryProps {
  * own allocated/remaining display. Issuing a new one, like opening/
  * submitting "Aplicar a cargos", is gated.
  *
+ * The issued receipt itself renders through `Alert tone="success"` (the same
+ * shared/ui primitive this file already uses for "Pago aplicado
+ * completamente" above) rather than two bare `<p>`s - its tinted
+ * success-tone surface + check icon visually separates the receipt Habitex
+ * emits from PaymentProofDownloadButton's plain ghost-button proof download
+ * in the Details zone above (Issue #30's "diferenciar el comprobante...del
+ * recibo"). Deliberately no download/file action here - issue_receipt never
+ * sets file_id on the deployed backend (confirmed against this feature's own
+ * scope notes), so a download button for the receipt would fabricate a
+ * capability that does not exist.
+ *
  * Stale-race handling for a receipt_already_issued (23505) failure follows
  * PaymentAllocationSummary's own staleAllocationError principle exactly:
  * the friendly message is lifted into this component's own state (not just
@@ -823,12 +846,9 @@ function PaymentReceiptSummary({ payment, administrationId, relationshipId, mana
     <div className={styles['receiptSummary']}>
       {staleReceiptError ? <Alert tone="danger">{staleReceiptError}</Alert> : null}
       {receipt ? (
-        <>
-          <p className="text-body-sm">{t('card.receipt.issued.number', { number: receipt.receiptNumber })}</p>
-          <p className="text-caption text-muted">
-            {t('card.receipt.issued.date', { date: formatDateTime(receipt.issuedAt) })}
-          </p>
-        </>
+        <Alert tone="success" title={t('card.receipt.issued.number', { number: receipt.receiptNumber })}>
+          {t('card.receipt.issued.date', { date: formatDateTime(receipt.issuedAt) })}
+        </Alert>
       ) : hasAllocations ? (
         <div className={styles['actionsRow']}>
           <Button
@@ -877,7 +897,15 @@ interface PaymentCardProps {
 /**
  * One payment row, visually organized into up to 5 zones (DS-003 - same
  * data/conditions as before, purely a presentation restructure):
- * 1. Header - status Badge + amount, the card's primary anchor.
+ * 1. Header - IconBadge (WalletIcon, same icon as this page's own
+ *    EmptyState) + an identity block (title = the already-formatted amount,
+ *    unchanged copy/style; secondary muted line = payment date + method,
+ *    same values already shown as separate captions in Details below - this
+ *    is a deliberate duplication, the same "fast scan at the top, full detail
+ *    below" pattern RentalListCard/ContractCard already use for their own
+ *    identity header, see docs/DESIGN.md §15-16) + the status Badge on the
+ *    right, mirroring RentalListCard's IconBadge+identity+Badge header
+ *    exactly (icon size=18, container size=36, radius="md", tone="neutral").
  * 2. Details - date/method/reference/notes/reportedAt (all read-only) and
  *    the proof download link when present.
  * 3. Application (CONFIRMED only) - wraps PaymentAllocationSummary as-is.
@@ -929,11 +957,23 @@ function PaymentCard({ payment, administrationId, relationshipId, managementGate
 
   return (
     <Card className={styles['paymentCard']}>
-      {/* Header zone: status + amount together, the card's primary
-          "what happened, how much" anchor (DS-003). */}
+      {/* Header zone: IconBadge + identity (amount/date+method) + status
+          Badge, the card's primary "what happened, how much" anchor
+          (DS-003), same visual family as RentalListCard/ContractCard. */}
       <div className={styles['paymentHeader']}>
+        <IconBadge icon={<WalletIcon size={18} />} tone="neutral" size={36} radius="md" />
+        <div className={styles['identity']}>
+          <p className={cx('text-h3', 'tabular-nums')}>{t('card.amount', { amount: formatAmount(payment.amount) })}</p>
+          <p className="text-body-sm text-muted">
+            {payment.paymentMethod
+              ? t('card.header.subtitle', {
+                  date: formatDate(payment.paymentDate),
+                  method: t(`paymentMethod.${payment.paymentMethod}`),
+                })
+              : t('card.header.subtitleNoMethod', { date: formatDate(payment.paymentDate) })}
+          </p>
+        </div>
         <Badge tone={STATUS_TONE[payment.status]}>{t(`status.${payment.status}`)}</Badge>
-        <p className={cx('text-h3', 'tabular-nums')}>{t('card.amount', { amount: formatAmount(payment.amount) })}</p>
       </div>
 
       {/* Details zone: every read-only fact about this payment, grouped as
@@ -1040,6 +1080,11 @@ interface PaymentReportFormProps {
  * has expired can still report a new payment, exactly as the backend
  * allows.
  *
+ * `<form>` stays the real form element (so native Enter-to-submit keeps
+ * working) and `Card` is nested inside it, never replacing it - the same
+ * pattern RegisterExternalSignedForm/RegisterHabitexGeneratedForm already
+ * established for contract registration forms (DESIGN.md §16.4).
+ *
  * Upload (usePaymentProofUpload, purpose PAYMENT_PROOF) and report
  * (useReportPayment) are two separate mutations - `uploadedProof` holds the
  * already-uploaded FileMetadata across a retry, same orchestration as
@@ -1140,52 +1185,53 @@ function PaymentReportForm({ administrationId, relationshipId }: PaymentReportFo
         void onSubmit(event)
       }}
       noValidate
-      className={styles['form']}
     >
-      <Input
-        type="number"
-        min={0}
-        step="any"
-        label={t('reportForm.amount.label')}
-        error={errors.amount?.message}
-        disabled={isPending}
-        {...register('amount')}
-      />
-      <Input
-        type="date"
-        label={t('reportForm.paymentDate.label')}
-        error={errors.paymentDate?.message}
-        disabled={isPending}
-        {...register('paymentDate')}
-      />
-      <Select label={t('reportForm.paymentMethod.label')} disabled={isPending} {...register('paymentMethod')}>
-        <option value="">{t('reportForm.paymentMethod.none')}</option>
-        {PAYMENT_METHOD_OPTIONS.map((method) => (
-          <option key={method} value={method}>
-            {t(`reportForm.paymentMethod.${method}`)}
-          </option>
-        ))}
-      </Select>
-      <Input
-        type="text"
-        label={t('reportForm.externalReference.label')}
-        disabled={isPending}
-        {...register('externalReference')}
-      />
-      <Textarea label={t('reportForm.notes.label')} disabled={isPending} {...register('notes')} />
-      <Input
-        type="file"
-        label={t('reportForm.proofFile.label')}
-        disabled={isPending}
-        onChange={(event) => {
-          setSelectedFile(event.target.files?.[0] ?? null)
-          setUploadedProof(null)
-        }}
-      />
-      <Button type="submit" loading={isPending} disabled={isPending} className={styles['submit']}>
-        {isPending ? t('reportForm.submitting') : t('reportForm.submit')}
-      </Button>
-      {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+      <Card className={styles['form']}>
+        <Input
+          type="number"
+          min={0}
+          step="any"
+          label={t('reportForm.amount.label')}
+          error={errors.amount?.message}
+          disabled={isPending}
+          {...register('amount')}
+        />
+        <Input
+          type="date"
+          label={t('reportForm.paymentDate.label')}
+          error={errors.paymentDate?.message}
+          disabled={isPending}
+          {...register('paymentDate')}
+        />
+        <Select label={t('reportForm.paymentMethod.label')} disabled={isPending} {...register('paymentMethod')}>
+          <option value="">{t('reportForm.paymentMethod.none')}</option>
+          {PAYMENT_METHOD_OPTIONS.map((method) => (
+            <option key={method} value={method}>
+              {t(`reportForm.paymentMethod.${method}`)}
+            </option>
+          ))}
+        </Select>
+        <Input
+          type="text"
+          label={t('reportForm.externalReference.label')}
+          disabled={isPending}
+          {...register('externalReference')}
+        />
+        <Textarea label={t('reportForm.notes.label')} disabled={isPending} {...register('notes')} />
+        <Input
+          type="file"
+          label={t('reportForm.proofFile.label')}
+          disabled={isPending}
+          onChange={(event) => {
+            setSelectedFile(event.target.files?.[0] ?? null)
+            setUploadedProof(null)
+          }}
+        />
+        <Button type="submit" loading={isPending} disabled={isPending} className={styles['submit']}>
+          {isPending ? t('reportForm.submitting') : t('reportForm.submit')}
+        </Button>
+        {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+      </Card>
     </form>
   )
 }

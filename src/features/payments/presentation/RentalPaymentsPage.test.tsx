@@ -1398,6 +1398,42 @@ describe('RentalPaymentsPage', () => {
       expect(screen.queryByRole('button', { name: 'Confirmar rechazo' })).not.toBeInTheDocument()
     })
 
+    it('restores keyboard focus to "Rechazar pago" when "Volver" exits confirming state (P2 fix, Codex NO-GO on PR #31)', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment()])
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Rechazar pago' }))
+      await user.click(await screen.findByRole('button', { name: 'Volver' }))
+
+      expect(screen.getByRole('button', { name: 'Rechazar pago' })).toHaveFocus()
+    })
+
+    it('completes a full keyboard-only Enter→Tab→Enter→Tab sequence through reject/cancel without losing focus to <body> (P2 fix, Codex NO-GO on PR #31)', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment()])
+      const user = userEvent.setup()
+      renderPage()
+
+      const rejectButton = await screen.findByRole('button', { name: 'Rechazar pago' })
+      rejectButton.focus()
+      await user.keyboard('{Enter}')
+
+      const backButton = await screen.findByRole('button', { name: 'Volver' })
+      expect(screen.getByRole('button', { name: 'Confirmar rechazo' })).toHaveFocus()
+
+      await user.tab()
+      expect(backButton).toHaveFocus()
+      await user.keyboard('{Enter}')
+
+      expect(await screen.findByRole('button', { name: 'Rechazar pago' })).toHaveFocus()
+      await user.tab()
+      expect(document.activeElement).not.toBe(document.body)
+    })
+
     it('disables the confirm-reject button while pending, preventing a duplicate submission', async () => {
       resolveOneAdministration()
       listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
@@ -1555,6 +1591,46 @@ describe('RentalPaymentsPage', () => {
       renderPage()
 
       expect(await screen.findByText('Valor: $12.500.000')).toBeInTheDocument()
+    })
+
+    it('shows the header subtitle as "date · method" when a method exists (IconBadge+identity header, Sprint 4)', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ paymentMethod: 'BANK_TRANSFER' })])
+      renderPage()
+
+      // Deliberate duplication with the Details zone below (same "fast scan
+      // header, full detail below" pattern as RentalListCard/ContractCard) -
+      // the header subtitle repeats the method already shown by the
+      // Details zone's own "Método de pago:" line.
+      expect(await screen.findByText(/· Transferencia bancaria$/)).toBeInTheDocument()
+      expect(screen.getByText('Método de pago: Transferencia bancaria')).toBeInTheDocument()
+    })
+
+    it('shows only the date in the header subtitle when paymentMethod is null, never a dangling separator', async () => {
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([makePayment({ paymentMethod: null })])
+      renderPage()
+
+      await screen.findByText('Valor: $500.000')
+      expect(screen.queryByText(/·/)).not.toBeInTheDocument()
+    })
+
+    it('renders a 130-character externalReference/notes with no spaces in full, with the overflow-safe class applied (P2 fix, Codex NO-GO on PR #31 - see e2e for the real-browser bounding-box check)', async () => {
+      const longReference = 'a'.repeat(130)
+      const longNotes = 'b'.repeat(130)
+      resolveOneAdministration()
+      listByAdministration.mockResolvedValueOnce([RELATIONSHIP_ACTIVE])
+      listByRelationship.mockResolvedValueOnce([
+        makePayment({ externalReference: longReference, notes: longNotes }),
+      ])
+      renderPage()
+
+      const reference = await screen.findByText(`Referencia: ${longReference}`)
+      const notes = screen.getByText(`Notas: ${longNotes}`)
+      expect(reference).toBeInTheDocument()
+      expect(notes).toBeInTheDocument()
     })
 
     it('renders a REPORTED payment with every optional field absent (no method/reference/notes/proof) cleanly', async () => {

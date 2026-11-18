@@ -811,3 +811,193 @@ box en `e2e/rentals-preview.spec.ts` a 320px.
 
 **P2.3 — preview aislado del backend real.** Ver la corrección documentada
 arriba en §16.5.
+
+
+## 17. Cobros, Pagos y Recibos — Sprint 4
+
+Issue #30. Referencia: Figma `Habitex-Design-Lab` (misma URL de §15/§16).
+
+**Nota de verificación.** Igual que en §15/§16, Figma respondió 403 sin
+sesión autenticada desde este entorno — confirmado de nuevo para este
+sprint, sin forma de comparar contra el diseño real pixel a pixel. Esta
+sección documenta las decisiones tomadas para extender el mismo lenguaje
+visual ya aprobado en los Sprints 2/3 (`IconBadge` + identidad + Badge de
+estado, `Card` anidado dentro de `<form>`, `Alert` para estados de éxito
+persistente) a Cobros y Pagos, en vez de inventar un patrón nuevo sin poder
+verificarlo contra Figma. Cualquier diferencia que una revisión con acceso
+real a Figma encuentre manda sobre lo que está aquí.
+
+### 17.1 Alcance de este sprint
+
+Cobros (`RentalChargesPage`), Pagos y Recibos (ambos dentro de
+`RentalPaymentsPage` — Recibos no tiene feature/ruta propia, ver
+`docs/agentic/PROGRESS.md` INC-015) ya eran visualmente maduros antes de
+este sprint: ambas páginas ya usaban `Card`/`Badge`/`Alert`/`Button`/
+`Input`/`Select`/`Textarea`/`EmptyState`/`Skeleton` y el `RentalContextHeader`
+compartido de Sprint 3 — este no es un rediseño desde cero como Properties
+(§15) o Rentals (§16), sino un pulido acotado de los huecos concretos
+identificados. Solo UI/UX: sin cambios en dominio, infraestructura,
+aplicación, `composition.ts`, RPC, reglas de negocio, permisos,
+validaciones, redondeos, idempotencia de `report_payment` ni recuperación
+ante fallos/reintentos — verificado explícitamente por `habitex-reviewer`
+con `git diff` dirigido contra esas capas (0 resultados).
+
+### 17.2 Cobros (`ChargeCard`)
+
+El header pasa de un `Badge` + caption de tipo sueltos a el mismo patrón
+`IconBadge` + identidad + `Badge` que `RentalListCard`/`ContractCard` ya
+usan (§16.2/§16.4): `IconBadge icon={<WalletIcon/>} tone="neutral" size={36}
+radius="md"` (reutiliza `WalletIcon`, ya usado en el `EmptyState` de esta
+misma página — sin ícono nuevo) + un bloque de identidad con el tipo de
+cargo como título en negrita y la descripción como línea secundaria muted
+(antes un párrafo suelto debajo del header) + el `Badge` de estado
+existente, ahora alineado a la derecha. `charge.description` es texto
+libre, así que su contenedor usa `overflow-wrap: anywhere` (mismo patrón
+que `RentalListCard.module.css`). El resto de la tarjeta (período,
+vencimiento, `Valor`/`Pagado`/`Saldo`) no cambió. Los estados de carga/
+error/vacío (`Skeleton`/`Alert`/`EmptyState`) ya existían y siguen
+coherentes con el nuevo header sin necesitar cambios.
+
+### 17.3 Pagos (`PaymentCard`, `PaymentReportForm`)
+
+- **Header de `PaymentCard`**: mismo patrón `IconBadge`+identidad — título
+  en negrita = el monto ya formateado (sin cambiar texto/estilo), línea
+  secundaria muted = fecha + método (`"{{date}} · {{method}}"`, o solo la
+  fecha cuando no hay método, sin separador colgante). Esta línea
+  secundaria **duplica deliberadamente** datos que ya aparecen como
+  captions independientes en la zona de Detalles — mismo principio
+  "escaneo rápido arriba, detalle completo abajo" que `RentalListCard`/
+  `ContractCard` ya establecieron, no un descuido.
+- **`PaymentReportForm`**: se envuelve en `Card`, mismo patrón que
+  `RegisterExternalSignedForm`/`RegisterHabitexGeneratedForm` (§16.4) — el
+  `<form>` sigue siendo el elemento real (necesario para que `onSubmit`
+  dispare con Enter), `Card` se anida *dentro* de él.
+
+### 17.4 Recibos (`PaymentReceiptSummary`)
+
+El recibo ya emitido pasa de dos `<p>` sueltas (sin ningún tratamiento
+visual — la superficie menos pulida de las tres features antes de este
+sprint) a un `Alert tone="success"` con el mismo número/fecha que ya se
+mostraba, reutilizando el mismo vocabulario visual que esta página ya usa
+para "éxito persistente" (la línea de allocation completa). Esto diferencia
+visualmente el recibo que emite Habitex del comprobante que adjunta la
+persona (`PaymentProofDownloadButton`, zona de Detalles, botón ghost de
+descarga) — pedido explícito del Issue #30. **No se agregó ningún botón de
+descarga/archivo para el recibo**: `issue_receipt` nunca setea `file_id` en
+el backend desplegado (confirmado, ningún RPC/policy en todo el schema lo
+popula) — inventar una descarga habría fabricado una funcionalidad
+inexistente. El resto de la lógica (hint de "sin allocations", botón
+"Emitir recibo", manejo de la carrera `receipt_already_issued`) no cambió.
+
+### 17.5 i18n
+
+Se agregaron `card.header.subtitle`/`card.header.subtitleNoMethod` a
+`payments.json` (es y es-CO). De paso se corrigió un drift preexistente
+sin relación con este sprint: `es/payments.json` le faltaba la key
+`reportForm.errors.idempotency_key_reused` que `es-CO/payments.json` ya
+tenía — copiada tal cual, ambos locales quedan de nuevo byte-idénticos.
+
+
+## 18. Jerarquía financiera unificada y correcciones P2 — PR #31
+
+Issue #30 (continuación). Referencia: Figma `Habitex-Design-Lab`
+[escritorio 372:3](https://www.figma.com/design/JWScoQUWsRab9SFYq7mT2z/Habitex-Design-Lab?node-id=372-3)
+y [móvil 372:330](https://www.figma.com/design/JWScoQUWsRab9SFYq7mT2z/Habitex-Design-Lab?node-id=372-330).
+
+**Nota de verificación.** Igual que en §15/§16/§17, Figma respondió 403 sin
+sesión autenticada desde este entorno — sin forma de comparar contra el
+diseño real pixel a pixel. Esta sección documenta las decisiones tomadas a
+partir de la descripción textual de la auditoría de Codex (resumen
+financiero con monto/saldo prioritarios, cobros en filas compactas para
+escritorio, historial de pagos dentro de una misma experiencia), nunca una
+inspección directa de los nodos 372:3/372:330. Cualquier diferencia que una
+revisión con acceso real a Figma encuentre manda sobre lo que está aquí.
+
+### 18.1 Alcance
+
+Se compone la jerarquía dentro de la ruta existente `/rentals/:id/charges`
+(`RentalChargesPage`) — decisión explícita de la remediación ("se admite
+una composición/overview en la ruta de Cobros existente si es la vía
+mínima segura"). **No se creó ninguna ruta nueva**; `/rentals/:id/payments`
+sigue siendo la única superficie con acciones de pago (reportar, confirmar,
+rechazar, aplicar a cargos, emitir recibo) — Cobros solo navega ahí, nunca
+duplica esa lógica. Cero cambios de dominio, RPC, RLS, consultas de
+autorización o idempotencia — verificado con `git diff` dirigido contra
+esas capas.
+
+### 18.2 Resumen financiero (`FinancialSummary`)
+
+Tres valores ("monto/saldo prioritarios"): Total facturado, Total abonado,
+Saldo pendiente — sumas planas sobre los `charges` ya obtenidos
+(`charge.amount`/`charge.paidAmount`/`charge.balance`, ya derivados
+server-side desde `public.charge_balances`; `paid_amount`/`balance` solo
+reflejan allocations `CONFIRMED`, ver `docs/agentic/PROGRESS.md`
+INC-012/014). **Nunca se suma `Payment.amount`** para estos totales —
+un pago `REPORTED`/`REJECTED` no es el mismo hecho financiero que uno ya
+asignado y confirmado, y mezclarlos era exactamente el riesgo semántico que
+la auditoría señaló. El resumen **no se muestra** cuando no hay cargos
+(nunca "$0" fabricado en todas partes — mismo principio que
+`RentalListCard`'s `rentAmountUnknown`).
+
+Deliberadamente **no es** `KpiCard` (`features/dashboard/presentation/`):
+ese primitive usa `--dashboard-glass-surface` + `backdrop-filter`, y
+`DESIGN.md` §14 reserva ese vidrio **exclusivamente** a las 4 KPI cards del
+Dashboard y el disparador del menú de usuario ("las tablas conservan
+fondos sólidos"). `FinancialSummaryTile` es un `Card` sólido (mismo
+`--color-surface` que el resto de la página) + `IconBadge` + valor
+`text-h3 tabular-nums` — ningún vidrio nuevo, ningún primitive duplicado.
+El tile de "Saldo pendiente" es la única navegación contextual al detalle
+de pagos (`to="/rentals/:id/payments"`, mismo mecanismo DS-004 que
+`KpiCard`'s propio `to`).
+
+### 18.3 Cobros en filas compactas para escritorio (`ChargesTable`)
+
+Mismo mecanismo exacto que Properties (§15.1/§15.3): un `<table>` real con
+encabezados de columna accesibles (`<th scope="col">`) y la lista de
+`ChargeCard` ya existente **siempre** se renderizan ambos en el DOM; CSS
+(`.tableWrap`/`.compactList`, no JS) elige uno por el breakpoint existente
+de 1024px — nunca uno nuevo. `display:none` saca al oculto del árbol de
+accesibilidad también. Mismos datos, mismo `STATUS_TONE`, nunca una segunda
+fuente de verdad. La columna "Valor pagado" (antes "Pagado") se renombró
+para no colisionar textualmente con el Badge de estado `PAID` ("Pagado") —
+mismo texto, significado distinto, encontrado al escribir las pruebas.
+
+### 18.4 Historial de pagos (`PaymentsHistorySection`)
+
+Lee `usePayments` (mismo query key que `/rentals/:id/payments` ya usa —
+nunca una segunda petición de red en la práctica) y muestra cada pago real
+como una fila de solo identidad (`IconBadge` + monto/fecha + Badge de
+estado, mismo patrón de header que `PaymentCard`) — **nunca** ninguna de
+las zonas de Detalles/Aplicación/Recibo/Acciones de `PaymentCard`, y
+**nunca** un total agregado de montos de pago (ver §18.2 sobre por qué). Un
+botón "Ver todos los pagos" (no un `<Link>` de texto — `--color-link` está
+documentado como exclusivo de las pantallas públicas de auth, §2) es la
+única salida hacia cualquier acción real. Estados de carga/error/vacío
+propios, independientes de la lista de cargos (un arriendo puede tener
+pagos reportados sin cargos generados todavía, `report_payment` no exige
+`charge_id` — ver INC-013) — nunca gateado por `charges.length`. El
+mensaje de "sin pagos" reutiliza textualmente `payments:empty.title`
+(nunca una copia nueva duplicada).
+
+### 18.5 P2 — overflow en Detalles de Pagos
+
+`externalReference`/`notas` son texto libre que un usuario escribe — una
+cadena de 130 caracteres sin espacios no tenía punto de quiebre válido y
+desbordaba la tarjeta (956px de ancho desplazable a un viewport de 320px,
+medido por la auditoría). Corregido con `max-width: 100%; overflow-wrap:
+anywhere;` sobre **todas** las líneas de la zona de Detalles
+(`.cardSection p`), no solo esos dos campos — mismo patrón ya establecido
+por `RentalListCard`/`RentalContextHeader`. Verificado con un fixture
+adversarial de 130 caracteres sin espacios en Chromium real (red simulada)
+a 320/375/768/1024/1440px, claro y oscuro: 0px de desbordamiento horizontal
+en los 20 casos.
+
+### 18.6 P2 — foco al cancelar «Rechazar pago»
+
+`RejectPaymentAction` (`RentalPaymentsPage.tsx`) tenía el mismo hueco que
+`LifecycleConfirmAction`/`TerminateContractAction` ya corregido en el PR
+#29 (§16.6): "Volver" devolvía el foco a `<body>`. Corregido con el mismo
+mecanismo exacto — un segundo ref al botón disparador original y un ref de
+"estaba confirmando" que detecta la transición confirming→false
+específicamente. Verificado con un test de secuencia de teclado completa
+(Enter→Tab→Enter→Tab) además de la aserción de foco directa.
