@@ -146,19 +146,7 @@ describe('BootstrapAccountPage', () => {
     expect(await screen.findByText('Home page')).toBeInTheDocument()
   })
 
-  it('pre-fills fullName from the session\'s own user_metadata when /signup already collected it', async () => {
-    getSession.mockResolvedValueOnce({
-      userId: 'user-1',
-      email: 'camila@habitex.app',
-      expiresAtUnix: null,
-      fullNameFromMetadata: 'Camila Restrepo Gómez',
-    })
-    renderPage()
-
-    expect(await screen.findByLabelText('Nombre completo')).toHaveValue('Camila Restrepo Gómez')
-  })
-
-  it('keeps the pre-filled name fully editable, and submits whatever the user leaves there', async () => {
+  it('auto-provisions with the session\'s own user_metadata name the moment it mounts, never showing the form', async () => {
     getSession.mockResolvedValueOnce({
       userId: 'user-1',
       email: 'camila@habitex.app',
@@ -171,16 +159,68 @@ describe('BootstrapAccountPage', () => {
       administrationId: 'admin-1',
       created: true,
     })
+    renderPage()
+
+    // A real owner never sees this form at all - just the same loader the
+    // rest of the app uses for "finishing sign-in", then Inicio.
+    expect(await screen.findByText('Home page')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Nombre completo')).not.toBeInTheDocument()
+    expect(bootstrapAccount).toHaveBeenCalledWith({ fullName: 'Camila Restrepo Gómez' })
+    expect(bootstrapAccount).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to the editable, pre-filled form when the automatic attempt itself fails, and a manual retry succeeds', async () => {
+    getSession.mockResolvedValueOnce({
+      userId: 'user-1',
+      email: 'camila@habitex.app',
+      expiresAtUnix: null,
+      fullNameFromMetadata: 'Camila Restrepo Gómez',
+    })
+    bootstrapAccount.mockRejectedValueOnce(new Error('boom'))
+    bootstrapAccount.mockResolvedValueOnce({
+      personId: 'person-1',
+      accountId: 'acc-1',
+      administrationId: 'admin-1',
+      created: true,
+    })
     const user = userEvent.setup()
     renderPage()
 
     const nameInput = await screen.findByLabelText('Nombre completo')
     expect(nameInput).toHaveValue('Camila Restrepo Gómez')
+    expect(await screen.findByText('No pudimos crear tu cuenta. Intenta de nuevo.')).toBeInTheDocument()
+    expect(screen.queryByText('Home page')).not.toBeInTheDocument()
+
     await user.clear(nameInput)
     await user.type(nameInput, 'Camila R. Gómez')
     await user.click(screen.getByRole('button', { name: 'Continuar' }))
 
-    expect(bootstrapAccount).toHaveBeenCalledWith({ fullName: 'Camila R. Gómez' })
+    expect(bootstrapAccount).toHaveBeenCalledTimes(2)
+    expect(bootstrapAccount).toHaveBeenNthCalledWith(2, { fullName: 'Camila R. Gómez' })
+    expect(await screen.findByText('Home page')).toBeInTheDocument()
+  })
+
+  it('does not auto-provision when the session has only blank/whitespace name metadata', async () => {
+    getSession.mockResolvedValueOnce({
+      userId: 'user-1',
+      email: 'camila@habitex.app',
+      expiresAtUnix: null,
+      fullNameFromMetadata: '   ',
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    // The raw (untrimmed) metadata still pre-fills the field, same as any
+    // other value - it just reads as effectively blank and still fails the
+    // existing required/trim validation on submit, same as before this change.
+    const nameInput = await screen.findByLabelText('Nombre completo')
+    expect(bootstrapAccount).not.toHaveBeenCalled()
+
+    await user.clear(nameInput)
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+
+    expect(await screen.findByText('Ingresa tu nombre completo.')).toBeInTheDocument()
+    expect(bootstrapAccount).not.toHaveBeenCalled()
   })
 
   it('falls back to an empty, required field when the session has no name in metadata - same as before this change', async () => {
@@ -188,5 +228,6 @@ describe('BootstrapAccountPage', () => {
     renderPage()
 
     expect(await screen.findByLabelText('Nombre completo')).toHaveValue('')
+    expect(bootstrapAccount).not.toHaveBeenCalled()
   })
 })
