@@ -7,15 +7,17 @@ import { expect, type Page } from '@playwright/test'
  * supabase.auth.signUp call; that doc comment is now stale and gets fixed
  * alongside this file). Assumes signUp returns an immediate session (true
  * on every local/disposable stack - enable_confirmations is false in
- * supabase/config.toml), landing on /bootstrap exactly like
- * signUpAndBootstrap's own second half.
+ * supabase/config.toml).
  *
  * firstName/lastName are collected at /signup itself (Stage 1 of the
  * multi-provider auth plan) and stored via signUp's own fullName option
- * (Supabase user_metadata) - /bootstrap's own name field arrives already
- * pre-filled with the concatenated value, which this helper asserts rather
- * than re-typing, confirming the real pre-fill behavior end to end on
- * every call site that uses it.
+ * (Supabase user_metadata). A self-registered owner never sees /bootstrap's
+ * own form: BootstrapAccountPage auto-provisions with that same name the
+ * instant it mounts (see that component's own doc comment), so this helper
+ * lands straight on Inicio - the name itself gets verified independently,
+ * server-side, by whichever spec reads `people.full_name` back afterward
+ * (see signup-and-password-recovery.spec.ts), not by this helper re-reading
+ * a form field that no longer renders on this path.
  */
 export async function signUpThroughRealFormAndBootstrap(
   page: Page,
@@ -27,10 +29,6 @@ export async function signUpThroughRealFormAndBootstrap(
   await page.getByLabel('Correo electrónico').fill(email)
   await page.getByLabel('Contraseña', { exact: true }).fill(password)
   await page.getByLabel('Confirma tu contraseña').fill(password)
-  await page.getByRole('button', { name: 'Crear cuenta' }).click()
-
-  await expect(page.getByRole('heading', { name: 'Crea tu cuenta' })).toBeVisible()
-  await expect(page.getByLabel('Nombre completo')).toHaveValue(`${firstName} ${lastName}`)
   await page.getByRole('button', { name: 'Crear cuenta' }).click()
 
   await expect(page.getByTestId('app-shell')).toBeVisible()

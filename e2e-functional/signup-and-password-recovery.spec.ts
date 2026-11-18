@@ -90,6 +90,51 @@ test('un propietario nuevo se registra desde /signup, crea su administración y 
   expect(Math.round((trialEnds - trialStarted) / ONE_DAY_MS)).toBe(14)
   expect(Math.round((managementAccessUntil - trialStarted) / ONE_DAY_MS)).toBe(44)
 
+  // bootstrap_account persisted the name /signup actually captured into
+  // people.full_name (not just auth.users' own user_metadata, already
+  // checked above) - this is what the auto-provisioning path (no form, no
+  // manual confirmation) is actually trusted to have carried through.
+  const { data: personRow, error: personError } = await supabase.from('people').select('full_name').maybeSingle()
+  expect(personError, personError?.message).toBeNull()
+  expect(personRow?.full_name).toBe(`${FIRST_NAME} ${LAST_NAME}`)
+
+  // Exactly one OWNER membership, on one Administration - the auto-fired
+  // bootstrap_account call must not have run twice under the hood.
+  const { data: membershipsAfterSignup, error: membershipsError } = await supabase
+    .from('administration_members')
+    .select('administration_id, role, status')
+  expect(membershipsError, membershipsError?.message).toBeNull()
+  expect(membershipsAfterSignup).toHaveLength(1)
+  expect(membershipsAfterSignup?.[0]?.role).toBe('OWNER')
+  expect(membershipsAfterSignup?.[0]?.status).toBe('ACTIVE')
+  const administrationId = membershipsAfterSignup?.[0]?.administration_id as string
+
+  // A reload mid-session must never re-run bootstrap_account - RLS-scoped
+  // membership count must stay exactly 1, same Administration.
+  await page.reload()
+  await expect(page.getByTestId('app-shell')).toBeVisible()
+  await expect(page).not.toHaveURL(/\/bootstrap/)
+  const { data: membershipsAfterReload, error: reloadError } = await supabase
+    .from('administration_members')
+    .select('administration_id')
+  expect(reloadError, reloadError?.message).toBeNull()
+  expect(membershipsAfterReload).toHaveLength(1)
+  expect(membershipsAfterReload?.[0]?.administration_id).toBe(administrationId)
+
+  // Signing out and back in must never repeat configuration (/bootstrap)
+  // or duplicate the Administration either.
+  await page.getByLabel('Menú de usuario').click()
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click()
+  await expect(page).toHaveURL(/\/login$/)
+  await loginThroughRealForm(page, { email: EMAIL, password: PASSWORD })
+  await expect(page).not.toHaveURL(/\/bootstrap/)
+  const { data: membershipsAfterRelogin, error: reloginError } = await supabase
+    .from('administration_members')
+    .select('administration_id')
+  expect(reloginError, reloginError?.message).toBeNull()
+  expect(membershipsAfterRelogin).toHaveLength(1)
+  expect(membershipsAfterRelogin?.[0]?.administration_id).toBe(administrationId)
+
   expectNoPageErrors(pageErrors)
 })
 
@@ -117,6 +162,11 @@ test('recupera su contraseña desde /forgot-password, abre el enlace real del co
   // is the whole reason they need recovery) - /forgot-password is wrapped
   // in RedirectIfAuthenticated (router.tsx), same as /login, so staying
   // signed in here would bounce straight back to the dashboard instead.
+  // Pre-existing, unrelated to this change: "Cerrar sesión" lives inside
+  // AppShell's floating user menu (a native <details>/<summary>), never
+  // reachable until that menu is actually opened - this call was timing
+  // out against the real app regardless of any change here.
+  await page.getByLabel('Menú de usuario').click()
   await page.getByRole('button', { name: 'Cerrar sesión' }).click()
   await expect(page).toHaveURL(/\/login$/)
 
@@ -143,7 +193,7 @@ test('recupera su contraseña desde /forgot-password, abre el enlace real del co
   expectNoPageErrors(pageErrors)
 })
 
-test('el nombre precargado en /bootstrap sigue siendo editable, y lo que el dueño deja ahí es lo que persiste', async ({
+test('cuando el aprovisionamiento automático falla, el formulario de /bootstrap aparece con el nombre precargado editable, y lo que el dueño deja ahí es lo que persiste', async ({
   page,
 }) => {
   const pageErrors: Error[] = []
@@ -156,6 +206,28 @@ test('el nombre precargado en /bootstrap sigue siendo editable, y lo que el due�
   const PASSWORD = `Habitex-E2E-SignupEdit-${RUN_ID}!`
   const CORRECTED_NAME = `Propietario Corregido ${RUN_ID}`
 
+  // A self-registered owner never sees /bootstrap's form on the happy path
+  // (BootstrapAccountPage auto-provisions with /signup's own captured name
+  // the instant it mounts - see that component's own doc comment) - so the
+  // only real way left to exercise "the pre-filled name is still editable,
+  // and whatever is left there persists" is the automatic attempt's own
+  // error-fallback path. This forces exactly that: the FIRST call to
+  // bootstrap_account (the automatic one) fails, the real one after the
+  // owner edits+resubmits goes through unmodified.
+  let bootstrapCalls = 0
+  await page.route('**/rest/v1/rpc/bootstrap_account', async (route) => {
+    bootstrapCalls += 1
+    if (bootstrapCalls === 1) {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'simulated failure for e2e verification', code: 'E2E_SIMULATED_FAILURE' }),
+      })
+      return
+    }
+    await route.continue()
+  })
+
   await page.goto('/signup')
   await page.getByLabel('Nombres').fill('Propietaria')
   await page.getByLabel('Apellidos').fill(`Con Error De Tipeo ${RUN_ID}`)
@@ -164,12 +236,16 @@ test('el nombre precargado en /bootstrap sigue siendo editable, y lo que el due�
   await page.getByLabel('Confirma tu contraseña').fill(PASSWORD)
   await page.getByRole('button', { name: 'Crear cuenta' }).click()
 
+  // The automatic attempt's failure revealed the fallback form, pre-filled
+  // from the same /signup metadata the automatic attempt itself used.
+  await expect(page.getByText('No pudimos crear tu cuenta. Intenta de nuevo.')).toBeVisible()
   const nameInput = page.getByLabel('Nombre completo')
   await expect(nameInput).toHaveValue(`Propietaria Con Error De Tipeo ${RUN_ID}`)
   await nameInput.fill(CORRECTED_NAME)
-  await page.getByRole('button', { name: 'Crear cuenta' }).click()
+  await page.getByRole('button', { name: 'Continuar' }).click()
 
   await expect(page.getByTestId('app-shell')).toBeVisible()
+  expect(bootstrapCalls).toBe(2)
 
   const supabase = createClient(stack.url, stack.publishableKey, {
     auth: { persistSession: false, autoRefreshToken: false },

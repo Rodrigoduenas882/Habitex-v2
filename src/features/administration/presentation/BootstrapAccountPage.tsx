@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -24,12 +25,29 @@ import {
 } from './bootstrap-account-form'
 
 /**
- * The one-time screen between "signed in" and "has an Account" (gated by
+ * The one-time step between "signed in" and "has an Account" (gated by
  * RedirectIfAccountExists / RequiresAccount). Standalone, no AppShell - the
- * shell's nav has nothing to show yet (no Administration exists until this
- * form submits), same reasoning LoginPage already establishes for
+ * shell's nav has nothing to show yet (no Administration exists until
+ * bootstrap_account runs), same reasoning LoginPage already establishes for
  * authentication-adjacent screens. Mirrors LoginPage's centered-card layout,
  * deliberately without its hero photo/glass (DESIGN.md §10: Login-only).
+ *
+ * A self-registering owner (fullName already captured at /signup, see
+ * SignUpPage) never sees this screen's form: BootstrapAccountForm
+ * auto-submits bootstrap_account with that name and the backend's own
+ * default Administration name the moment it mounts, showing
+ * HabitexBootScreen instead - landing on Inicio reads as one continuous
+ * "finishing sign-in" moment, not a second registration step right after
+ * the first. The form only ever appears for the two cases that genuinely
+ * need a person's input: no name in metadata at all (an older account, or
+ * any future auth path that never collects one), or the automatic attempt
+ * itself failing (network/RPC error) - both fall back to the exact same
+ * editable, pre-filled form this screen always had, including its own
+ * error alert and retry-by-resubmit. Safe to retry/duplicate-fire (a stray
+ * reload mid-attempt, StrictMode's dev-only double effect invocation):
+ * bootstrap_account is idempotent on the backend (AccountRepository's own
+ * doc comment) - a second call for an auth user that already has an
+ * Account creates nothing and just returns it.
  *
  * Split into an outer gate + inner form deliberately: useForm's
  * defaultValues is captured exactly once, at this component's first
@@ -62,6 +80,38 @@ function BootstrapAccountForm({ fullNameFromMetadata }: BootstrapAccountFormProp
   const navigate = useNavigate()
   const bootstrapAccount = useBootstrapAccount()
 
+  const trimmedMetadataName = fullNameFromMetadata?.trim() ?? ''
+  // Starts true only when /signup already captured a name - computed once,
+  // same "captured at first render" rule as useForm's defaultValues below.
+  // Only ever flips true -> false (on the automatic attempt's own error),
+  // never back, so the effect below can never re-fire a second real
+  // mutate() for the same mount.
+  const [autoProvisioning, setAutoProvisioning] = useState(() => trimmedMetadataName.length > 0)
+
+  useEffect(() => {
+    if (!autoProvisioning) {
+      return
+    }
+
+    bootstrapAccount.mutate(
+      { fullName: trimmedMetadataName },
+      {
+        onSuccess: () => {
+          void navigate('/', { replace: true })
+        },
+        onError: () => {
+          setAutoProvisioning(false)
+        },
+      },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once per mount, guarded by autoProvisioning itself (see comment above); bootstrapAccount/navigate/trimmedMetadataName are stable for the component's lifetime.
+  }, [autoProvisioning])
+
+  // useForm (and every other hook) must still run on every render, even the
+  // auto-provisioning ones where its output goes unused below - skipping it
+  // conditionally would change the number of hooks called once
+  // autoProvisioning flips to false later in this same mounted instance,
+  // violating the Rules of Hooks.
   const schema = bootstrapAccountFormSchema(t)
   const {
     register,
@@ -79,6 +129,10 @@ function BootstrapAccountForm({ fullNameFromMetadata }: BootstrapAccountFormProp
       },
     })
   })
+
+  if (autoProvisioning) {
+    return <HabitexBootScreen />
+  }
 
   return (
     <div className={styles['page']}>

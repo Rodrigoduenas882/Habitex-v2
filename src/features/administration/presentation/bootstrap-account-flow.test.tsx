@@ -64,7 +64,7 @@ describe('bootstrap account flow (route-level integration)', () => {
     renderApp()
 
     await user.type(await screen.findByLabelText('Nombre completo'), 'María Pérez')
-    await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
 
     // Wait for the mutation's onSuccess to have kicked off the account
     // refetch caused by invalidateQueries (the second getCurrentAccount call).
@@ -76,7 +76,7 @@ describe('bootstrap account flow (route-level integration)', () => {
     // navigation must not have happened: the mutation is still pending and
     // the same BootstrapAccountPage instance is still on screen - not a
     // freshly remounted, idle one after a bounce to "/" and back.
-    expect(screen.getByRole('button', { name: 'Creando cuenta…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Continuando…' })).toBeDisabled()
     expect(screen.getByLabelText('Nombre completo')).toBeInTheDocument()
     expect(screen.queryByText('Product home')).not.toBeInTheDocument()
 

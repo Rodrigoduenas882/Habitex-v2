@@ -69,6 +69,17 @@ export async function verifyDisposableStack(): Promise<DisposableStack> {
  * rentals, payments) - never as a substitute for testing signup itself.
  * Leaves `page` on the authenticated shell (`app-shell` visible), with a
  * fresh Administration created.
+ *
+ * This bare signUp call carries no `options.data.full_name`, unlike
+ * /signup's own form - so the session's fullNameFromMetadata stays empty
+ * and BootstrapAccountPage's auto-provisioning never fires here (see that
+ * component's own doc comment: it only skips its form when a name is
+ * already present). /bootstrap's form therefore still appears below,
+ * exactly as it always has for this helper - which now doubles as this
+ * suite's only real-browser exercise of that "no name in metadata, manual
+ * recovery form" path, not a leftover to "fix" toward auto-provisioning.
+ * If this helper is ever changed to pass a fullName into signUp itself,
+ * this manual fill+submit stops applying and must be removed instead.
  */
 export async function signUpAndBootstrap(
   page: Page,
@@ -88,9 +99,9 @@ export async function signUpAndBootstrap(
   await page.getByRole('button', { name: 'Iniciar sesión' }).click()
 
   // A brand-new user lands on /bootstrap automatically (no Administration yet).
-  await expect(page.getByRole('heading', { name: 'Crea tu cuenta' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Configura tu espacio' })).toBeVisible()
   await page.getByLabel('Nombre completo').fill(fullName)
-  await page.getByRole('button', { name: 'Crear cuenta' }).click()
+  await page.getByRole('button', { name: 'Continuar' }).click()
 
   await expect(page.getByTestId('app-shell')).toBeVisible()
 }
@@ -108,7 +119,15 @@ export async function createProperty(
   await page.getByRole('button', { name: 'Guardar inmueble' }).click()
 
   await page.waitForURL('**/properties')
-  await expect(page.getByText(name, { exact: true })).toBeVisible()
+  // Pre-existing, unrelated to this change: PropertiesPage now keeps both
+  // its responsive views (desktop table + compact list) mounted at once,
+  // CSS-switched by breakpoint - `getByText(name, { exact: true })` alone
+  // is ambiguous (strict-mode violation) regardless of which is visually
+  // active. `.first()` is sufficient here: the caller only needs to know
+  // the new property actually appears, and `name` already carries a unique
+  // RUN_ID suffix (see this file's own header comment) so there is no risk
+  // of matching an unrelated property.
+  await expect(page.getByText(name, { exact: true }).first()).toBeVisible()
 }
 
 /**
