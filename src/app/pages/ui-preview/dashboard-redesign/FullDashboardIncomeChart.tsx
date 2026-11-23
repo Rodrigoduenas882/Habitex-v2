@@ -1,4 +1,3 @@
-import { Card } from '@/shared/ui/Card'
 import { TrendUpIcon } from '@/shared/ui/icons'
 import { REDESIGN_INCOME_SERIES } from './dashboard-redesign-mock-data'
 import styles from './FullDashboardIncomeChart.module.css'
@@ -16,13 +15,21 @@ function formatCompact(value: number): string {
  * posicionamiento de puntos/curvas para un prototipo 100% visual. 6 meses,
  * income-only (mismo principio que la real: no existe concepto de "gastos"
  * en el schema desplegado).
+ *
+ * Iteración (Parte 2, 2026-11): ya no usa el `<Card>` compartido (evita
+ * pelear especificidad CSS con Card.module.css - ver el comentario de
+ * tokens.css sobre --dashboard-redesign-card-surface) - `.panel` replica la
+ * misma forma pero lee su superficie de los tokens
+ * `--dashboard-redesign-card-*`. Ahora ocupa la columna angosta del grid de
+ * analytics en desktop (ver StateFullDashboard.module.css, decisión 2) -
+ * el gráfico de barras en sí no cambió de tipo.
  */
 export function FullDashboardIncomeChart() {
   const maxValue = Math.max(...REDESIGN_INCOME_SERIES.map((month) => month.income), 1)
   const totalIncome = REDESIGN_INCOME_SERIES.reduce((sum, month) => sum + month.income, 0)
 
   return (
-    <Card className={styles['panel']}>
+    <div className={styles['panel']}>
       <div className={styles['header']}>
         <div>
           <h2 className="text-h3">Evolución de ingresos</h2>
@@ -57,6 +64,6 @@ export function FullDashboardIncomeChart() {
           </div>
         ))}
       </div>
-    </Card>
+    </div>
   )
 }

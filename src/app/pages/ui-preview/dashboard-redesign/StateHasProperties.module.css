@@ -16,89 +16,98 @@
 }
 
 /* Grid, not the authenticated Dashboard's horizontal-scroll carousel
-   (PropertiesOverview) - same "tarjeta de inmueble" visual language (image
-   block with a centered tinted icon + status Badge overlay, name/location/
-   type body below), but without re-implementing scroll-edge detection/
-   buttons for a two-state design prototype. Wraps naturally at both 375px
-   (1 column) and 1440px (multiple columns) with no horizontal overflow. */
+   (PropertiesOverview) - same "tarjeta de inmueble" visual language, but
+   without re-implementing scroll-edge detection/buttons for a two-state
+   design prototype. Wraps naturally at both 375px (1 column) and 1440px
+   (multiple columns) with no horizontal overflow.
+   `auto-fit`, not `auto-fill` (iteration, Parte 2 2026-11): with only 2
+   fixture properties, `auto-fill` was reserving several empty 1fr tracks
+   at 1440px, squeezing the 2 real cards down to ~265px each (narrow
+   enough that the redesigned header row's name + Badge started wrapping
+   mid-word) and leaving dead whitespace to their right. `auto-fit`
+   collapses the empty tracks so the 2 real cards share the full row
+   width instead. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-4);
 }
 
+/* No longer the shared <Card> primitive (see StateHasProperties.tsx's own
+   comment) - same shape tokens (radius-lg/shadow-sm/space-4 padding), but
+   surface/border come from the prototype-only --dashboard-redesign-card-*
+   tokens so this reads correctly on the new --app-shell-background in
+   Dark (see tokens.css's own comment on --dashboard-redesign-card-surface
+   for the full rationale). Iteration: the old `.cardImage` (a tall,
+   icon-only block on a flat --color-surface-hover background) is gone -
+   that was the "large empty dark surface" flagged in review. The icon now
+   sits inline with the name/badge in a single header row instead. */
 .card {
-  padding: 0;
-  overflow: hidden;
-}
-
-.cardImage {
-  position: relative;
-  height: 100px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface-hover);
-}
-
-.badgeOverlay {
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-}
-
-.cardBody {
-  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--dashboard-redesign-card-surface);
+  border: 1px solid var(--dashboard-redesign-card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .cardName {
-  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-/* Same "Agregar inmueble" card language as StateNewOwner's .addCard, but a
-   horizontal bar (icon + text) since this follows a list of cards rather
-   than standing alone as the page's only content. */
+.cardBadge {
+  flex-shrink: 0;
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Aligns with the name text above, past the icon column. */
+  padding-left: calc(40px + var(--space-3));
+}
+
+/* Same full-width "icon + copy + explicit Button" card language as
+   StateNewOwner's own .addCard - see that file's comment for why this is
+   no longer a whole-card-is-a-button pattern. */
 .ctaCard {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
+  align-items: flex-start;
+  gap: var(--space-5);
   width: 100%;
-  padding: var(--space-5);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  padding: var(--space-6);
+  background: var(--dashboard-redesign-card-surface);
+  border: 1px solid var(--dashboard-redesign-card-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    box-shadow var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.ctaCard:hover {
-  border-color: var(--color-primary-accent);
-  box-shadow: var(--shadow-md);
-}
-
-.ctaIcon {
-  flex-shrink: 0;
-  transition:
-    background-color var(--transition-fast),
-    color var(--transition-fast);
-}
-
-.ctaCard:hover .ctaIcon {
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
 }
 
 .ctaBody {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-1);
   min-width: 0;
+}
+
+.ctaButton {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 639px) {
+  .ctaCard {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
 }

@@ -1,4 +1,3 @@
-import { Card } from '@/shared/ui/Card'
 import { REDESIGN_UPCOMING_OBLIGATIONS } from './dashboard-redesign-mock-data'
 import styles from './FullDashboardUpcoming.module.css'
 
@@ -24,10 +23,16 @@ function formatDate(value: string): string {
  * filosofía accesible que AttentionPanel.tsx real: `role="region"` +
  * `aria-label` + `<caption>` visualmente oculta (sr-only) en vez de depender
  * solo de la posición/color para transmitir qué es esta tabla.
+ *
+ * Iteración (Parte 2, 2026-11): ya no usa el `<Card>` compartido (evita
+ * pelear especificidad CSS con Card.module.css - ver el comentario de
+ * tokens.css sobre --dashboard-redesign-card-surface) - `.panel` replica la
+ * misma forma pero lee su superficie de los tokens
+ * `--dashboard-redesign-card-*`.
  */
 export function FullDashboardUpcoming() {
   return (
-    <Card className={styles['panel']}>
+    <div className={styles['panel']}>
       <div className={styles['header']}>
         <h2 className="text-h3">Próximas obligaciones</h2>
         <p className="text-caption">Cargos programados que todavía no vencen</p>
@@ -54,6 +59,6 @@ export function FullDashboardUpcoming() {
           </tbody>
         </table>
       </div>
-    </Card>
+    </div>
   )
 }

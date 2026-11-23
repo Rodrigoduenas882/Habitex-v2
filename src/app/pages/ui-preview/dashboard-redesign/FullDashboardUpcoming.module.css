@@ -1,5 +1,14 @@
+/* No longer the shared <Card> primitive - see FullDashboardUpcoming.tsx's
+   own comment. Same shape (radius-lg/shadow-sm/space-6 padding) as
+   Card.module.css, surface/border from the prototype-only
+   --dashboard-redesign-card-* tokens (tokens.css). */
 .panel {
   height: 100%;
+  padding: var(--space-6);
+  background: var(--dashboard-redesign-card-surface);
+  border: 1px solid var(--dashboard-redesign-card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .header {

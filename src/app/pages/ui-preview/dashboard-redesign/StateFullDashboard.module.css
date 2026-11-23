@@ -16,9 +16,18 @@
   font-weight: 600;
 }
 
-/* Same analytics-pair layout as the real DashboardPage.module.css
-   (.analytics): attention stays first on mobile, the income chart occupies
-   the wider desktop column. */
+/* Iteration (Parte 2, 2026-11), decision 2: unlike the real
+   DashboardPage.module.css's own `.analytics` (which keeps AttentionPanel
+   first in DOM order for accessibility/keyboard order, but visually hands
+   the WIDER 1.25fr column to FinancialOverview via an explicit
+   first-child/last-child grid-column swap), this prototype gives Attention
+   visual priority too, not just DOM order - the brief asked for this
+   explicitly for Estado C. Source order already matches: FullDashboardAttention
+   renders first in StateFullDashboard.tsx, so with no grid-column override
+   it naturally lands in column 1 - the wider track - on desktop, and both
+   sections already stack with Attention first on mobile (plain source
+   order). This is a deliberate, scoped deviation from the real Dashboard's
+   layout for this prototype only - features/dashboard/ itself is untouched. */
 .analytics {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -37,15 +46,5 @@
 
   .analytics {
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  }
-
-  .analytics > :first-child {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .analytics > :last-child {
-    grid-column: 1;
-    grid-row: 1;
   }
 }

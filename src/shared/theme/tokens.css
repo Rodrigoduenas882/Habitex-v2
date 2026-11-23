@@ -188,6 +188,48 @@
   --hero-card-border: rgb(255 255 255 / 14%);
   --hero-card-foreground-muted: rgb(255 255 255 / 74%);
   --hero-card-trend-foreground: #7be3ac;
+
+  /* Dashboard redesign prototype card surfaces
+     (src/app/pages/ui-preview/dashboard-redesign) - dedicated tokens, not
+     reuses of --color-surface/-hover/--color-border. Every card in that
+     prototype sits directly on --app-shell-background, and in Dark that
+     background got a new blue-slate palette from PR #38
+     (--app-shell-background #101820 / --app-shell-surface #18232d /
+     --app-shell-divider #344350) while --color-surface's own Dark value
+     stayed the original warm graphite (#1b1f1e) - unrelated, and still
+     correct for Card/Input/Select/Textarea/secondary Button/Properties/
+     Rentals/etc. The mismatch only shows up where a --color-surface card
+     sits on the new --app-shell-background, which today is exclusively
+     this prototype (reported 2026-11). Changing --color-surface itself
+     would move every one of those other surfaces too, which is out of
+     scope here - so these 3 are new, following the same per-feature-token
+     precedent as --app-shell-* above (see that block's own comment).
+     Light is an untouched alias - no problem was reported there. Dark is
+     derived, not eyeballed: linear RGB interpolation between
+     --app-shell-surface (#18232d = rgb(24,35,45)) and --app-shell-divider
+     (#344350 = rgb(52,67,80)), at t=0.3/0.5/0.7 respectively - each step a
+     reproducible "one step lighter" surface that reads as elevated above
+     --app-shell-background without ever reaching --app-shell-divider's
+     own value:
+       --dashboard-redesign-card-surface:       t=0.3 -> rgb(32,45,56)  = #202d38
+       --dashboard-redesign-card-surface-hover: t=0.5 -> rgb(38,51,63)  = #26333f
+       --dashboard-redesign-card-border:        t=0.7 -> rgb(44,57,70)  = #2c3946
+     Contrast measured (WCAG formula, calculated not estimated), Dark,
+     against --dashboard-redesign-card-surface:
+       - --color-foreground (#edefec) -> 12.16:1 (text, needs >=4.5:1; was
+         14.40:1 against the old --color-surface - still far above the
+         minimum, no legibility regression).
+       - --color-muted (#aeb7b2) -> 6.84:1 (text, needs >=4.5:1; was 8.10:1
+         against the old --color-surface - same, still far above minimum).
+     --dashboard-redesign-card-border is a structural card edge, not a
+     control boundary (see --color-control-border's own comment for that
+     distinction), so like --app-shell-divider it isn't held to the 3:1
+     non-text minimum - it's deliberately subtle but still visibly
+     distinct from both the card surface above and the shell's own
+     divider. */
+  --dashboard-redesign-card-surface: var(--color-surface);
+  --dashboard-redesign-card-surface-hover: var(--color-surface-hover);
+  --dashboard-redesign-card-border: var(--color-border);
 }
 
 :root[data-theme='dark'] {
@@ -278,6 +320,12 @@
   --app-shell-divider: #344350;
   --app-shell-nav-active-background: #263b51;
   --app-shell-nav-active-icon: var(--color-primary-accent);
+
+  /* Dashboard redesign prototype card surfaces (Dark) - see the :root
+     block's own comment for the formula, values and measured contrast. */
+  --dashboard-redesign-card-surface: #202d38;
+  --dashboard-redesign-card-surface-hover: #26333f;
+  --dashboard-redesign-card-border: #2c3946;
 }
 
 @media (prefers-reduced-motion: reduce) {

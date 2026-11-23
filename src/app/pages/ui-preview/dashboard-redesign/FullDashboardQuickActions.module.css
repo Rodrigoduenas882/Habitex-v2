@@ -30,6 +30,30 @@
   transform: translateX(2px);
 }
 
+/* Higher-weight variant for the single most relevant action ("Registrar
+   pago" - see FullDashboardQuickActions.tsx's own comment). Solid
+   --color-primary fill, same tone Button's own `variant="primary"` uses,
+   so it reads as the one primary action among three secondary tiles. */
+.actionPrimary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.actionPrimary:hover {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+}
+
+.actionPrimary .arrow {
+  color: var(--color-primary-foreground);
+}
+
+.primaryIcon {
+  flex-shrink: 0;
+  color: var(--color-primary-foreground);
+}
+
 .label {
   flex: 1;
   min-width: 0;
