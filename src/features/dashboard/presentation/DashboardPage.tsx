@@ -123,7 +123,24 @@ function DashboardView({ administrationId }: DashboardViewProps) {
     identities={identities} overdueChargesQuery={overdueChargesQuery} />
 }
 
-/** Shared presentation; queries remain exclusively in DashboardView. */
+/**
+ * Shared presentation; queries remain exclusively in DashboardView.
+ *
+ * PENDING for INC-DASH-02 (not this increment - flagged, not fixed, by
+ * explicit product decision after INC-DASH-01's functional validation):
+ * useDashboardLifecycleState now routes an administration whose only
+ * rental(s) are ENDED (no ACTIVE/ENDING) here, deliberately, to preserve
+ * access to real historical administrative data. But every KPI/chart below
+ * reads only the CURRENT calendar month / last 6 months (useDashboardFinancials,
+ * useDashboardOccupancy) - an ENDED-only administration whose rental ended
+ * more than 6 months ago will legitimately see an all-zero KPI grid and an
+ * empty 6-month income chart, with nothing on this page explaining why. This
+ * is honest (never fabricated data) but needs a contextual message (e.g. "no
+ * hay actividad en los últimos 6 meses" near FinancialOverview/the KPI grid)
+ * specifically for that case - INC-DASH-02's financials/occupancy work is
+ * the right place to design and add it, not a reason to change the
+ * classification rule itself.
+ */
 export interface DashboardContentProps {
   name: string | null
   identities?: ReturnType<typeof useRentalIdentities>

@@ -36,11 +36,11 @@ function property(id: string) {
   }
 }
 
-function rental(id: string) {
+function rental(id: string, status: 'DRAFT' | 'ACTIVE' | 'ENDING' | 'ENDED' | 'CANCELLED' = 'ACTIVE') {
   return {
     id,
     administrationId: 'admin-1',
-    status: 'ACTIVE' as const,
+    status,
     jurisdictionCountry: 'CO',
     realStartDate: '2026-01-01',
     trackingStartDate: '2026-01-01',
@@ -117,9 +117,86 @@ describe('useDashboardLifecycleState', () => {
     })
   })
 
-  it('reports "has-rentals" when there is at least one property and at least one rental', async () => {
+  it('reports "has-rentals" when there is at least one property and at least one ACTIVE rental', async () => {
     listProperties.mockResolvedValueOnce([property('prop-1')])
-    listRentals.mockResolvedValueOnce([rental('rel-1')])
+    listRentals.mockResolvedValueOnce([rental('rel-1', 'ACTIVE')])
+
+    const { result } = renderHook(() => useDashboardLifecycleState('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ status: 'has-rentals' })
+    })
+  })
+
+  it('reports "has-rentals" for an ENDING rental', async () => {
+    listProperties.mockResolvedValueOnce([property('prop-1')])
+    listRentals.mockResolvedValueOnce([rental('rel-1', 'ENDING')])
+
+    const { result } = renderHook(() => useDashboardLifecycleState('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ status: 'has-rentals' })
+    })
+  })
+
+  it('reports "has-rentals" for an ENDED-only administration, to preserve access to historical data', async () => {
+    listProperties.mockResolvedValueOnce([property('prop-1')])
+    listRentals.mockResolvedValueOnce([rental('rel-1', 'ENDED')])
+
+    const { result } = renderHook(() => useDashboardLifecycleState('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ status: 'has-rentals' })
+    })
+  })
+
+  it('reports "has-properties" for a DRAFT-only administration - a draft never activated carries no real history', async () => {
+    listProperties.mockResolvedValueOnce([property('prop-1')])
+    listRentals.mockResolvedValueOnce([rental('rel-1', 'DRAFT')])
+
+    const { result } = renderHook(() => useDashboardLifecycleState('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ status: 'has-properties' })
+    })
+  })
+
+  it('reports "has-properties" for a CANCELLED-only administration', async () => {
+    listProperties.mockResolvedValueOnce([property('prop-1')])
+    listRentals.mockResolvedValueOnce([rental('rel-1', 'CANCELLED')])
+
+    const { result } = renderHook(() => useDashboardLifecycleState('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ status: 'has-properties' })
+    })
+  })
+
+  it('reports "has-properties" when every rental is DRAFT or CANCELLED - neither status activates the full Dashboard on its own', async () => {
+    listProperties.mockResolvedValueOnce([property('prop-1')])
+    listRentals.mockResolvedValueOnce([rental('rel-1', 'DRAFT'), rental('rel-2', 'CANCELLED')])
+
+    const { result } = renderHook(() => useDashboardLifecycleState('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ status: 'has-properties' })
+    })
+  })
+
+  it('reports "has-rentals" when a substantive rental (ENDED) coexists with CANCELLED/DRAFT ones', async () => {
+    listProperties.mockResolvedValueOnce([property('prop-1')])
+    listRentals.mockResolvedValueOnce([rental('rel-1', 'CANCELLED'), rental('rel-2', 'DRAFT'), rental('rel-3', 'ENDED')])
+
+    const { result } = renderHook(() => useDashboardLifecycleState('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ status: 'has-rentals' })
+    })
+  })
+
+  it('reports "has-rentals" when a substantive rental (ACTIVE) coexists with CANCELLED/DRAFT ones', async () => {
+    listProperties.mockResolvedValueOnce([property('prop-1')])
+    listRentals.mockResolvedValueOnce([rental('rel-1', 'CANCELLED'), rental('rel-2', 'DRAFT'), rental('rel-3', 'ACTIVE')])
 
     const { result } = renderHook(() => useDashboardLifecycleState('admin-1'), { wrapper })
 
