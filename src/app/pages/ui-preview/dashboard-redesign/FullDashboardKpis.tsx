@@ -13,13 +13,16 @@ function formatCurrency(value: number): string {
 
 /**
  * Decisión de diseño 1 (Resumen financiero) + 4 (Resumen de ocupación):
- * exactamente 4 KPI cards usan `--dashboard-glass-surface` (DESIGN.md §14,
- * exclusivo de estas 4 tarjetas) - Cobrado/success, Pendiente/warning,
- * Vencido/danger, Ocupación/info - cada una con IconBadge + valor en
- * `.text-h1`/`.tabular-nums`, mismo lenguaje visual que KpiCard real. Estas 4
- * siguen usando el `<Card>` compartido + `--dashboard-glass-surface` sin
- * tocar (DESIGN.md §14 reserva ese vidrio exclusivamente a estas 4 tarjetas)
- * - son la única excepción a la migración a los tokens
+ * exactamente 4 KPI cards usan `--dashboard-redesign-kpi-glass-surface`
+ * (DESIGN.md §14, exclusivo de estas 4 tarjetas; dedicado y no el
+ * `--dashboard-glass-surface` compartido con el KpiCard real/AppShell -
+ * ver tokens.css, reportado y corregido 2026-11) - Cobrado/success,
+ * Pendiente/warning, Vencido/danger, Ocupación/info - cada una con
+ * IconBadge + valor en `.text-h1`/`.tabular-nums`, mismo lenguaje visual
+ * que KpiCard real. Estas 4 siguen usando el `<Card>` compartido + este
+ * vidrio dedicado sin tocar (DESIGN.md §14 reserva ese vidrio
+ * exclusivamente a estas 4 tarjetas) - son la única excepción a la
+ * migración a los tokens
  * `--dashboard-redesign-card-*` del resto de este prototipo.
  *
  * Iteración (Parte 2, 2026-11), decisión 2: el panel de desglose de

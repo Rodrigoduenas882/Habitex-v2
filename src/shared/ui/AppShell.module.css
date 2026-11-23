@@ -281,10 +281,10 @@
 /* Floating account controls replace the full-width fixed topbar. */
 .main { padding-top: calc(var(--space-10) + var(--space-6)); }
 .userMenu { position: absolute; top: var(--space-4); right: var(--space-6); z-index: 15; }
-.userMenuTrigger { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); list-style: none; cursor: pointer; border-radius: var(--radius-full); background: var(--dashboard-glass-surface); border: 1px solid var(--color-control-border); box-shadow: var(--shadow-sm); backdrop-filter: blur(12px); }
+.userMenuTrigger { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); list-style: none; cursor: pointer; border-radius: var(--radius-full); background: var(--app-shell-trigger-glass-surface); border: 1px solid var(--color-control-border); box-shadow: var(--shadow-sm); backdrop-filter: blur(12px); }
 .userMenuTrigger::-webkit-details-marker { display: none; }
 .userName { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-body-sm); font-weight: 600; }
-.userMenuPanel { position: absolute; right: 0; top: calc(100% + var(--space-2)); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); padding: var(--space-5); width: min(280px, calc(100vw - var(--space-7))); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-lg); }
+.userMenuPanel { position: absolute; right: 0; top: calc(100% + var(--space-2)); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); padding: var(--space-5); width: min(280px, calc(100vw - var(--space-7))); border: 1px solid var(--app-shell-divider); border-radius: var(--radius-lg); background: var(--app-shell-surface); box-shadow: var(--shadow-lg); }
 .userIdentity { display: flex; flex-direction: column; gap: var(--space-1); max-width: 100%; overflow-wrap: anywhere; }
 .mobileNavTrigger { position: absolute; top: var(--space-5); left: var(--space-4); z-index: 14; }
 /* Collapsed is a "rail" by default, but hovering or focusing anything

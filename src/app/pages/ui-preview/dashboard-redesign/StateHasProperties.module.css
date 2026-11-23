@@ -59,6 +59,22 @@
   gap: var(--space-3);
 }
 
+/* IconBadge's `tone="neutral"` composes shared/theme/tone.module.css's
+   `.neutral`, which is background: var(--color-surface-hover) - the old,
+   never-migrated dark graphite (#242928), not this prototype's
+   --dashboard-redesign-card-* surfaces. tone.module.css is shared by
+   Badge/Alert/IconBadge app-wide and is out of scope to edit here, so this
+   overrides just the background on this one call site. The selector is
+   deliberately doubled (`.propertyIcon.propertyIcon`) to bump specificity
+   to (0,0,2,0), beating tone.module.css's single-class `.neutral`
+   (0,0,1,0) deterministically - this is not relying on CSS Modules/bundler
+   import order, which a single-class override would. Only `background` is
+   overridden; the `color` pairing (var(--color-muted)) from `.neutral`
+   still applies. */
+.propertyIcon.propertyIcon {
+  background: var(--dashboard-redesign-card-surface-hover);
+}
+
 .cardName {
   flex: 1;
   min-width: 0;

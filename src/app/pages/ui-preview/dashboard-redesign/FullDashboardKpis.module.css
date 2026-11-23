@@ -14,14 +14,17 @@
 }
 
 /* Exclusive to these 4 cards per docs/DESIGN.md §14 - no other section of
-   Estado C uses this token. */
+   Estado C uses this token. Dedicated --dashboard-redesign-kpi-glass-surface
+   (not the shared --dashboard-glass-surface, which also backs the real
+   KpiCard and AppShell's userMenuTrigger) - see tokens.css's own comment
+   for why and its measured Dark contrast. */
 .card {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-5);
   min-width: 0;
-  background: var(--dashboard-glass-surface);
+  background: var(--dashboard-redesign-kpi-glass-surface);
   backdrop-filter: blur(12px);
 }
 

@@ -85,6 +85,28 @@
   /* Increment 2: near-opaque glass limited to Dashboard KPI cards. */
   --dashboard-glass-surface: rgb(255 255 255 / 90%);
 
+  /* Dashboard redesign prototype KPI glass surface (Estado C's 4 KPI cards,
+     src/app/pages/ui-preview/dashboard-redesign/FullDashboardKpis.module.css)
+     - a dedicated token, NOT an edit of --dashboard-glass-surface above.
+     That token is shared outside this prototype (the real
+     features/dashboard/presentation/KpiCard and
+     shared/ui/AppShell.module.css's .userMenuTrigger both consume it) -
+     editing its value would have moved those two as well, not just this
+     prototype's 4 cards. Light is an untouched alias - no problem was
+     reported there. Dark is reported 2026-11: the shared token's own Dark
+     value (rgb(27 31 30 / 92%) = #1b1f1e, the original warm graphite,
+     unrelated to this prototype) reads as near-black and visually clashes
+     with the rest of this prototype's Dark panels, which already moved to
+     a blue-slate palette in the iteration above
+     (--dashboard-redesign-card-surface: #202d38). This token reuses that
+     exact hex - not a new color - as rgb(32 45 56 / 92%): same blue-slate
+     family as every other card in this prototype, same 92% alpha as the
+     shared token it replaces here (keeps the same glass "strength", only
+     changes its tone), still translucent enough to read as glass rather
+     than the fully opaque --dashboard-redesign-card-surface panels
+     (attention/income/obligations) elsewhere on the same screen. */
+  --dashboard-redesign-kpi-glass-surface: var(--dashboard-glass-surface);
+
   /* Focus */
   --color-focus-ring: var(--color-primary-accent);
 
@@ -177,6 +199,24 @@
   --app-shell-nav-active-background: #eaf0f8;
   --app-shell-nav-active-icon: var(--color-primary);
 
+  /* Trigger's "glass" variant of the AppShell palette
+     (shared/ui/AppShell.module.css's .userMenuTrigger) - a dedicated
+     token, NOT an edit of --dashboard-glass-surface above. That token is
+     shared outside AppShell (also consumed by the real
+     features/dashboard/presentation/KpiCard) - editing its value would
+     have moved that card too, not just this trigger. The trigger needs to
+     keep its translucent glass treatment while matching the --app-shell-*
+     blue-slate palette PR #38 already gave the rest of this component
+     (surface/divider/background above) - PR #38 only ever defined opaque
+     surfaces, so this fills that gap. Light is an untouched alias - no
+     problem was reported there, same precedent as
+     --dashboard-redesign-card-surface above. Dark (reported 2026-11)
+     reuses --app-shell-surface's own hex (#18232d = rgb(24,35,45)) at
+     --dashboard-glass-surface's own 92% alpha - same glass "strength",
+     only its tone changes to match the sidebar/header - see the Dark
+     override's own comment below for the composited contrast. */
+  --app-shell-trigger-glass-surface: var(--dashboard-glass-surface);
+
   /* Hero card surface (Login) - explicit exception, not a general pattern:
      a translucent DARK glass + light backdrop-blur, deliberately the same
      in Light and Dark app themes. This card floats over a photograph, not
@@ -235,6 +275,22 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
   --dashboard-glass-surface: rgb(27 31 30 / 92%);
+  /* See the :root block's own comment above for why this is a dedicated
+     token rather than an edit of --dashboard-glass-surface. Value: the
+     same hex as --dashboard-redesign-card-surface below (#202d38 =
+     rgb(32,45,56)) at the shared token's own 92% alpha. Contrast measured
+     (WCAG formula, calculated not estimated) against the VISUAL result of
+     compositing this translucent surface over --app-shell-background
+     (#101820 = rgb(16,24,32), what backdrop-filter: blur actually shows
+     through) - not against the raw rgba in isolation:
+       composite = rgb(32,45,56) x 0.92 + rgb(16,24,32) x 0.08
+                 = rgb(30.72, 43.32, 54.08) ~= rgb(31,43,54) = #1f2b36
+     - --color-foreground (#edefec) on #1f2b36 -> 12.47:1 (text, needs
+       >=4.5:1).
+     - --color-muted (#aeb7b2) on #1f2b36 -> 7.01:1 (text, needs >=4.5:1).
+     Both comfortably clear WCAG AA with the actual composited color, not
+     just the nominal surface color. */
+  --dashboard-redesign-kpi-glass-surface: rgb(32 45 56 / 92%);
 
   /* Neutrals - graphite, not pure black */
   --color-background: #121514;
@@ -320,6 +376,20 @@
   --app-shell-divider: #344350;
   --app-shell-nav-active-background: #263b51;
   --app-shell-nav-active-icon: var(--color-primary-accent);
+
+  /* See the :root block's own comment above for why this is a dedicated
+     token. Value: rgb(24 35 45 / 92%) = --app-shell-surface's own hex at
+     --dashboard-glass-surface's own 92% alpha. Contrast measured (WCAG
+     formula, calculated not estimated) against the VISUAL result of
+     compositing this translucent surface over --app-shell-background
+     (#101820 = rgb(16,24,32), what backdrop-filter: blur actually shows
+     through, since the trigger floats over the content area which sits
+     on that background) - not against the raw rgba in isolation:
+       composite = rgb(24,35,45) x 0.92 + rgb(16,24,32) x 0.08
+                 = rgb(23.36, 34.12, 43.96) ~= rgb(23,34,44) = #17222c
+     - --color-foreground (#edefec, .userName's own color) on #17222c ->
+       13.95:1 (text, needs >=4.5:1) - wide margin. */
+  --app-shell-trigger-glass-surface: rgb(24 35 45 / 92%);
 
   /* Dashboard redesign prototype card surfaces (Dark) - see the :root
      block's own comment for the formula, values and measured contrast. */

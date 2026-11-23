@@ -75,7 +75,13 @@ export function StateHasProperties() {
           return (
             <div key={property.id} className={styles['card']}>
               <div className={styles['cardTop']}>
-                <IconBadge icon={<PropertyIcon size={20} />} tone="neutral" size={40} radius="md" />
+                <IconBadge
+                  icon={<PropertyIcon size={20} />}
+                  tone="neutral"
+                  size={40}
+                  radius="md"
+                  className={styles['propertyIcon']}
+                />
                 <p className={cx('text-h3', styles['cardName'])}>{property.name}</p>
                 <Badge tone="info" className={styles['cardBadge']}>
                   Disponible

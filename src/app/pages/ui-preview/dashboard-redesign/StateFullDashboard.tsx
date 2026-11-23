@@ -20,7 +20,7 @@ import styles from './StateFullDashboard.module.css'
  * Section order and the "why" behind each one (see this part's own task
  * brief for the full breakdown):
  * 1. FullDashboardKpis - resumen financiero (4 KPI cards, único lugar que usa
- *    --dashboard-glass-surface) + resumen de ocupación.
+ *    --dashboard-redesign-kpi-glass-surface) + resumen de ocupación.
  * 2. FullDashboardQuickActions - accesos rápidos contextuales.
  * 3. FullDashboardAttention + FullDashboardIncomeChart - atención (algo que
  *    ya pasó o necesita acción ahora) y evolución de ingresos, lado a lado en
