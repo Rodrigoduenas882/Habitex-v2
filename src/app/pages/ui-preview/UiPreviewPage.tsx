@@ -17,6 +17,12 @@ import styles from './UiPreviewPage.module.css'
 
 const DashboardVisualPreview = lazy(() => import('./DashboardVisualPreview'))
 
+// Same mechanism as DashboardVisualPreview above (dev-only route, gated at
+// render time by `import.meta.env.DEV` rather than the esbuild-define
+// ternary PropertiesVisualPreview/RentalsVisualPreview use) - see this
+// prototype's own doc comment in DashboardRedesignPrototype.tsx.
+const DashboardRedesignPrototype = lazy(() => import('./dashboard-redesign/DashboardRedesignPrototype'))
+
 // The `lazy()`/`import()` call itself (not just its later render) must sit
 // behind the flag: `import.meta.env['VITE_ENABLE_PROPERTIES_PREVIEW']` is a
 // runtime member access on one shared `import.meta.env` object, so it can't
@@ -48,6 +54,10 @@ export default function UiPreviewPage() {
 
   if (import.meta.env.DEV && view === 'dashboard') {
     return <Suspense fallback={null}><DashboardVisualPreview /></Suspense>
+  }
+
+  if (import.meta.env.DEV && view === 'dashboard-redesign') {
+    return <Suspense fallback={null}><DashboardRedesignPrototype /></Suspense>
   }
 
   // Gated behind an explicit build flag (not `import.meta.env.DEV`, which

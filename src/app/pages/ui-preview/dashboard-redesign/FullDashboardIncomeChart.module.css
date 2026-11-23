@@ -1,0 +1,79 @@
+.panel {
+  align-self: start;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.header h2 {
+  margin-bottom: 2px;
+}
+
+.trendIcon {
+  color: var(--color-primary-accent);
+  flex-shrink: 0;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  column-gap: var(--space-2);
+  padding-bottom: var(--space-5);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-accent);
+  flex-shrink: 0;
+}
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  height: 196px;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.month {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+}
+
+.amount {
+  font-size: var(--font-size-caption);
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+}
+
+.bar {
+  width: min(65%, 56px);
+  min-height: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--color-primary-accent);
+  transition: height var(--transition-base);
+}

@@ -221,6 +221,15 @@ export function CarIcon(props: IconProps) {
   )
 }
 
+export function TrendUpIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 16.5 9.5 11l3.5 3.5L20 7" />
+      <path d="M14.5 7h5.5v5.5" />
+    </IconBase>
+  )
+}
+
 export function InfoIcon(props: IconProps) {
   return (
     <IconBase {...props}>

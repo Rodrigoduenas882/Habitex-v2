@@ -1,0 +1,51 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.eyebrow {
+  color: var(--color-primary-accent);
+  font-weight: 600;
+}
+
+/* Same analytics-pair layout as the real DashboardPage.module.css
+   (.analytics): attention stays first on mobile, the income chart occupies
+   the wider desktop column. */
+.analytics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.analytics > * {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .wrapper {
+    gap: var(--space-7);
+  }
+
+  .analytics {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+
+  .analytics > :first-child {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .analytics > :last-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
