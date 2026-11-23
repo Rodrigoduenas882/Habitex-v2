@@ -74,5 +74,33 @@
   },
   "noAdministration": {
     "title": "Todavía no tienes una administración"
+  },
+  "lifecycle": {
+    "error": {
+      "title": "No pudimos cargar tu panel",
+      "description": "Ocurrió un error al cargar tus inmuebles o arriendos. Intenta de nuevo más tarde."
+    },
+    "newOwner": {
+      "eyebrow": "Hola",
+      "titleWithName": "¡Bienvenido/a, {{name}}!",
+      "titleGeneric": "¡Bienvenido/a!",
+      "subtitle": "Todavía no tienes inmuebles registrados. Agrega el primero para empezar a administrarlo desde aquí.",
+      "addCardTitle": "Agregar tu primer inmueble",
+      "addCardDescription": "Registra su dirección y tipo en pocos minutos.",
+      "cta": "Agregar inmueble"
+    },
+    "hasProperties": {
+      "eyebrowWithName": "Hola, {{name}}",
+      "eyebrowGeneric": "Hola",
+      "title": "Tu portafolio",
+      "subtitle_one": "Tienes {{count}} inmueble registrado. Todavía no tienes arriendos activos.",
+      "subtitle_other": "Tienes {{count}} inmuebles registrados. Todavía no tienes arriendos activos.",
+      "summaryFullProperty_one": "{{count}} inmueble completo",
+      "summaryFullProperty_other": "{{count}} inmuebles completos",
+      "summaryByRooms": "{{count}} por habitaciones",
+      "ctaTitle": "Registra tu primer arriendo",
+      "ctaDescription": "Asocia un arrendatario a uno de tus inmuebles para empezar a llevar el control de pagos.",
+      "cta": "Registrar arriendo"
+    }
   }
 }

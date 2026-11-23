@@ -13,9 +13,12 @@ import { AlertTriangleIcon, BuildingIcon, UsersIcon, WalletIcon } from '@/shared
 import { Skeleton } from '@/shared/ui/Skeleton'
 import { useDashboardAttention } from '../application/useDashboardAttention'
 import { useDashboardFinancials } from '../application/useDashboardFinancials'
+import { useDashboardLifecycleState } from '../application/useDashboardLifecycleState'
 import { useDashboardOccupancy } from '../application/useDashboardOccupancy'
 import { AttentionPanel, type AttentionItem } from './AttentionPanel'
+import { DashboardHasPropertiesState } from './DashboardHasPropertiesState'
 import { DashboardHeader } from './DashboardHeader'
+import { DashboardNewOwnerState } from './DashboardNewOwnerState'
 import styles from './DashboardPage.module.css'
 import { FinancialOverview } from './FinancialOverview'
 import { getDisplayNameFromEmail } from './getDisplayNameFromEmail'
@@ -52,9 +55,15 @@ export interface DashboardViewProps {
  * read-only: no mutation of any kind exists anywhere in this page.
  */
 function DashboardView({ administrationId }: DashboardViewProps) {
+  const { t } = useTranslation('dashboard')
   const { data: session } = useAuthSession()
   const displayName = getDisplayNameFromEmail(session?.email)
 
+  const lifecycle = useDashboardLifecycleState(administrationId)
+  // Same queryKey as every other useProperties(administrationId) call on
+  // this page (property-query-keys.ts) - TanStack Query dedupes this to the
+  // same cache entry useDashboardLifecycleState already populated, never a
+  // second network request.
   const propertiesQuery = useProperties(administrationId)
   const occupancy = useDashboardOccupancy(administrationId)
   const financials = useDashboardFinancials(administrationId)
@@ -68,6 +77,46 @@ function DashboardView({ administrationId }: DashboardViewProps) {
     return { from: ranges[0]?.from ?? '', toExclusive: ranges[ranges.length - 1]?.toExclusive ?? '' }
   }, [])
   const overdueChargesQuery = useAdministrationCharges(administrationId, attentionRange)
+
+  // Estados A/B (INC-DASH-01): a brand-new owner, or an owner with
+  // properties but zero rentals yet, each get their own dedicated
+  // first-run page instead of the full KPI/financial Dashboard, which would
+  // otherwise just show a wall of zeros/empty states. Estado C (has-rentals)
+  // is untouched below - same 7 hooks + DashboardContent as before.
+  if (lifecycle.status === 'loading') {
+    return (
+      <div className={styles['page']} data-testid="dashboard-lifecycle-loading">
+        <Skeleton height={32} width={240} />
+        <Skeleton height={160} radius="lg" />
+      </div>
+    )
+  }
+
+  if (lifecycle.status === 'error') {
+    return (
+      <div className={styles['page']}>
+        <Alert tone="danger" title={t('lifecycle.error.title')}>
+          {t('lifecycle.error.description')}
+        </Alert>
+      </div>
+    )
+  }
+
+  if (lifecycle.status === 'new-owner') {
+    return (
+      <div className={styles['page']}>
+        <DashboardNewOwnerState name={displayName} />
+      </div>
+    )
+  }
+
+  if (lifecycle.status === 'has-properties') {
+    return (
+      <div className={styles['page']}>
+        <DashboardHasPropertiesState name={displayName} properties={propertiesQuery.data ?? []} />
+      </div>
+    )
+  }
 
   return <DashboardContent name={displayName} propertiesQuery={propertiesQuery} occupancy={occupancy}
     financials={financials} attention={attention} propertyOccupancy={propertyOccupancy}
