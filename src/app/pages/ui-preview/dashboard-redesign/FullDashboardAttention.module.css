@@ -1,0 +1,92 @@
+/* No longer the shared <Card> primitive (see FullDashboardAttention.tsx's
+   own comment) - same shape (radius-lg/shadow-sm/space-6 padding) as
+   Card.module.css, but surface/border read from the prototype-only
+   --dashboard-redesign-card-* tokens (tokens.css) so this reads correctly
+   on the new --app-shell-background in Dark. */
+.panel {
+  height: 100%;
+  padding: var(--space-6);
+  background: var(--dashboard-redesign-card-surface);
+  border: 1px solid var(--dashboard-redesign-card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.header {
+  margin-bottom: var(--space-5);
+}
+
+.header p {
+  margin-top: var(--space-1);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Left border added by severity (decisión de diseño "Diferencia visualmente
+   advertencia/vencimiento/confirmación", Parte 2 2026-11) - a third
+   reinforcement alongside the IconBadge tone and the text Badge, without a
+   neon/gradient treatment. Transparent by default so the divider-only
+   `.item:first-child` rule below still fully removes the border-top without
+   also having to special-case the left border's width. */
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  padding-left: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  border-left: 3px solid transparent;
+}
+
+.item:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.itemInfo {
+  border-left-color: var(--color-info);
+}
+
+.itemDanger {
+  border-left-color: var(--color-danger);
+}
+
+.itemWarning {
+  border-left-color: var(--color-warning);
+}
+
+.itemBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.itemMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+@media (max-width: 639px) {
+  .item {
+    flex-wrap: wrap;
+  }
+
+  .itemMeta {
+    align-items: flex-start;
+    flex-direction: row;
+    flex-basis: 100%;
+    gap: var(--space-2);
+    padding-left: calc(36px + var(--space-3));
+  }
+}

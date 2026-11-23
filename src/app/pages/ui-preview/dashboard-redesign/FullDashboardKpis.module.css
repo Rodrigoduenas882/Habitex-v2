@@ -1,0 +1,43 @@
+/* Same 2-col/4-col responsive KPI grid as the real Dashboard's own
+   DashboardPage.module.css (.kpiGrid) - kept local here since this is a
+   separate prototype tree, not a shared import. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Exclusive to these 4 cards per docs/DESIGN.md §14 - no other section of
+   Estado C uses this token. Dedicated --dashboard-redesign-kpi-glass-surface
+   (not the shared --dashboard-glass-surface, which also backs the real
+   KpiCard and AppShell's userMenuTrigger) - see tokens.css's own comment
+   for why and its measured Dark contrast. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  min-width: 0;
+  background: var(--dashboard-redesign-kpi-glass-surface);
+  backdrop-filter: blur(12px);
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+@media (max-width: 639px) {
+  .card {
+    padding: var(--space-4);
+    gap: var(--space-2);
+  }
+}

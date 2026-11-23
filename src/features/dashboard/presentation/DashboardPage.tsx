@@ -13,9 +13,12 @@ import { AlertTriangleIcon, BuildingIcon, UsersIcon, WalletIcon } from '@/shared
 import { Skeleton } from '@/shared/ui/Skeleton'
 import { useDashboardAttention } from '../application/useDashboardAttention'
 import { useDashboardFinancials } from '../application/useDashboardFinancials'
+import { useDashboardLifecycleState } from '../application/useDashboardLifecycleState'
 import { useDashboardOccupancy } from '../application/useDashboardOccupancy'
 import { AttentionPanel, type AttentionItem } from './AttentionPanel'
+import { DashboardHasPropertiesState } from './DashboardHasPropertiesState'
 import { DashboardHeader } from './DashboardHeader'
+import { DashboardNewOwnerState } from './DashboardNewOwnerState'
 import styles from './DashboardPage.module.css'
 import { FinancialOverview } from './FinancialOverview'
 import { getDisplayNameFromEmail } from './getDisplayNameFromEmail'
@@ -52,9 +55,15 @@ export interface DashboardViewProps {
  * read-only: no mutation of any kind exists anywhere in this page.
  */
 function DashboardView({ administrationId }: DashboardViewProps) {
+  const { t } = useTranslation('dashboard')
   const { data: session } = useAuthSession()
   const displayName = getDisplayNameFromEmail(session?.email)
 
+  const lifecycle = useDashboardLifecycleState(administrationId)
+  // Same queryKey as every other useProperties(administrationId) call on
+  // this page (property-query-keys.ts) - TanStack Query dedupes this to the
+  // same cache entry useDashboardLifecycleState already populated, never a
+  // second network request.
   const propertiesQuery = useProperties(administrationId)
   const occupancy = useDashboardOccupancy(administrationId)
   const financials = useDashboardFinancials(administrationId)
@@ -69,12 +78,69 @@ function DashboardView({ administrationId }: DashboardViewProps) {
   }, [])
   const overdueChargesQuery = useAdministrationCharges(administrationId, attentionRange)
 
+  // Estados A/B (INC-DASH-01): a brand-new owner, or an owner with
+  // properties but zero rentals yet, each get their own dedicated
+  // first-run page instead of the full KPI/financial Dashboard, which would
+  // otherwise just show a wall of zeros/empty states. Estado C (has-rentals)
+  // is untouched below - same 7 hooks + DashboardContent as before.
+  if (lifecycle.status === 'loading') {
+    return (
+      <div className={styles['page']} data-testid="dashboard-lifecycle-loading">
+        <Skeleton height={32} width={240} />
+        <Skeleton height={160} radius="lg" />
+      </div>
+    )
+  }
+
+  if (lifecycle.status === 'error') {
+    return (
+      <div className={styles['page']}>
+        <Alert tone="danger" title={t('lifecycle.error.title')}>
+          {t('lifecycle.error.description')}
+        </Alert>
+      </div>
+    )
+  }
+
+  if (lifecycle.status === 'new-owner') {
+    return (
+      <div className={styles['page']}>
+        <DashboardNewOwnerState name={displayName} />
+      </div>
+    )
+  }
+
+  if (lifecycle.status === 'has-properties') {
+    return (
+      <div className={styles['page']}>
+        <DashboardHasPropertiesState name={displayName} properties={propertiesQuery.data ?? []} />
+      </div>
+    )
+  }
+
   return <DashboardContent name={displayName} propertiesQuery={propertiesQuery} occupancy={occupancy}
     financials={financials} attention={attention} propertyOccupancy={propertyOccupancy}
     identities={identities} overdueChargesQuery={overdueChargesQuery} />
 }
 
-/** Shared presentation; queries remain exclusively in DashboardView. */
+/**
+ * Shared presentation; queries remain exclusively in DashboardView.
+ *
+ * PENDING for INC-DASH-02 (not this increment - flagged, not fixed, by
+ * explicit product decision after INC-DASH-01's functional validation):
+ * useDashboardLifecycleState now routes an administration whose only
+ * rental(s) are ENDED (no ACTIVE/ENDING) here, deliberately, to preserve
+ * access to real historical administrative data. But every KPI/chart below
+ * reads only the CURRENT calendar month / last 6 months (useDashboardFinancials,
+ * useDashboardOccupancy) - an ENDED-only administration whose rental ended
+ * more than 6 months ago will legitimately see an all-zero KPI grid and an
+ * empty 6-month income chart, with nothing on this page explaining why. This
+ * is honest (never fabricated data) but needs a contextual message (e.g. "no
+ * hay actividad en los últimos 6 meses" near FinancialOverview/the KPI grid)
+ * specifically for that case - INC-DASH-02's financials/occupancy work is
+ * the right place to design and add it, not a reason to change the
+ * classification rule itself.
+ */
 export interface DashboardContentProps {
   name: string | null
   identities?: ReturnType<typeof useRentalIdentities>

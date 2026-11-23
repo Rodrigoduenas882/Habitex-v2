@@ -241,6 +241,11 @@ describe('DashboardPage', () => {
 
   it('greets the user with a name derived from their session email, not a hardcoded one', async () => {
     resolveOneAdministration()
+    // Estado C (has-rentals) only, so DashboardHeader's own greeting ("Hola,
+    // {{name}}") renders - Estados A/B each have their own, different
+    // first-run greeting (see their own dedicated tests below).
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
     expect(await screen.findByRole('heading', { name: /Hola, Rodrigo/ })).toBeInTheDocument()
@@ -251,6 +256,9 @@ describe('DashboardPage', () => {
   it('never imports/renders a dashboard-mock-data business value - a real, distinctly-computed value renders instead', async () => {
     resolveOneAdministration()
     listProperties.mockResolvedValue([makeProperty(), makeProperty({ id: 'prop-2' }), makeProperty({ id: 'prop-3' })])
+    // At least one rental, so this reaches Estado C (the KPI grid) rather
+    // than Estado B (has-properties, no KPI grid at all).
+    listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
     // The old mock's "Inmuebles" value was the string '7' - a real count of 3
@@ -274,6 +282,13 @@ describe('DashboardPage', () => {
 
   it('shows the explicit no-data state (never a fabricated 0%) when there are zero rentable units', async () => {
     resolveOneAdministration()
+    // A BY_ROOMS property with zero enabled rooms and no parkings has zero
+    // rentable units even though properties.length > 0 - combined with a
+    // rental (any rental, to reach Estado C/has-rentals so the KPI grid
+    // renders at all) this reproduces totalUnits === 0 without relying on
+    // the old "zero properties" case, which is now Estado A.
+    listProperties.mockResolvedValue([makeProperty({ rentalMode: 'BY_ROOMS' })])
+    listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
     expect(await screen.findByText('Sin unidades registradas')).toBeInTheDocument()
@@ -293,6 +308,9 @@ describe('DashboardPage', () => {
     vi.setSystemTime(new Date('2026-09-15T12:00:00'))
 
     resolveOneAdministration()
+    // Estado C (has-rentals), so the KPI grid/financial section render.
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     listCharges.mockResolvedValue([
       makeCharge({ id: 'charge-current', dueDate: '2026-09-05', amount: 500_000, paidAmount: 200_000, balance: 300_000 }),
       makeCharge({ id: 'charge-previous', dueDate: '2026-08-05', amount: 400_000, paidAmount: 150_000, balance: 250_000 }),
@@ -307,37 +325,49 @@ describe('DashboardPage', () => {
     expect(screen.getByText('$350.000')).toBeInTheDocument()
   })
 
-  it('shows a loading skeleton for the properties KPI while useProperties is pending, never a stale/zero value', async () => {
+  it('shows the lifecycle loading skeleton while useProperties is pending, never a stale/zero value or Estado A/B', async () => {
     resolveOneAdministration()
     listProperties.mockImplementation(() => new Promise(() => {}))
     render(<DashboardPage />)
 
-    expect(await screen.findByTestId('kpi-properties-loading')).toBeInTheDocument()
+    // useDashboardLifecycleState stays 'loading' while properties is still
+    // pending (see its own tests), so DashboardView shows the generic
+    // lifecycle skeleton - never the KPI grid, nor a 0/Estado A fallback.
+    expect(await screen.findByTestId('dashboard-lifecycle-loading')).toBeInTheDocument()
     expect(screen.queryByText('0')).not.toBeInTheDocument()
+    expect(screen.queryByText('Inmuebles')).not.toBeInTheDocument()
+    expect(screen.queryByText('Agregar inmueble')).not.toBeInTheDocument()
   })
 
-  it('shows an error state when useProperties errors, never a mock/fabricated fallback', async () => {
+  it('shows an explicit lifecycle error (never a mock/fabricated fallback) when useProperties errors', async () => {
     resolveOneAdministration()
     listProperties.mockRejectedValue(new Error('boom'))
     render(<DashboardPage />)
 
-    expect(await screen.findByText('No pudimos cargar tus inmuebles.')).toBeInTheDocument()
+    expect(await screen.findByText('No pudimos cargar tu panel')).toBeInTheDocument()
     expect(screen.queryByText('7')).not.toBeInTheDocument()
+    // Never confused with Estado A's legitimate "zero properties" empty state.
+    expect(screen.queryByText('Agregar inmueble')).not.toBeInTheDocument()
   })
 
-  it('renders each section\'s real empty state for a legitimately empty administration (zero properties, zero reported payments)', async () => {
+  it('renders AttentionPanel\'s real empty state ("Todo al día") within Estado C for an administration with legitimately zero reported payments/overdue charges', async () => {
     resolveOneAdministration()
+    // Estado C (has-rentals) - zero reported payments/charges is a property
+    // of AttentionPanel's own data, not of the lifecycle state.
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
     expect(await screen.findByText('Todo al día')).toBeInTheDocument()
-    await screen.findByText('Tu portafolio empieza aquí')
-    expect(screen.getAllByRole('button', { name: 'Agregar inmueble' })).toHaveLength(2)
-    expect(screen.queryByText('Apartamento 302')).not.toBeInTheDocument()
   })
 
   it('renders the real property list with its own name/location derived from real Property fields', async () => {
     resolveOneAdministration()
     listProperties.mockResolvedValue([makeProperty()])
+    // At least one rental, so this reaches Estado C's PropertiesOverview
+    // carousel (the component under test here) rather than Estado B's own,
+    // differently-laid-out property cards.
+    listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
     expect(await screen.findByText('Apartamento 302')).toBeInTheDocument()
@@ -346,6 +376,8 @@ describe('DashboardPage', () => {
 
   it('renders one AttentionPanel item per REPORTED payment with the real amount/date, never a contract/document item', async () => {
     resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     listReportedPayments.mockResolvedValue([
       makePayment({ id: 'payment-a', amount: 950_000, paymentDate: '2026-01-05' }),
     ])
@@ -360,6 +392,8 @@ describe('DashboardPage', () => {
 
   it('wires the AttentionPanel item\'s "Ver" link to that REPORTED payment\'s own relationship id (DS-004)', async () => {
     resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     listReportedPayments.mockResolvedValue([
       makePayment({ id: 'payment-a', amount: 950_000, paymentDate: '2026-01-05', rentalRelationshipId: 'rel-1' }),
     ])
@@ -372,6 +406,7 @@ describe('DashboardPage', () => {
   it('only the "Inmuebles" KPI is a real link (to /properties) - the other three stay non-interactive (DS-004)', async () => {
     resolveOneAdministration()
     listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
     const propertiesLink = await screen.findByRole('link', { name: 'Inmuebles 1' })
@@ -384,6 +419,8 @@ describe('DashboardPage', () => {
 
   it('renders AttentionPanel\'s content before FinancialOverview\'s content in document order (DS-004 hierarchy swap)', async () => {
     resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     listReportedPayments.mockResolvedValue([makePayment({ id: 'payment-a' })])
     const { container } = render(<DashboardPage />)
 
@@ -401,6 +438,8 @@ describe('DashboardPage', () => {
 
   it('renders FinancialOverview with only the income series - no expenses bar/legend/total anywhere on the page', async () => {
     resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     listCharges.mockResolvedValue([makeCharge()])
     render(<DashboardPage />)
 
@@ -410,6 +449,8 @@ describe('DashboardPage', () => {
 
   it('uses the reported subject and only the backend OVERDUE status for the overdue charge link', async () => {
     resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     listReportedPayments.mockResolvedValue([makePayment({ id: 'reported', rentalRelationshipId: 'rel-1' })])
     listCharges.mockResolvedValue([
       makeCharge({ id: 'overdue', rentalRelationshipId: 'rel-1', balance: 780_000, financialStatus: 'OVERDUE' }),
@@ -417,7 +458,10 @@ describe('DashboardPage', () => {
     ])
     render(<DashboardPage />)
     expect(await screen.findByText('Cobro vencido')).toBeInTheDocument()
-    expect(screen.getAllByText('Apartamento 302')).toHaveLength(2)
+    // Two AttentionPanel rows (reported payment + overdue charge) plus the
+    // real property's own PropertiesOverview card, all sharing the same
+    // identity label/name by fixture design.
+    expect(screen.getAllByText('Apartamento 302')).toHaveLength(3)
     expect(screen.getByText('$780.000')).toBeInTheDocument()
     const links = screen.getAllByRole('link', { name: 'Ver' })
     expect(links.map(link => link.getAttribute('href'))).toEqual(['/rentals/rel-1/payments', '/rentals/rel-1/charges'])
@@ -425,6 +469,8 @@ describe('DashboardPage', () => {
 
   it('renders all four KPI labels and the four quick action buttons', async () => {
     resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
     expect(await screen.findByText('Ingresos del mes')).toBeInTheDocument()
@@ -435,8 +481,34 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('button', { name: 'Crear arriendo' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Subir documento' })).toBeInTheDocument()
-    await screen.findByText('Tu portafolio empieza aquí')
-    expect(screen.getAllByRole('button', { name: 'Agregar inmueble' })).toHaveLength(2)
+  })
+
+  it('shows Estado A (new-owner) when the administration has zero properties, with a real CTA link to /properties/new', async () => {
+    resolveOneAdministration()
+    // Both default to [] via beforeEach - the legitimate "brand-new owner" case.
+    render(<DashboardPage />)
+
+    expect(await screen.findByRole('heading', { name: /Rodrigo/ })).toBeInTheDocument()
+    const cta = screen.getByRole('link', { name: 'Agregar inmueble' })
+    expect(cta).toHaveAttribute('href', '/properties/new')
+    // Never the full KPI dashboard nor Estado B's portfolio copy.
+    expect(screen.queryByText('Inmuebles')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tu portafolio')).not.toBeInTheDocument()
+  })
+
+  it('shows Estado B (has-properties) when there is at least one property and zero rentals, with the real property and a CTA link to /rentals/new', async () => {
+    resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    // listRentals stays [] via beforeEach - properties exist, no rentals yet.
+    render(<DashboardPage />)
+
+    expect(await screen.findByText('Apartamento 302')).toBeInTheDocument()
+    expect(screen.getByText('Tu portafolio')).toBeInTheDocument()
+    const cta = screen.getByRole('link', { name: 'Registrar arriendo' })
+    expect(cta).toHaveAttribute('href', '/rentals/new')
+    // Never the full KPI dashboard nor Estado A's onboarding copy.
+    expect(screen.queryByText('Inmuebles')).not.toBeInTheDocument()
+    expect(screen.queryByText('Agregar tu primer inmueble')).not.toBeInTheDocument()
   })
 
   it('shows the AdministrationPicker when more than one administration is accessible', async () => {

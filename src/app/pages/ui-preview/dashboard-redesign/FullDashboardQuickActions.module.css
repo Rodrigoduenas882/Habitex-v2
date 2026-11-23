@@ -1,0 +1,98 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--sidebar-width)), 1fr));
+  gap: var(--space-3);
+}
+
+.action {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--dashboard-redesign-card-border);
+  background: var(--dashboard-redesign-card-surface);
+  color: var(--color-foreground);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.action:hover {
+  border-color: var(--color-primary-accent);
+  background: var(--dashboard-redesign-card-surface-hover);
+}
+
+.action:hover .arrow {
+  transform: translateX(2px);
+}
+
+/* Higher-weight variant for the single most relevant action ("Registrar
+   pago" - see FullDashboardQuickActions.tsx's own comment). Solid
+   --color-primary fill, same tone Button's own `variant="primary"` uses,
+   so it reads as the one primary action among three secondary tiles. */
+.actionPrimary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.actionPrimary:hover {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+}
+
+.actionPrimary .arrow {
+  color: var(--color-primary-foreground);
+}
+
+.primaryIcon {
+  flex-shrink: 0;
+  color: var(--color-primary-foreground);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  text-align: left;
+}
+
+.arrow {
+  flex-shrink: 0;
+  color: var(--color-muted);
+  transition: transform var(--transition-fast);
+}
+
+@media (max-width: 1023px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 639px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .action {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .label {
+    white-space: normal;
+    overflow: visible;
+  }
+
+  .arrow {
+    display: none;
+  }
+}

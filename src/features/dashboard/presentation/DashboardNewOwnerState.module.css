@@ -1,0 +1,57 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 560px;
+}
+
+.eyebrow {
+  color: var(--color-primary-accent);
+  font-weight: 600;
+}
+
+.title {
+  margin-top: var(--space-1);
+}
+
+.subtitle {
+  margin-top: var(--space-1);
+}
+
+/* Full-width horizontal card (icon + copy + explicit Button), same shape as
+   the approved prototype (StateNewOwner.module.css's .addCard) - but reads
+   its surface/border from the shared Card primitive (--color-surface/
+   -border) instead of the prototype-only --dashboard-redesign-card-*
+   tokens, which don't exist outside /ui-preview. */
+.addCard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  width: 100%;
+}
+
+.addBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.addButton {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 639px) {
+  .addCard {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+}
