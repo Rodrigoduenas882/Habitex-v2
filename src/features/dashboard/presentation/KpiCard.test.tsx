@@ -51,4 +51,10 @@ describe('KpiCard', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
+
+  it('maps the "danger" tone (INC-DASH-02\'s "Vencido" KPI) through to IconBadge\'s own danger tone', () => {
+    const { container } = render(<KpiCard icon={<span />} label="Vencido" value="$0" tone="danger" />)
+
+    expect(container.querySelector('[class*="danger"]')).not.toBeNull()
+  })
 })

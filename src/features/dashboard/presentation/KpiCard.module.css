@@ -5,7 +5,11 @@
   padding: var(--space-5);
   height: 100%;
   min-width: 0;
-  background: var(--dashboard-glass-surface);
+  /* INC-DASH-02: same dedicated glass token the approved prototype's 4 KPI
+     cards used (tokens.css) - aliases --dashboard-glass-surface in Light,
+     diverges to the blue-slate family in Dark so these cards read on top of
+     --app-shell-background instead of the old near-black graphite glass. */
+  background: var(--dashboard-redesign-kpi-glass-surface);
   backdrop-filter: blur(12px);
 }
 

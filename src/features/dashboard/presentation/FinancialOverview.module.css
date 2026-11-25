@@ -1,4 +1,16 @@
 .panel { align-self: start; }
+
+/* INC-DASH-02: doubled selector (specificity 0,0,2,0, beats the shared
+   Card.module.css .card rule - 0,0,1,0 - regardless of CSS Module import/
+   bundle order, no !important) to port this panel to the approved
+   prototype's blue-slate surface (tokens.css's --dashboard-redesign-card-*)
+   instead of the shared --color-surface/--color-border Card still uses
+   everywhere else. Only the two color properties change - padding/radius/
+   shadow/border-width all stay Card's own. */
+.panel.panel {
+  background: var(--dashboard-redesign-card-surface);
+  border-color: var(--dashboard-redesign-card-border);
+}
 .amount { font-size: var(--font-size-caption); color: var(--color-muted); font-variant-numeric: tabular-nums; }
 .header {
   margin-bottom: var(--space-5);

@@ -414,6 +414,19 @@ El Dashboard de producción conserva sus consultas existentes y los estados
 loading/error/empty. El preview local usa la misma presentación con datos
 de demostración, marcados visiblemente y sin consultas de producto.
 
+**INC-DASH-02 (Dashboard financiero funcional).** `KpiCard` (las 4 tarjetas
+reales de Estado C) y `FinancialOverview` migraron del token compartido
+`--dashboard-glass-surface`/`--color-surface` a los tokens
+`--dashboard-redesign-kpi-glass-surface`/`--dashboard-redesign-card-surface`/
+`-border` (`tokens.css`) — los mismos ya aprobados para el prototipo de
+rediseño. En Light son alias idénticos a los tokens compartidos (sin cambio
+visual); en Dark divergen a la paleta azul-pizarra de `AppShell`
+(`#202d38` en vez del grafito `#1b1f1e` de `--color-surface`), para que
+Estado C ya no choque visualmente contra el `AppShell`/Estados A y B.
+`AttentionPanel` y `PropertiesOverview` **no** migraron — siguen en
+`--color-surface` como el resto de la app; esta excepción es exclusiva de
+los dos componentes financieros, no un cambio general del Dashboard.
+
 
 ## 15. Inmuebles y Parqueaderos — Sprint 2
 
@@ -940,10 +953,12 @@ la auditoría señaló. El resumen **no se muestra** cuando no hay cargos
 `RentalListCard`'s `rentAmountUnknown`).
 
 Deliberadamente **no es** `KpiCard` (`features/dashboard/presentation/`):
-ese primitive usa `--dashboard-glass-surface` + `backdrop-filter`, y
-`DESIGN.md` §14 reserva ese vidrio **exclusivamente** a las 4 KPI cards del
-Dashboard y el disparador del menú de usuario ("las tablas conservan
-fondos sólidos"). `FinancialSummaryTile` es un `Card` sólido (mismo
+ese primitive usa `--dashboard-redesign-kpi-glass-surface` + `backdrop-filter`
+(alias de `--dashboard-glass-surface` en Light; diverge a la paleta
+azul-pizarra en Dark desde INC-DASH-02 - ver §14), y `DESIGN.md` §14 reserva
+ese vidrio **exclusivamente** a las 4 KPI cards del Dashboard y el
+disparador del menú de usuario ("las tablas conservan fondos sólidos").
+`FinancialSummaryTile` es un `Card` sólido (mismo
 `--color-surface` que el resto de la página) + `IconBadge` + valor
 `text-h3 tabular-nums` — ningún vidrio nuevo, ningún primitive duplicado.
 El tile de "Saldo pendiente" es la única navegación contextual al detalle

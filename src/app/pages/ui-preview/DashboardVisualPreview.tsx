@@ -28,7 +28,7 @@ export default function DashboardVisualPreview() {
     name: 'Rodrigo',
     propertiesQuery: { data: empty ? [] : properties, isLoading: false, isError: false },
     occupancy: { status: 'ready', occupiedUnits: empty ? 0 : 2, totalUnits: empty ? 0 : 3, percentage: empty ? null : 67 },
-    financials: { status: 'ready', monthlyIncome: empty ? 0 : 4100000, monthlyReceivable: empty ? 0 : 2150000, monthlySeries: ['Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov'].map((label, i) => ({ label, income: empty ? 0 : [2900000, 3400000, 3150000, 3800000, 3650000, 4100000][i] ?? 0 })) },
+    financials: { status: 'ready', monthlyIncome: empty ? 0 : 4100000, monthlyReceivable: empty ? 0 : 2150000, overdueAmount: empty ? 0 : overdue.balance, monthlySeries: ['Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov'].map((label, i) => ({ label, income: empty ? 0 : [2900000, 3400000, 3150000, 3800000, 3650000, 4100000][i] ?? 0 })) },
     identities: { status: 'ready', byRelationshipId: new Map(properties.map((property, i) => [
       'demo-rental-' + String(i), { subjectLabel: property.name, tenantName: null, rentAmount: null },
     ])) },
