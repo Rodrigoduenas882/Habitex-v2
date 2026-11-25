@@ -8,8 +8,9 @@ import { AdministrationPicker } from '@/features/administration/presentation/Adm
 import { useAuthSession } from '@/features/auth/application/useAuthSession'
 import { useProperties } from '@/features/properties/application/useProperties'
 import { usePropertyOccupancy } from '@/features/properties/application/usePropertyOccupancy'
+import { useRentals } from '@/features/rentals/application/useRentals'
 import { Alert } from '@/shared/ui/Alert'
-import { AlertTriangleIcon, BuildingIcon, UsersIcon, WalletIcon } from '@/shared/ui/icons'
+import { AlertTriangleIcon, UsersIcon, WalletIcon } from '@/shared/ui/icons'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import { useDashboardAttention } from '../application/useDashboardAttention'
 import { useDashboardFinancials } from '../application/useDashboardFinancials'
@@ -47,6 +48,24 @@ export interface DashboardViewProps {
 }
 
 /**
+ * Whether the administration currently has a "live" rental (ACTIVE/ENDING),
+ * derived fail-closed from useRentals - never collapses a pending/failed
+ * query into "no active rentals" (INC-DASH-02's explicit product
+ * requirement: a query failure must never be read as "sin arriendos
+ * activos"). 'noActiveOrEnding' only means what it says once the query has
+ * actually resolved successfully.
+ */
+export type ActiveRentalStatus = 'loading' | 'error' | 'hasActiveOrEnding' | 'noActiveOrEnding'
+
+function toActiveRentalStatus(rentalsQuery: ReturnType<typeof useRentals>): ActiveRentalStatus {
+  if (rentalsQuery.isLoading) return 'loading'
+  if (rentalsQuery.isError) return 'error'
+  return (rentalsQuery.data ?? []).some((rental) => rental.status === 'ACTIVE' || rental.status === 'ENDING')
+    ? 'hasActiveOrEnding'
+    : 'noActiveOrEnding'
+}
+
+/**
  * The real page body, mounted only once administrationId is resolved (same
  * loading/error/none/selection-required/resolved split as RentalPaymentsPage/
  * RentalChargesPage). Every KPI/section below is wired to its own real
@@ -65,6 +84,12 @@ function DashboardView({ administrationId }: DashboardViewProps) {
   // same cache entry useDashboardLifecycleState already populated, never a
   // second network request.
   const propertiesQuery = useProperties(administrationId)
+  // Same queryKey as useDashboardLifecycleState's own internal useRentals
+  // call - dedupes against that cache entry, never a second network
+  // request. Only consumed by the 'has-rentals' branch below (the ENDED-
+  // only contextual notice); Estados A/B never reach that branch.
+  const rentalsQuery = useRentals(administrationId)
+  const activeRentalStatus = toActiveRentalStatus(rentalsQuery)
   const occupancy = useDashboardOccupancy(administrationId)
   const financials = useDashboardFinancials(administrationId)
   const attention = useDashboardAttention(administrationId)
@@ -120,26 +145,21 @@ function DashboardView({ administrationId }: DashboardViewProps) {
 
   return <DashboardContent name={displayName} propertiesQuery={propertiesQuery} occupancy={occupancy}
     financials={financials} attention={attention} propertyOccupancy={propertyOccupancy}
-    identities={identities} overdueChargesQuery={overdueChargesQuery} />
+    identities={identities} overdueChargesQuery={overdueChargesQuery} activeRentalStatus={activeRentalStatus} />
 }
 
 /**
  * Shared presentation; queries remain exclusively in DashboardView.
  *
- * PENDING for INC-DASH-02 (not this increment - flagged, not fixed, by
- * explicit product decision after INC-DASH-01's functional validation):
- * useDashboardLifecycleState now routes an administration whose only
- * rental(s) are ENDED (no ACTIVE/ENDING) here, deliberately, to preserve
- * access to real historical administrative data. But every KPI/chart below
- * reads only the CURRENT calendar month / last 6 months (useDashboardFinancials,
- * useDashboardOccupancy) - an ENDED-only administration whose rental ended
- * more than 6 months ago will legitimately see an all-zero KPI grid and an
- * empty 6-month income chart, with nothing on this page explaining why. This
- * is honest (never fabricated data) but needs a contextual message (e.g. "no
- * hay actividad en los últimos 6 meses" near FinancialOverview/the KPI grid)
- * specifically for that case - INC-DASH-02's financials/occupancy work is
- * the right place to design and add it, not a reason to change the
- * classification rule itself.
+ * INC-DASH-02: the ENDED-only case flagged by INC-DASH-01 (an
+ * administration whose only rental(s) are ENDED, no ACTIVE/ENDING, still
+ * lands here per useDashboardLifecycleState - deliberately, to preserve
+ * access to real historical data) now gets an explicit contextual notice
+ * (`activeRentalStatus === 'noActiveOrEnding'`) instead of a silent
+ * all-zero KPI grid with no explanation. The notice is unconditional on the
+ * KPI values themselves (shown regardless of whether the 6-month window
+ * happens to have any real figures) - a deliberate product decision, not a
+ * detail this component infers on its own.
  */
 export interface DashboardContentProps {
   name: string | null
@@ -150,8 +170,11 @@ export interface DashboardContentProps {
   financials: ReturnType<typeof useDashboardFinancials>
   attention: ReturnType<typeof useDashboardAttention>
   propertyOccupancy: ReturnType<typeof usePropertyOccupancy>
+  /** Omitted (e.g. DashboardVisualPreview's fixture) defaults to
+   * 'hasActiveOrEnding' - never shows the ENDED-only notice unasked. */
+  activeRentalStatus?: ActiveRentalStatus
 }
-export function DashboardContent({ name, propertiesQuery, occupancy, financials, attention, propertyOccupancy, identities, overdueChargesQuery }: DashboardContentProps) {
+export function DashboardContent({ name, propertiesQuery, occupancy, financials, attention, propertyOccupancy, identities, overdueChargesQuery, activeRentalStatus = 'hasActiveOrEnding' }: DashboardContentProps) {
   const { t } = useTranslation('dashboard')
   const attentionItems: AttentionItem[] = attention.reportedPayments.map((payment) => ({
     id: payment.id,
@@ -187,6 +210,10 @@ export function DashboardContent({ name, propertiesQuery, occupancy, financials,
     <div className={styles['page']}>
       <DashboardHeader name={name} />
 
+      {activeRentalStatus === 'noActiveOrEnding' ? (
+        <Alert tone="info">{t('noActiveRentals.message')}</Alert>
+      ) : null}
+
       <div className={styles['kpiGrid']}>
         <KpiCard
           icon={<WalletIcon size={18} />}
@@ -219,6 +246,21 @@ export function DashboardContent({ name, propertiesQuery, occupancy, financials,
           trend={financials.status === 'error' ? t('kpis.loadError') : financials.status === 'ready' ? t('kpis.receivableScope') : undefined}
         />
         <KpiCard
+          icon={<AlertTriangleIcon size={18} />}
+          label={t('kpis.overdue')}
+          tone="danger"
+          value={
+            financials.status === 'loading' ? (
+              <Skeleton height={32} width={96} data-testid="kpi-overdue-loading" />
+            ) : financials.status === 'error' ? (
+              '—'
+            ) : (
+              formatCurrency(financials.overdueAmount)
+            )
+          }
+          trend={financials.status === 'error' ? t('kpis.loadError') : financials.status === 'ready' ? t('kpis.overdueScope') : undefined}
+        />
+        <KpiCard
           icon={<UsersIcon size={18} />}
           label={t('kpis.occupancy')}
           tone="info"
@@ -232,22 +274,6 @@ export function DashboardContent({ name, propertiesQuery, occupancy, financials,
             )
           }
           trend={occupancyTrend}
-        />
-        <KpiCard
-          icon={<BuildingIcon size={18} />}
-          label={t('kpis.properties')}
-          tone="neutral"
-          value={
-            propertiesQuery.isLoading ? (
-              <Skeleton height={32} width={48} data-testid="kpi-properties-loading" />
-            ) : propertiesQuery.isError ? (
-              '—'
-            ) : (
-              String(propertiesQuery.data?.length ?? 0)
-            )
-          }
-          trend={propertiesQuery.isError ? t('kpis.loadError') : undefined}
-          to="/properties"
         />
       </div>
 

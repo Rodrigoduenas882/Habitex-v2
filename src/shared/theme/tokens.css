@@ -85,14 +85,13 @@
   /* Increment 2: near-opaque glass limited to Dashboard KPI cards. */
   --dashboard-glass-surface: rgb(255 255 255 / 90%);
 
-  /* Dashboard redesign prototype KPI glass surface (Estado C's 4 KPI cards,
-     src/app/pages/ui-preview/dashboard-redesign/FullDashboardKpis.module.css)
-     - a dedicated token, NOT an edit of --dashboard-glass-surface above.
-     That token is shared outside this prototype (the real
-     features/dashboard/presentation/KpiCard and
-     shared/ui/AppShell.module.css's .userMenuTrigger both consume it) -
-     editing its value would have moved those two as well, not just this
-     prototype's 4 cards. Light is an untouched alias - no problem was
+  /* KPI glass surface - originally the dashboard-redesign PROTOTYPE's 4 KPI
+     cards only; since INC-DASH-02 it is ALSO the real
+     features/dashboard/presentation/KpiCard's own glass (Estado C, 4 real
+     KPI cards) - a dedicated token, NOT an edit of --dashboard-glass-surface
+     above. That token is still shared by shared/ui/AppShell.module.css's
+     .userMenuTrigger - editing its value would have moved that too, not
+     just these KPI cards. Light is an untouched alias - no problem was
      reported there. Dark is reported 2026-11: the shared token's own Dark
      value (rgb(27 31 30 / 92%) = #1b1f1e, the original warm graphite,
      unrelated to this prototype) reads as near-black and visually clashes
@@ -229,10 +228,14 @@
   --hero-card-foreground-muted: rgb(255 255 255 / 74%);
   --hero-card-trend-foreground: #7be3ac;
 
-  /* Dashboard redesign prototype card surfaces
-     (src/app/pages/ui-preview/dashboard-redesign) - dedicated tokens, not
-     reuses of --color-surface/-hover/--color-border. Every card in that
-     prototype sits directly on --app-shell-background, and in Dark that
+  /* Originally the dashboard-redesign PROTOTYPE's own card surfaces
+     (src/app/pages/ui-preview/dashboard-redesign); since INC-DASH-02,
+     --dashboard-redesign-card-surface/-border are ALSO consumed by the real
+     features/dashboard/presentation/FinancialOverview panel (Estado C) -
+     dedicated tokens, not reuses of --color-surface/-hover/--color-border.
+     Every card in that prototype sits directly on --app-shell-background, and
+     the real FinancialOverview, once Estado A/B/C share the lifecycle-gated
+     DashboardPage, sits on the same --app-shell-background too. In Dark that
      background got a new blue-slate palette from PR #38
      (--app-shell-background #101820 / --app-shell-surface #18232d /
      --app-shell-divider #344350) while --color-surface's own Dark value

@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
-import type { Charge, ChargeType } from '@/features/charges/domain/charge.types'
+import type { Charge, ChargeFinancialStatus, ChargeType } from '@/features/charges/domain/charge.types'
 import { currentMonthRange, lastNMonthRanges } from '../domain/month-range'
 import { useDashboardFinancials } from './useDashboardFinancials'
 
@@ -25,6 +25,10 @@ interface ChargeFixtureInput {
   dueDate: string
   paidAmount: number
   balance: number
+  /** Defaults to the same derivation the original fixtures relied on
+   * (PAID when fully paid, PARTIAL otherwise) - explicit override lets
+   * OVERDUE/PENDING fixtures exist without disturbing that default. */
+  financialStatus?: ChargeFinancialStatus
 }
 
 function charge(input: ChargeFixtureInput): Charge {
@@ -46,7 +50,7 @@ function charge(input: ChargeFixtureInput): Charge {
     createdAt: '2026-01-01T00:00:00Z',
     paidAmount: input.paidAmount,
     balance: input.balance,
-    financialStatus: input.balance === 0 ? 'PAID' : 'PARTIAL',
+    financialStatus: input.financialStatus ?? (input.balance === 0 ? 'PAID' : 'PARTIAL'),
   }
 }
 
@@ -80,6 +84,7 @@ describe('useDashboardFinancials', () => {
 
     expect(result.current.monthlyReceivable).toBe(600_000)
     expect(result.current.monthlyIncome).toBe(400_000)
+    expect(result.current.overdueAmount).toBe(0)
 
     expect(result.current.monthlySeries).toHaveLength(6)
     expect(result.current.monthlySeries[0]).toEqual({ label: oldestRange.label, income: 100_000 })
@@ -107,7 +112,69 @@ describe('useDashboardFinancials', () => {
 
     expect(result.current.monthlyReceivable).toBe(0)
     expect(result.current.monthlyIncome).toBe(0)
+    expect(result.current.overdueAmount).toBe(0)
     expect(result.current.monthlySeries.every((month) => month.income === 0)).toBe(true)
+  })
+
+  it('computes overdueAmount from OVERDUE RENT charges across the full 6-month window, not just the current month', async () => {
+    const monthRanges = lastNMonthRanges(6)
+    const current = currentMonthRange()
+    const oldestRange = monthRanges[0]
+    if (!oldestRange) {
+      throw new Error('test setup: expected at least 1 month range')
+    }
+
+    const overdueOldMonth = charge({ chargeType: 'RENT', dueDate: oldestRange.from, paidAmount: 0, balance: 300_000, financialStatus: 'OVERDUE' })
+    const overdueCurrentMonth = charge({ chargeType: 'RENT', dueDate: current.from, paidAmount: 100_000, balance: 150_000, financialStatus: 'OVERDUE' })
+
+    listByAdministration.mockResolvedValueOnce([overdueOldMonth, overdueCurrentMonth])
+
+    const { result } = renderHook(() => useDashboardFinancials('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready')
+    })
+
+    // Sums balance (not paidAmount) across BOTH months - overdue arrears are
+    // not limited to the current month the way monthlyReceivable/
+    // monthlyIncome are.
+    expect(result.current.overdueAmount).toBe(450_000)
+    // The current-month OVERDUE charge also counts toward monthlyReceivable
+    // - the two are deliberately not mutually exclusive.
+    expect(result.current.monthlyReceivable).toBe(150_000)
+  })
+
+  it('excludes PARTIAL/PENDING/PAID charges from overdueAmount - only financialStatus === "OVERDUE" counts, never inferred from balance > 0', async () => {
+    const current = currentMonthRange()
+    const partial = charge({ chargeType: 'RENT', dueDate: current.from, paidAmount: 100_000, balance: 400_000, financialStatus: 'PARTIAL' })
+    const pending = charge({ chargeType: 'RENT', dueDate: current.from, paidAmount: 0, balance: 500_000, financialStatus: 'PENDING' })
+    const paid = charge({ chargeType: 'RENT', dueDate: current.from, paidAmount: 200_000, balance: 0, financialStatus: 'PAID' })
+
+    listByAdministration.mockResolvedValueOnce([partial, pending, paid])
+
+    const { result } = renderHook(() => useDashboardFinancials('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready')
+    })
+
+    expect(result.current.overdueAmount).toBe(0)
+  })
+
+  it('excludes non-RENT OVERDUE charges from overdueAmount', async () => {
+    const current = currentMonthRange()
+    listByAdministration.mockResolvedValueOnce([
+      charge({ chargeType: 'ADMINISTRATION', dueDate: current.from, paidAmount: 0, balance: 300_000, financialStatus: 'OVERDUE' }),
+      charge({ chargeType: 'UTILITY', dueDate: current.from, paidAmount: 0, balance: 200_000, financialStatus: 'OVERDUE' }),
+    ])
+
+    const { result } = renderHook(() => useDashboardFinancials('admin-1'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready')
+    })
+
+    expect(result.current.overdueAmount).toBe(0)
   })
 
   it('reports status "loading" while the underlying charges query is still pending', () => {

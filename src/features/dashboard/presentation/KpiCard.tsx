@@ -6,13 +6,14 @@ import { IconBadge, type IconBadgeTone } from '@/shared/ui/IconBadge'
 import { ArrowRightIcon } from '@/shared/ui/icons'
 import styles from './KpiCard.module.css'
 
-export type KpiTone = 'success' | 'warning' | 'info' | 'neutral'
+export type KpiTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 
 /** KpiCard's own tone vocabulary predates IconBadge's - "neutral" here has
  * always looked like IconBadge's "primary" tone (see KpiCard.module.css). */
 const ICON_BADGE_TONE: Record<KpiTone, IconBadgeTone> = {
   success: 'success',
   warning: 'warning',
+  danger: 'danger',
   info: 'info',
   neutral: 'primary',
 }

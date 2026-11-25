@@ -10,7 +10,7 @@ import type { Property } from '@/features/properties/domain/property.types'
 import type { RentalRelationshipSubjectLink, RentalSubject } from '@/features/rentals/domain/rental-subject.types'
 import type { RentalRelationship } from '@/features/rentals/domain/rental.types'
 import { createTestQueryClient } from '@/shared/testing/createTestQueryClient'
-import DashboardPage from './DashboardPage'
+import DashboardPage, { DashboardContent, type DashboardContentProps } from './DashboardPage'
 
 const { listParkings } = vi.hoisted(() => ({ listParkings: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/features/parking/infrastructure/supabase-parking.repository', () => ({ supabaseParkingRepository: { listByAdministration: listParkings } }))
@@ -253,17 +253,23 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('button', { name: 'Ver estados vacíos' })).not.toBeInTheDocument()
   })
 
-  it('never imports/renders a dashboard-mock-data business value - a real, distinctly-computed value renders instead', async () => {
+  it('never imports/renders a dashboard-mock-data business value - real, distinctly-named properties render instead', async () => {
     resolveOneAdministration()
-    listProperties.mockResolvedValue([makeProperty(), makeProperty({ id: 'prop-2' }), makeProperty({ id: 'prop-3' })])
+    listProperties.mockResolvedValue([
+      makeProperty({ name: 'Apartamento Real Uno' }),
+      makeProperty({ id: 'prop-2', name: 'Apartamento Real Dos' }),
+      makeProperty({ id: 'prop-3', name: 'Apartamento Real Tres' }),
+    ])
     // At least one rental, so this reaches Estado C (the KPI grid) rather
     // than Estado B (has-properties, no KPI grid at all).
     listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
-    // The old mock's "Inmuebles" value was the string '7' - a real count of 3
-    // renders instead, which could never coincidentally match the mock.
-    expect(await screen.findByText('3')).toBeInTheDocument()
+    // The old mock-data module never produced these exact names - real data
+    // flowing through PropertiesOverview, never a mock fossil.
+    expect(await screen.findByText('Apartamento Real Uno')).toBeInTheDocument()
+    expect(screen.getByText('Apartamento Real Dos')).toBeInTheDocument()
+    expect(screen.getByText('Apartamento Real Tres')).toBeInTheDocument()
   })
 
   it('renders the real occupied/total occupancy percentage and its trend text for a specific scenario', async () => {
@@ -335,7 +341,7 @@ describe('DashboardPage', () => {
     // lifecycle skeleton - never the KPI grid, nor a 0/Estado A fallback.
     expect(await screen.findByTestId('dashboard-lifecycle-loading')).toBeInTheDocument()
     expect(screen.queryByText('0')).not.toBeInTheDocument()
-    expect(screen.queryByText('Inmuebles')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vencido · últimos 6 meses')).not.toBeInTheDocument()
     expect(screen.queryByText('Agregar inmueble')).not.toBeInTheDocument()
   })
 
@@ -403,17 +409,16 @@ describe('DashboardPage', () => {
     expect(link).toHaveAttribute('href', '/rentals/rel-1/payments')
   })
 
-  it('only the "Inmuebles" KPI is a real link (to /properties) - the other three stay non-interactive (DS-004)', async () => {
+  it('none of the four KPI cards are links (DS-004) - the approved design has no 1:1 KPI-to-page match anymore', async () => {
     resolveOneAdministration()
     listProperties.mockResolvedValue([makeProperty()])
     listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
-    const propertiesLink = await screen.findByRole('link', { name: 'Inmuebles 1' })
-    expect(propertiesLink).toHaveAttribute('href', '/properties')
-
-    expect(screen.queryByRole('link', { name: /Ingresos del mes/ })).not.toBeInTheDocument()
+    await screen.findByText('Cobrado de cargos del mes')
+    expect(screen.queryByRole('link', { name: /Cobrado de cargos del mes/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Por cobrar/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Vencido/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Ocupación/ })).not.toBeInTheDocument()
   })
 
@@ -427,7 +432,7 @@ describe('DashboardPage', () => {
     await screen.findByText('Pago pendiente')
     // Unique markers for each section - "Pago pendiente" only ever renders
     // inside AttentionPanel, "Últimos 6 meses" only inside FinancialOverview
-    // (unlike "Ingresos del mes", which is also a KPI label).
+    // (unlike "Cobrado de cargos del mes", which is also a KPI label).
     const attentionIndex = container.textContent.indexOf('Pago pendiente')
     const financialIndex = container.textContent.indexOf('Últimos 6 meses')
 
@@ -443,7 +448,7 @@ describe('DashboardPage', () => {
     listCharges.mockResolvedValue([makeCharge()])
     render(<DashboardPage />)
 
-    await screen.findByText('Ingresos del mes')
+    await screen.findByText('Cobrado de cargos del mes')
     expect(screen.queryByText('Gastos')).not.toBeInTheDocument()
   })
 
@@ -462,25 +467,49 @@ describe('DashboardPage', () => {
     // real property's own PropertiesOverview card, all sharing the same
     // identity label/name by fixture design.
     expect(screen.getAllByText('Apartamento 302')).toHaveLength(3)
-    expect(screen.getByText('$780.000')).toBeInTheDocument()
+    // Appears twice by design, not a bug: once in AttentionPanel's overdue
+    // row and once in the "Vencido" KPI (this fixture's only RENT OVERDUE
+    // charge) - the two are deliberately not mutually exclusive categories.
+    expect(screen.getAllByText('$780.000')).toHaveLength(2)
     const links = screen.getAllByRole('link', { name: 'Ver' })
     expect(links.map(link => link.getAttribute('href'))).toEqual(['/rentals/rel-1/payments', '/rentals/rel-1/charges'])
   })
 
-  it('renders all four KPI labels and the four quick action buttons', async () => {
+  it('renders all four approved KPI labels and the four quick action buttons', async () => {
     resolveOneAdministration()
     listProperties.mockResolvedValue([makeProperty()])
     listRentals.mockResolvedValue([makeRental()])
     render(<DashboardPage />)
 
-    expect(await screen.findByText('Ingresos del mes')).toBeInTheDocument()
+    expect(await screen.findByText('Cobrado de cargos del mes')).toBeInTheDocument()
     expect(screen.getByText('Por cobrar')).toBeInTheDocument()
+    expect(screen.getByText('Vencido · últimos 6 meses')).toBeInTheDocument()
     expect(screen.getByText('Ocupación')).toBeInTheDocument()
-    expect(screen.getByText('Inmuebles')).toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: 'Crear arriendo' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Subir documento' })).toBeInTheDocument()
+  })
+
+  it('renders the real overdueAmount (6-month window, RENT OVERDUE charges only) in the "Vencido" KPI', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-15T12:00:00'))
+
+    resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental()])
+    listCharges.mockResolvedValue([
+      // Overdue, 2 months before "today" - still counted (6-month window, not current-month-only).
+      makeCharge({ id: 'overdue-old', dueDate: '2026-07-05', balance: 300_000, financialStatus: 'OVERDUE' }),
+      // Overdue, current month.
+      makeCharge({ id: 'overdue-current', dueDate: '2026-09-05', balance: 150_000, financialStatus: 'OVERDUE' }),
+      // Partial, not overdue - must not count.
+      makeCharge({ id: 'partial', dueDate: '2026-09-05', balance: 90_000, financialStatus: 'PARTIAL' }),
+    ])
+    render(<DashboardPage />)
+
+    expect(await screen.findByText('Vencido · últimos 6 meses')).toBeInTheDocument()
+    expect(screen.getByText('$450.000')).toBeInTheDocument()
   })
 
   it('shows Estado A (new-owner) when the administration has zero properties, with a real CTA link to /properties/new', async () => {
@@ -492,7 +521,7 @@ describe('DashboardPage', () => {
     const cta = screen.getByRole('link', { name: 'Agregar inmueble' })
     expect(cta).toHaveAttribute('href', '/properties/new')
     // Never the full KPI dashboard nor Estado B's portfolio copy.
-    expect(screen.queryByText('Inmuebles')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vencido · últimos 6 meses')).not.toBeInTheDocument()
     expect(screen.queryByText('Tu portafolio')).not.toBeInTheDocument()
   })
 
@@ -507,7 +536,7 @@ describe('DashboardPage', () => {
     const cta = screen.getByRole('link', { name: 'Registrar arriendo' })
     expect(cta).toHaveAttribute('href', '/rentals/new')
     // Never the full KPI dashboard nor Estado A's onboarding copy.
-    expect(screen.queryByText('Inmuebles')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vencido · últimos 6 meses')).not.toBeInTheDocument()
     expect(screen.queryByText('Agregar tu primer inmueble')).not.toBeInTheDocument()
   })
 
@@ -526,5 +555,86 @@ describe('DashboardPage', () => {
     render(<DashboardPage />)
 
     expect(await screen.findByText('No pudimos cargar tu administración')).toBeInTheDocument()
+  })
+
+  it('shows the no-active-rentals notice when every rental is ENDED (no ACTIVE/ENDING)', async () => {
+    resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental({ status: 'ENDED' })])
+    render(<DashboardPage />)
+
+    expect(
+      await screen.findByText('No tienes arriendos activos actualmente. Puedes consultar el historial de tus arriendos finalizados o registrar uno nuevo.'),
+    ).toBeInTheDocument()
+    // Still Estado C (has-rentals, per the approved classification) - the
+    // KPI grid renders alongside the notice, never Estado B's own copy.
+    expect(screen.getByText('Cobrado de cargos del mes')).toBeInTheDocument()
+    expect(screen.queryByText('Tu portafolio')).not.toBeInTheDocument()
+  })
+
+  it('does not show the no-active-rentals notice when at least one rental is ACTIVE', async () => {
+    resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([makeRental({ status: 'ACTIVE' })])
+    render(<DashboardPage />)
+
+    await screen.findByText('Cobrado de cargos del mes')
+    expect(screen.queryByText(/No tienes arriendos activos/)).not.toBeInTheDocument()
+  })
+
+  it('does not show the no-active-rentals notice when at least one rental is ENDING, even mixed with ENDED/CANCELLED', async () => {
+    resolveOneAdministration()
+    listProperties.mockResolvedValue([makeProperty()])
+    listRentals.mockResolvedValue([
+      makeRental({ id: 'rel-ended', status: 'ENDED' }),
+      makeRental({ id: 'rel-cancelled', status: 'CANCELLED' }),
+      makeRental({ id: 'rel-ending', status: 'ENDING' }),
+    ])
+    render(<DashboardPage />)
+
+    await screen.findByText('Cobrado de cargos del mes')
+    expect(screen.queryByText(/No tienes arriendos activos/)).not.toBeInTheDocument()
+  })
+})
+
+describe('DashboardContent - no-active-rentals notice, fail-closed branches', () => {
+  // DashboardContent itself, rendered directly with controlled props - the
+  // composed DashboardPage can never reach activeRentalStatus 'loading'/
+  // 'error' while also rendering DashboardContent (DashboardView's own
+  // useRentals call shares its queryKey/cache with
+  // useDashboardLifecycleState's internal one, so a real rentals failure
+  // surfaces as the page-level lifecycle error screen first - DashboardContent
+  // never mounts). These two branches are still real, reachable states of
+  // DashboardContentProps itself (e.g. a future caller, or a cache
+  // invalidation race) and must stay fail-closed - tested in isolation here.
+  function baseProps(): DashboardContentProps {
+    return {
+      name: 'Rodrigo',
+      propertiesQuery: { data: [], isLoading: false, isError: false },
+      occupancy: { status: 'ready', occupiedUnits: 0, totalUnits: 0, percentage: null },
+      financials: { status: 'ready', monthlyIncome: 0, monthlyReceivable: 0, overdueAmount: 0, monthlySeries: [] },
+      attention: { status: 'ready', reportedPayments: [] },
+      propertyOccupancy: { status: 'ready', byPropertyId: new Map() },
+    }
+  }
+
+  it('never claims "no active rentals" while the underlying query is loading', () => {
+    render(<DashboardContent {...baseProps()} activeRentalStatus="loading" />)
+    expect(screen.queryByText(/No tienes arriendos activos/)).not.toBeInTheDocument()
+  })
+
+  it('never claims "no active rentals" when the underlying query failed', () => {
+    render(<DashboardContent {...baseProps()} activeRentalStatus="error" />)
+    expect(screen.queryByText(/No tienes arriendos activos/)).not.toBeInTheDocument()
+  })
+
+  it('shows the notice only for the resolved "noActiveOrEnding" state', () => {
+    render(<DashboardContent {...baseProps()} activeRentalStatus="noActiveOrEnding" />)
+    expect(screen.getByText(/No tienes arriendos activos/)).toBeInTheDocument()
+  })
+
+  it('defaults to no notice when activeRentalStatus is omitted (DashboardVisualPreview\'s own fixture)', () => {
+    render(<DashboardContent {...baseProps()} />)
+    expect(screen.queryByText(/No tienes arriendos activos/)).not.toBeInTheDocument()
   })
 })

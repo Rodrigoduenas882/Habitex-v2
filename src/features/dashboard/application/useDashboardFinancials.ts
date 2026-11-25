@@ -11,14 +11,45 @@ export interface DashboardFinancials {
   status: 'loading' | 'error' | 'ready'
   /** Sum of `balance` (amount - paidAmount) for this month's RENT charges - outstanding, not gross. */
   monthlyReceivable: number
-  /** Sum of `paidAmount` for this month's RENT charges - already CONFIRMED-only via charge_balances. */
+  /**
+   * Sum of `paidAmount` for RENT charges whose `dueDate` falls in the
+   * CURRENT calendar month - already CONFIRMED-only via charge_balances.
+   *
+   * IMPORTANT, not cash-received-this-month: this groups by the charge's
+   * `dueDate`, never by when a payment was actually confirmed. A charge due
+   * this month that was paid in advance last month (ADVANCE paymentTiming)
+   * contributes its full paidAmount here even though the cash arrived
+   * earlier; a charge due this month that gets paid next month (ARREARS,
+   * paid late) will NOT appear in this month's figure at all - it shows up
+   * in the month it was due, once paid, regardless of which month the
+   * payment itself lands in. "Cobrado este mes" therefore means "lo ya
+   * pagado de los cargos que vencieron este mes", not "efectivo que entró
+   * a la cuenta este mes". No existing UI copy currently disambiguates
+   * this - flagged for product/copy review, not changed here (INC-DASH-02
+   * was explicitly told not to alter existing financial rules without
+   * separate authorization).
+   */
   monthlyIncome: number
+  /**
+   * Sum of `balance` for RENT charges with `financialStatus === 'OVERDUE'`
+   * (authoritative from charge_balances, never inferred from dates here)
+   * whose `dueDate` falls anywhere in the full 6-month window below - NOT
+   * current-month-only, unlike monthlyReceivable/monthlyIncome above. An
+   * overdue charge from 3 months ago is still real, outstanding arrears
+   * today; limiting this to the current month would silently hide it.
+   * Deliberately NOT mutually exclusive with monthlyReceivable: a RENT
+   * charge due THIS month that is already OVERDUE counts in both - they are
+   * two different lenses (everything outstanding this month vs. the
+   * overdue subset, which also reaches back further) - never sum the two as
+   * if they were disjoint categories.
+   */
+  overdueAmount: number
   /** Last 6 months, income (paidAmount sum) only - no "expenses" concept exists anywhere in the deployed schema. */
   monthlySeries: DashboardFinancialMonth[]
 }
 
-const LOADING: DashboardFinancials = { status: 'loading', monthlyReceivable: 0, monthlyIncome: 0, monthlySeries: [] }
-const ERROR: DashboardFinancials = { status: 'error', monthlyReceivable: 0, monthlyIncome: 0, monthlySeries: [] }
+const LOADING: DashboardFinancials = { status: 'loading', monthlyReceivable: 0, monthlyIncome: 0, overdueAmount: 0, monthlySeries: [] }
+const ERROR: DashboardFinancials = { status: 'error', monthlyReceivable: 0, monthlyIncome: 0, overdueAmount: 0, monthlySeries: [] }
 
 const SERIES_MONTH_COUNT = 6
 
@@ -41,6 +72,12 @@ function isWithinRange(dueDate: string, range: MonthRange): boolean {
  * month, never re-derived from raw payments/allocations - paidAmount/balance
  * always come from the already-merged charge_balances fields the repository
  * provides).
+ *
+ * INC-DASH-02 added `overdueAmount` (see its own doc comment on
+ * DashboardFinancials) by filtering/summing this SAME already-fetched
+ * `rentCharges` array - no new query, no new repository call. The span this
+ * hook already fetches (6 months through the end of the current month) is
+ * exactly the window `overdueAmount` needs.
  */
 export function useDashboardFinancials(administrationId: string | undefined): DashboardFinancials {
   const monthRanges = useMemo(() => lastNMonthRanges(SERIES_MONTH_COUNT), [])
@@ -72,6 +109,9 @@ export function useDashboardFinancials(administrationId: string | undefined): Da
     const currentMonthCharges = rentCharges.filter((charge) => isWithinRange(charge.dueDate, current))
     const monthlyReceivable = currentMonthCharges.reduce((sum, charge) => sum + charge.balance, 0)
     const monthlyIncome = currentMonthCharges.reduce((sum, charge) => sum + charge.paidAmount, 0)
+    const overdueAmount = rentCharges
+      .filter((charge) => charge.financialStatus === 'OVERDUE')
+      .reduce((sum, charge) => sum + charge.balance, 0)
 
     const monthlySeries: DashboardFinancialMonth[] = monthRanges.map((range) => ({
       label: range.label,
@@ -84,6 +124,7 @@ export function useDashboardFinancials(administrationId: string | undefined): Da
       status: 'ready',
       monthlyReceivable,
       monthlyIncome,
+      overdueAmount,
       monthlySeries,
     }
   }, [isError, isSuccess, charges, current, monthRanges])

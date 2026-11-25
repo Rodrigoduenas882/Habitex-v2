@@ -7,15 +7,17 @@
     "eyebrow": "INICIO / RESUMEN GENERAL"
   },
   "kpis": {
-    "monthlyIncome": "Ingresos del mes",
+    "monthlyIncome": "Cobrado de cargos del mes",
     "receivable": "Por cobrar",
+    "overdue": "Vencido · últimos 6 meses",
     "occupancy": "Ocupación",
     "properties": "Inmuebles",
     "occupancyTrend": "{{occupied}} de {{total}} ocupados",
     "occupancyNoData": "Sin unidades registradas",
     "loadError": "No pudimos cargar este dato",
-    "incomeScope": "Abonos confirmados de arriendos del mes",
-    "receivableScope": "Saldo pendiente de arriendos del mes"
+    "incomeScope": "Pagos confirmados aplicados a cargos de arriendo (RENT) con vencimiento este mes",
+    "receivableScope": "Saldo pendiente de arriendos del mes",
+    "overdueScope": "Cargos de arriendo vencidos sin pagar"
   },
   "quickActions": {
     "title": "Acciones rápidas",
@@ -74,6 +76,9 @@
   },
   "noAdministration": {
     "title": "Todavía no tienes una administración"
+  },
+  "noActiveRentals": {
+    "message": "No tienes arriendos activos actualmente. Puedes consultar el historial de tus arriendos finalizados o registrar uno nuevo."
   },
   "lifecycle": {
     "error": {
